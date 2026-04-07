@@ -3,9 +3,15 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { ShoppingBag, Menu, X, Instagram } from 'lucide-react';
+import { ShoppingBag, Menu, X, ChevronDown, Instagram } from 'lucide-react';
 import { useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/dropdown-menu';
 import { cn } from '@/app/components/ui/utils';
 
 /** Reemplazá por tus URLs reales */
@@ -127,7 +133,7 @@ export function Navbar() {
             <div className="hidden flex-wrap items-center justify-end gap-x-6 gap-y-2 lg:flex xl:gap-x-8">
               <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
                 <Link href="/" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                  Inicio
+                  Home
                   {underline}
                 </Link>
               </motion.div>
@@ -269,7 +275,7 @@ export function Navbar() {
                 {!isCatalog && (
                   <>
                     <MobileLink href="/" onNavigate={() => setIsOpen(false)}>
-                      Inicio
+                      Home
                     </MobileLink>
                     <MobileLink href="/#coleccion" onNavigate={() => setIsOpen(false)}>
                       Colección

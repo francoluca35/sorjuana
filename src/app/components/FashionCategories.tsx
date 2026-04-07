@@ -112,7 +112,7 @@ export function FashionCategories() {
                       letterSpacing: '0.05em'
                     }}
                   >
-                    Eleganza Italiana
+                    Elegancia italiana
                   </h3>
                   
                   <p 
@@ -177,7 +177,7 @@ export function FashionCategories() {
                       className="ml-4 text-[#b8956a] tracking-[0.3em] text-xs"
                       style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
                     >
-                      FRANCE
+                      FRANCIA
                     </span>
                   </div>
                   
@@ -190,14 +190,14 @@ export function FashionCategories() {
                       letterSpacing: '0.05em'
                     }}
                   >
-                    Chic Parisien
+                    Chic parisino
                   </h3>
                   
                   <p 
                     className="text-[#e8e3db]/90 mb-6 max-w-md leading-relaxed italic"
                     style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem' }}
                   >
-                    El arte francés de la haute couture, donde cada prenda cuenta una historia de elegancia atemporal.
+                    El arte francés de la alta costura, donde cada prenda cuenta una historia de elegancia atemporal.
                   </p>
                   
                   <div className="inline-flex items-center space-x-3 text-[#b8956a] group-hover:gap-5 transition-all duration-500">

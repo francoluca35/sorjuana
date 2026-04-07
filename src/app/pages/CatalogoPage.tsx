@@ -55,13 +55,13 @@ export function CatalogoPage() {
           className="text-[#1a1410] mb-6 pb-3 border-b-2 border-[#b8956a]/30"
           style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: 400 }}
         >
-          Catégories
+          Categorías
         </h3>
         <div className="space-y-2">
           {[
-            { value: 'all', label: 'Tout' },
+            { value: 'all', label: 'Todas' },
             { value: 'italiana', label: 'Italiana' },
-            { value: 'francesa', label: 'Française' }
+            { value: 'francesa', label: 'Francesa' }
           ].map((filter) => (
             <motion.button
               key={filter.value}
@@ -70,7 +70,7 @@ export function CatalogoPage() {
               className={`w-full text-left px-6 py-3 border-l-2 transition-all duration-300 ${
                 selectedFilter === filter.value
                   ? 'bg-[#b8956a]/10 border-[#b8956a] text-[#1a1410]'
-                  : 'bg-white border-transparent text-[#6b6156] hover:border-[#b8956a]/50 hover:bg-[#e8e3db]'
+                  : 'bg-white border-transparent text-[#6b6156] hover:border-[#b8956a]/50 hover:bg-[#f5f2ed]'
               }`}
               style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
             >
@@ -85,14 +85,14 @@ export function CatalogoPage() {
           className="text-[#1a1410] mb-6 pb-3 border-b-2 border-[#b8956a]/30"
           style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: 400 }}
         >
-          Prix
+          Precio
         </h3>
         <div className="space-y-2">
           {[
-            { value: 'all', label: 'Tous les prix' },
-            { value: 'low', label: 'Moins de $200' },
+            { value: 'all', label: 'Todos los precios' },
+            { value: 'low', label: 'Menos de $200' },
             { value: 'mid', label: '$200 - $300' },
-            { value: 'high', label: 'Plus de $300' }
+            { value: 'high', label: 'Más de $300' }
           ].map((price) => (
             <motion.button
               key={price.value}
@@ -101,7 +101,7 @@ export function CatalogoPage() {
               className={`w-full text-left px-6 py-3 border-l-2 transition-all duration-300 ${
                 priceRange === price.value
                   ? 'bg-[#b8956a]/10 border-[#b8956a] text-[#1a1410]'
-                  : 'bg-white border-transparent text-[#6b6156] hover:border-[#b8956a]/50 hover:bg-[#e8e3db]'
+                  : 'bg-white border-transparent text-[#6b6156] hover:border-[#b8956a]/50 hover:bg-[#f5f2ed]'
               }`}
               style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
             >
@@ -134,7 +134,7 @@ export function CatalogoPage() {
               className="mx-6 text-[#8b6f47] tracking-[0.3em] text-sm"
               style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
             >
-              CATALOGUE
+              CATÁLOGO
             </span>
             <motion.div 
               initial={{ width: 0 }}
@@ -153,18 +153,21 @@ export function CatalogoPage() {
               letterSpacing: '0.05em'
             }}
           >
-            {selectedFilter === 'all' && 'Collection Complète'}
-            {selectedFilter === 'italiana' && 'Eleganza Italiana'}
-            {selectedFilter === 'francesa' && 'Chic Parisien'}
+            {selectedFilter === 'all' && 'Colección completa'}
+            {selectedFilter === 'italiana' && 'Elegancia italiana'}
+            {selectedFilter === 'francesa' && 'Chic parisino'}
           </h1>
           
           <p 
             className="text-[#6b6156] italic"
             style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem' }}
           >
-            {selectedFilter === 'all' && 'Explorez notre collection de mode européenne'}
-            {selectedFilter === 'italiana' && 'La sophistication italienne dans chaque pièce'}
-            {selectedFilter === 'francesa' && 'L\'art français de la haute couture'}
+            {selectedFilter === 'all' &&
+              'Explora nuestra colección de moda europea'}
+            {selectedFilter === 'italiana' &&
+              'La sofisticación italiana en cada pieza'}
+            {selectedFilter === 'francesa' &&
+              'El arte francés de la alta costura'}
           </p>
         </motion.div>
 
@@ -172,14 +175,14 @@ export function CatalogoPage() {
         <motion.button
           whileTap={{ scale: 0.95 }}
           onClick={() => setShowMobileFilter(!showMobileFilter)}
-          className="lg:hidden mb-8 flex items-center space-x-3 bg-[#1a1410] text-[#e8e3db] px-8 py-4 hover:bg-[#b8956a] transition-all duration-500 border border-[#b8956a]/30 w-full justify-center"
+          className="lg:hidden mb-8 flex items-center space-x-3 bg-[#1a1410] text-[#f5f2ed] px-8 py-4 hover:bg-[#b8956a] transition-all duration-500 border border-[#b8956a]/30 w-full justify-center"
         >
           <Filter className="w-5 h-5" strokeWidth={1.5} />
           <span 
             className="tracking-[0.2em] text-sm"
             style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
           >
-            FILTRES
+            FILTROS
           </span>
         </motion.button>
 
@@ -206,7 +209,7 @@ export function CatalogoPage() {
                     className="text-[#1a1410]"
                     style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: 400 }}
                   >
-                    Filtres
+                    Filtros
                   </h2>
                   <button onClick={() => setShowMobileFilter(false)}>
                     <X className="w-6 h-6 text-[#1a1410]" />
@@ -226,7 +229,7 @@ export function CatalogoPage() {
                 className="text-[#1a1410] mb-8"
                 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: 400 }}
               >
-                Filtres
+                Filtros
               </h2>
               <FilterSection />
             </div>
@@ -239,7 +242,8 @@ export function CatalogoPage() {
                 className="text-[#6b6156]"
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
-                {filteredProducts.length} pièces
+                {filteredProducts.length}{' '}
+                {filteredProducts.length === 1 ? 'pieza' : 'piezas'}
               </p>
             </div>
 
@@ -285,7 +289,7 @@ export function CatalogoPage() {
                         initial={{ y: 100 }}
                         className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-500 z-20"
                       >
-                        <button className="w-full bg-[#1a1410] text-[#e8e3db] py-4 flex items-center justify-center space-x-3 hover:bg-[#b8956a] transition-all duration-500 border-t-2 border-[#b8956a]/50">
+                        <button className="w-full bg-[#1a1410] text-[#f5f2ed] py-4 flex items-center justify-center space-x-3 hover:bg-[#b8956a] transition-all duration-500 border-t-2 border-[#b8956a]/50">
                           <ShoppingCart className="w-4 h-4" strokeWidth={1.5} />
                           <span 
                             className="tracking-[0.2em] text-xs"
@@ -302,7 +306,7 @@ export function CatalogoPage() {
                         className="text-[#8b6f47] text-xs mb-2 tracking-[0.2em]"
                         style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
                       >
-                        {product.category === 'italiana' ? 'Italiana' : 'Française'}
+                        {product.category === 'italiana' ? 'Italiana' : 'Francesa'}
                       </div>
                       <h3 
                         className="text-[#1a1410] mb-3 group-hover:text-[#b8956a] transition-colors duration-300"
@@ -336,7 +340,7 @@ export function CatalogoPage() {
                   className="text-[#6b6156] italic"
                   style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.3rem' }}
                 >
-                  Aucun produit trouvé avec ces filtres
+                  No hay productos con estos filtros
                 </p>
               </motion.div>
             )}

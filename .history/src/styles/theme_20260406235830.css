@@ -3,7 +3,7 @@
 :root {
   --font-size: 16px;
   --background: #f5f2ed;
-  --foreground: #2a2520;
+  --foreground: #b76310;
   --card: #ffffff;
   --card-foreground: #2a2520;
   --popover: #ffffff;
@@ -16,7 +16,7 @@
   --muted-foreground: #6b6156;
   --accent: #8b6f47;
   --accent-foreground: #ffffff;
-  --destructive: #8b3a3a;
+  --destructive: #635757;
   --destructive-foreground: #ffffff;
   --border: rgba(42, 37, 32, 0.15);
   --input: transparent;
@@ -40,14 +40,14 @@
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   
-  /* Paleta vintage-contemporánea Sor Juana */
-  --vintage-cream: #f5f2ed;
-  --vintage-beige: #e8e3db;
-  --vintage-gold: #b8956a;
-  --vintage-brown: #8b6f47;
-  --vintage-dark: #2a2520;
-  --vintage-black: #1a1410;
-  --vintage-sepia: #a89080;
+  /* Paleta vin  /* Paleta Sor Juana */
+  --vintage-cream: #f5e5cc;
+  --vintage-beige: #f5e5cc;
+  --vintage-gold: #ff9e0f;
+  --vintage-brown: #7b3c3c;
+  --vintage-dark: #5e2638;
+  --vintage-black: #5e2638;
+  --vintage-sepia: #7d0000;
 
 }
 

@@ -3,9 +3,15 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { ShoppingBag, Menu, X, Instagram } from 'lucide-react';
-import { useState, useEffect, type ReactNode } from 'react';
+import { ShoppingBag, Menu, X, ChevronDown, Instagram } from 'lucide-react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/app/components/ui/dropdown-menu';
 import { cn } from '@/app/components/ui/utils';
 
 /** Reemplazá por tus URLs reales */
@@ -14,6 +20,9 @@ const SOCIAL = {
   instagram: 'https://www.instagram.com/',
   tiktok: 'https://www.tiktok.com/@',
 } as const;
+
+const HOME_SECTIONS = ['coleccion', 'quienes-somos', 'contacto'] as const;
+type HomeSection = 'home' | (typeof HOME_SECTIONS)[number];
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -33,28 +42,68 @@ function TikTokIcon({ className }: { className?: string }) {
 
 const navLinkFont = { fontFamily: 'Montserrat, sans-serif', fontWeight: 300 } as const;
 
+function computeHomeActiveSection(): HomeSection {
+  if (typeof window === 'undefined') return 'home';
+  if (window.scrollY < 72) return 'home';
+  const offset = 140;
+  let current: HomeSection = 'home';
+  for (const id of HOME_SECTIONS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const top = el.getBoundingClientRect().top;
+    if (top <= offset) current = id;
+  }
+  return current;
+}
+
 export function Navbar() {
   const pathname = usePathname();
   const isCatalog = pathname.startsWith('/catalogo');
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [homeSection, setHomeSection] = useState<HomeSection>('home');
 
   const barSolid = scrolled || isCatalog;
 
+  const refreshHomeSection = useCallback(() => {
+    if (pathname === '/') setHomeSection(computeHomeActiveSection());
+  }, [pathname]);
+
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
-    handleScroll();
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    const handleScrollNav = () => setScrolled(window.scrollY > 50);
+    handleScrollNav();
+    window.addEventListener('scroll', handleScrollNav);
+    return () => window.removeEventListener('scroll', handleScrollNav);
   }, []);
 
-  const linkClass = cn(
+  useEffect(() => {
+    if (pathname !== '/') return;
+    refreshHomeSection();
+    const onScroll = () => refreshHomeSection();
+    const onHash = () => refreshHomeSection();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('hashchange', onHash);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('hashchange', onHash);
+    };
+  }, [pathname, refreshHomeSection]);
+
+  useEffect(() => {
+    if (pathname === '/') {
+      requestAnimationFrame(refreshHomeSection);
+    }
+  }, [pathname, refreshHomeSection]);
+
+  const linkBase = cn(
     'relative text-xs tracking-widest uppercase transition-colors duration-300 lg:text-sm',
     barSolid
       ? 'text-[#e8e3db]'
       : 'text-[#f5f2ed] drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]',
-    'hover:text-[#b8956a]',
   );
+
+  const linkClass = (active: boolean) =>
+    cn(linkBase, active ? 'text-[#b8956a]' : 'hover:text-[#b8956a]');
 
   const iconBtnClass = cn(
     'flex h-9 w-9 items-center justify-center rounded-sm transition-colors duration-300',
@@ -71,8 +120,13 @@ export function Navbar() {
     'hover:text-[#b8956a]',
   );
 
-  const underline = (
-    <span className="absolute -bottom-1 left-0 h-px w-0 bg-[#b8956a] transition-all duration-500 group-hover:w-full" />
+  const NavUnderline = ({ active }: { active: boolean }) => (
+    <span
+      className={cn(
+        'absolute -bottom-1 left-0 h-px bg-[#b8956a] transition-all duration-300',
+        active ? 'w-full' : 'w-0 group-hover:w-full',
+      )}
+    />
   );
 
   const dropdownContentClass =
@@ -80,6 +134,12 @@ export function Navbar() {
 
   const dropdownItemClass =
     'cursor-pointer uppercase tracking-widest focus:bg-[#b8956a]/20 focus:text-[#f5f2ed]';
+
+  const triggerClass = (active: boolean) =>
+    cn(
+      linkClass(active),
+      'inline-flex items-center gap-1 border-0 bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-[#b8956a]/50',
+    );
 
   return (
     <motion.nav
@@ -122,38 +182,61 @@ export function Navbar() {
             </motion.div>
           </Link>
 
-          {/* Desktop: landing */}
           {!isCatalog && (
             <div className="hidden flex-wrap items-center justify-end gap-x-6 gap-y-2 lg:flex xl:gap-x-8">
               <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-                <Link href="/" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                  Inicio
-                  {underline}
+                <Link
+                  href="/"
+                  className={cn(linkClass(homeSection === 'home'), 'group relative')}
+                  style={navLinkFont}
+                  aria-current={homeSection === 'home' ? 'page' : undefined}
+                >
+                  Home
+                  <NavUnderline active={homeSection === 'home'} />
                 </Link>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                <Link href="/#coleccion" className={cn(linkClass, 'group relative')} style={navLinkFont}>
+                <Link
+                  href="/#coleccion"
+                  className={cn(linkClass(homeSection === 'coleccion'), 'group relative')}
+                  style={navLinkFont}
+                  aria-current={homeSection === 'coleccion' ? 'page' : undefined}
+                >
                   Colección
-                  {underline}
+                  <NavUnderline active={homeSection === 'coleccion'} />
                 </Link>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-                <Link href="/#quienes-somos" className={cn(linkClass, 'group relative')} style={navLinkFont}>
+                <Link
+                  href="/#quienes-somos"
+                  className={cn(linkClass(homeSection === 'quienes-somos'), 'group relative')}
+                  style={navLinkFont}
+                  aria-current={homeSection === 'quienes-somos' ? 'page' : undefined}
+                >
                   Quiénes somos
-                  {underline}
+                  <NavUnderline active={homeSection === 'quienes-somos'} />
                 </Link>
               </motion.div>
-           
+     
               <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-                <Link href="/catalogo" className={cn(linkClass, 'group relative')} style={navLinkFont}>
+                <Link
+                  href="/catalogo"
+                  className={cn(linkClass(false), 'group relative')}
+                  style={navLinkFont}
+                >
                   Catálogo
-                  {underline}
+                  <NavUnderline active={false} />
                 </Link>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <Link href="/#contacto" className={cn(linkClass, 'group relative')} style={navLinkFont}>
+                <Link
+                  href="/#contacto"
+                  className={cn(linkClass(homeSection === 'contacto'), 'group relative')}
+                  style={navLinkFont}
+                  aria-current={homeSection === 'contacto' ? 'page' : undefined}
+                >
                   Contacto
-                  {underline}
+                  <NavUnderline active={homeSection === 'contacto'} />
                 </Link>
               </motion.div>
               <motion.button
@@ -171,16 +254,20 @@ export function Navbar() {
             </div>
           )}
 
-          {/* Desktop: catálogo */}
           {isCatalog && (
             <div className="hidden items-center justify-end gap-6 lg:flex xl:gap-8">
-              <Link href="/" className={cn(linkClass, 'group relative')} style={navLinkFont}>
+              <Link href="/" className={cn(linkClass(false), 'group relative')} style={navLinkFont}>
                 Inicio
-                {underline}
+                <NavUnderline active={false} />
               </Link>
-              <Link href="/catalogo" className={cn(linkClass, 'group relative')} style={navLinkFont}>
+              <Link
+                href="/catalogo"
+                className={cn(linkClass(true), 'group relative')}
+                style={navLinkFont}
+                aria-current="page"
+              >
                 Catálogo
-                {underline}
+                <NavUnderline active />
               </Link>
               <a
                 href={SOCIAL.whatsapp}
@@ -268,31 +355,65 @@ export function Navbar() {
               <div className="space-y-1 bg-[#1a1410]/95 py-6 backdrop-blur-md">
                 {!isCatalog && (
                   <>
-                    <MobileLink href="/" onNavigate={() => setIsOpen(false)}>
-                      Inicio
+                    <MobileLink
+                      href="/"
+                      active={homeSection === 'home'}
+                      onNavigate={() => setIsOpen(false)}
+                    >
+                      Home
                     </MobileLink>
-                    <MobileLink href="/#coleccion" onNavigate={() => setIsOpen(false)}>
+                    <MobileLink
+                      href="/#coleccion"
+                      active={homeSection === 'coleccion'}
+                      onNavigate={() => setIsOpen(false)}
+                    >
                       Colección
                     </MobileLink>
-                    <MobileLink href="/#quienes-somos" onNavigate={() => setIsOpen(false)}>
+                    <MobileLink
+                      href="/#quienes-somos"
+                      active={homeSection === 'quienes-somos'}
+                      onNavigate={() => setIsOpen(false)}
+                    >
                       Quiénes somos
                     </MobileLink>
-                 
-               
+                    <p
+                      className="px-4 pt-2 text-[10px] tracking-[0.25em] text-[#b8956a]/90 uppercase sm:px-6"
+                      style={navLinkFont}
+                    >
+                      Indumentaria
+                    </p>
+                    <MobileLink
+                      href="/catalogo?filter=italiana"
+                      onNavigate={() => setIsOpen(false)}
+                      indent
+                    >
+                      Italiana
+                    </MobileLink>
+                    <MobileLink
+                      href="/catalogo?filter=francesa"
+                      onNavigate={() => setIsOpen(false)}
+                      indent
+                    >
+                      Francesa
+                    </MobileLink>
                     <MobileLink href="/catalogo" onNavigate={() => setIsOpen(false)}>
                       Catálogo
                     </MobileLink>
-                    <MobileLink href="/#contacto" onNavigate={() => setIsOpen(false)}>
+                    <MobileLink
+                      href="/#contacto"
+                      active={homeSection === 'contacto'}
+                      onNavigate={() => setIsOpen(false)}
+                    >
                       Contacto
                     </MobileLink>
                   </>
                 )}
                 {isCatalog && (
                   <>
-                    <MobileLink href="/" onNavigate={() => setIsOpen(false)}>
+                    <MobileLink href="/" active={false} onNavigate={() => setIsOpen(false)}>
                       Inicio
                     </MobileLink>
-                    <MobileLink href="/catalogo" onNavigate={() => setIsOpen(false)}>
+                    <MobileLink href="/catalogo" active onNavigate={() => setIsOpen(false)}>
                       Catálogo
                     </MobileLink>
                     <div className="flex items-center justify-center gap-6 px-4 pt-4">
@@ -342,21 +463,27 @@ function MobileLink({
   children,
   onNavigate,
   indent,
+  active = false,
 }: {
   href: string;
   children: ReactNode;
   onNavigate: () => void;
   indent?: boolean;
+  active?: boolean;
 }) {
   return (
     <Link
       href={href}
       onClick={onNavigate}
       className={cn(
-        'block px-4 py-2.5 text-sm tracking-widest text-[#e8e3db] uppercase transition-colors hover:text-[#b8956a] sm:px-6',
+        'relative block border-b border-transparent px-4 py-2.5 text-sm tracking-widest uppercase transition-colors sm:px-6',
+        active
+          ? 'border-[#b8956a] text-[#b8956a]'
+          : 'text-[#e8e3db] hover:border-[#b8956a]/40 hover:text-[#b8956a]',
         indent && 'pl-10 sm:pl-12',
       )}
       style={navLinkFont}
+      aria-current={active ? 'page' : undefined}
     >
       {children}
     </Link>

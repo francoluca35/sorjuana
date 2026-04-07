@@ -11,7 +11,7 @@ const products = [
     category: 'Italiana',
     price: 249.99,
     image: 'https://images.unsplash.com/photo-1557161622-5f50ca344787?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwZHJlc3MlMjBmYXNoaW9ufGVufDF8fHx8MTc3NTQxNjY1OHww&ixlib=rb-4.1.0&q=80&w=1080',
-    tag: 'Bestseller'
+    tag: 'Superventas'
   },
   {
     id: 2,
@@ -19,7 +19,7 @@ const products = [
     category: 'Francesa',
     price: 189.99,
     image: 'https://images.unsplash.com/photo-1588025014019-d0f99ee89043?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZXNpZ25lciUyMGNsb3RoaW5nJTIwYWNjZXNzb3JpZXN8ZW58MXx8fHwxNzc1NTA5MDI5fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    tag: 'Populaire'
+    tag: 'Popular'
   },
   {
     id: 3,
@@ -27,7 +27,7 @@ const products = [
     category: 'Italiana',
     price: 299.99,
     image: 'https://images.unsplash.com/photo-1762343292182-b0cb71a19111?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYXNoaW9uJTIwdHJlbmQlMjBtb2Rlcm4lMjBzdHlsZXxlbnwxfHx8fDE3NzU1MDkwMjl8MA&ixlib=rb-4.1.0&q=80&w=1080',
-    tag: 'Essentiel'
+    tag: 'Esencial'
   },
   {
     id: 4,
@@ -35,7 +35,7 @@ const products = [
     category: 'Francesa',
     price: 329.99,
     image: 'https://images.unsplash.com/photo-1637690048998-1e41c61c254d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3b21lbiUyMGZhc2hpb24lMjBzb3BoaXN0aWNhdGVkfGVufDF8fHx8MTc3NTUwOTAzMHww&ixlib=rb-4.1.0&q=80&w=1080',
-    tag: 'Exclusif'
+    tag: 'Exclusivo'
   }
 ];
 
@@ -66,7 +66,7 @@ export function PopularProducts() {
               className="mx-6 text-[#8b6f47] tracking-[0.3em] text-sm"
               style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
             >
-              LES FAVORIS
+              LOS FAVORITOS
             </span>
             <motion.div 
               initial={{ width: 0 }}
@@ -152,7 +152,7 @@ export function PopularProducts() {
                   whileInView={{ y: 0, opacity: 1 }}
                   className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-500 z-20"
                 >
-                  <button className="w-full bg-[#1a1410] text-[#e8e3db] py-4 flex items-center justify-center space-x-3 hover:bg-[#b8956a] transition-all duration-500 border-t border-[#b8956a]/30">
+                  <button className="w-full bg-[#1a1410] text-[#f5f2ed] py-4 flex items-center justify-center space-x-3 hover:bg-[#b8956a] transition-all duration-500 border-t border-[#b8956a]/30">
                     <ShoppingCart className="w-4 h-4" strokeWidth={1.5} />
                     <span 
                       className="tracking-[0.2em] text-xs"
@@ -201,7 +201,7 @@ export function PopularProducts() {
         >
           <Link
             href="/catalogo"
-            className="group inline-flex items-center space-x-4 bg-transparent border-2 border-[#1a1410] text-[#1a1410] px-12 py-5 hover:bg-[#1a1410] hover:text-[#e8e3db] transition-all duration-500 relative overflow-hidden"
+            className="group inline-flex items-center space-x-4 bg-transparent border-2 border-[#1a1410] text-[#1a1410] px-12 py-5 hover:bg-[#1a1410] hover:text-[#f5f2ed] transition-all duration-500 relative overflow-hidden"
           >
             <span 
               className="relative z-10 tracking-[0.25em] text-sm"

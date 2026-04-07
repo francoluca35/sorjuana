@@ -10,7 +10,7 @@ import { motion } from 'motion/react';
 const offers = [
   {
     id: 1,
-    title: 'Nouvelle Collection',
+    title: 'Nueva colección',
     subtitle: 'Primavera 2026',
     description: 'La esencia de la moda italiana renace',
     discount: '30% DE DESCUENTO',
@@ -19,8 +19,8 @@ const offers = [
   },
   {
     id: 2,
-    title: 'Élégance Parisienne',
-    subtitle: 'Collection Exclusive',
+    title: 'Elegancia parisina',
+    subtitle: 'Colección exclusiva',
     description: 'El arte francés de vestir con gracia',
     discount: '25% DE DESCUENTO',
     image: 'https://images.unsplash.com/photo-1694659224329-54c712ec64d7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmVuY2glMjBmYXNoaW9uJTIwZWxlZ2FudCUyMGNsb3RoaW5nfGVufDF8fHx8MTc3NTUwOTAyN3ww&ixlib=rb-4.1.0&q=80&w=1080',
