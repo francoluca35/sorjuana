@@ -7,10 +7,11 @@ import { ShoppingBag, Menu, X, Instagram } from 'lucide-react';
 import { useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/app/components/ui/utils';
+import { siteWhatsAppUrl } from '@/app/config/contact';
 
 /** Reemplazá por tus URLs reales */
 const SOCIAL = {
-  whatsapp: 'https://wa.me/5490000000000',
+  whatsapp: siteWhatsAppUrl,
   instagram: 'https://www.instagram.com/',
   tiktok: 'https://www.tiktok.com/@',
 } as const;
