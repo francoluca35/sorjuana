@@ -46,7 +46,7 @@ export function Footer() {
               className="text-[#e8e3db]/70 max-w-md leading-relaxed mb-6 italic"
               style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.05rem' }}
             >
-              Desde 2015, acercando la elegancia europea a México. Moda italiana y francesa de la más alta calidad, 
+              Desde 2015, acercando la elegancia europea a Merlo, Buenos Aires, Argentina. Moda italiana y francesa de la más alta calidad, 
               seleccionada con pasión y dedicación.
             </p>
             
@@ -139,7 +139,14 @@ export function Footer() {
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
                 <span className="text-[#b8956a] mr-2">•</span>
-                +52 55 1234 5678
+                +54 9 11 1234 5678
+              </li>
+              <li
+                className="text-[#b8956a] flex items-start font-semibold"
+                style={{ fontFamily: 'Montserrat, sans-serif' }}
+              >
+                <span className="text-[#b8956a] mr-2">•</span>
+                ENVIOS A TODO EL PAIS
               </li>
               <li 
                 className="text-[#e8e3db]/70 flex items-start"
@@ -153,8 +160,8 @@ export function Footer() {
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
                 <span className="text-[#b8956a] mr-2">•</span>
-                Av. Reforma 123<br />
-                <span className="ml-4">Ciudad de México</span>
+                Merlo, Buenos Aires<br />
+                <span className="ml-4">Argentina</span>
               </li>
             </ul>
           </motion.div>
@@ -177,11 +184,19 @@ export function Footer() {
             </p>
             
             <div className="flex items-center space-x-4">
-              <span 
+              <span
                 className="text-[#e8e3db]/50 text-xs tracking-wider"
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
-                Diseñado con elegancia
+                Desarrollada por{' '}
+                <a
+                  href="https://deamondd.vercel.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#b8956a] transition-colors hover:text-[#e8e3db] hover:underline underline-offset-2"
+                >
+                  @deamondd
+                </a>
               </span>
               <motion.div
                 animate={{ rotate: 360 }}

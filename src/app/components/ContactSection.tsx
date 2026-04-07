@@ -61,7 +61,7 @@ export function ContactSection() {
             className="text-[#6b6156] mt-4 max-w-2xl mx-auto italic"
             style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.15rem' }}
           >
-            Nuestras puertas están abiertas para recibirte
+            Te esperamos en Merlo, Buenos Aires, Argentina. Hacemos envíos a todo el país.
           </motion.p>
         </motion.div>
 
@@ -87,12 +87,12 @@ export function ContactSection() {
                     {
                       icon: MapPin,
                       title: 'Dirección',
-                      content: ['Av. Reforma 123, Colonia Centro', 'Ciudad de México, CDMX 06000']
+                      content: ['Merlo, Buenos Aires', 'Argentina']
                     },
                     {
                       icon: Phone,
                       title: 'Teléfono',
-                      content: ['+52 55 1234 5678', 'Lunes a sábado: 10:00 - 20:00 h']
+                      content: ['+54 9 11 1234 5678', 'Lunes a sábado: 10:00 - 20:00 h']
                     },
                     {
                       icon: Mail,
@@ -183,7 +183,7 @@ export function ContactSection() {
                   className="text-[#6b6156] mb-6 italic"
                   style={{ fontFamily: 'Cormorant Garamond, serif' }}
                 >
-                  Recibe nuestras novedades y ofertas exclusivas
+                  Recibe nuestras novedades, ofertas exclusivas y beneficios de envíos a todo el país
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -220,14 +220,14 @@ export function ContactSection() {
               <div className="absolute bottom-4 right-4 w-12 h-12 border-b-2 border-r-2 border-[#b8956a] z-10" />
               
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3762.6029215029834!2d-99.16622668509154!3d19.427021486898745!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x85d1ff35f5bd1563%3A0x6c366f0e2de02ff7!2sAv.%20Paseo%20de%20la%20Reforma%2C%20Ju%C3%A1rez%2C%20Cuauht%C3%A9moc%2C%2006600%20Ciudad%20de%20M%C3%A9xico%2C%20CDMX!5e0!3m2!1ses!2smx!4v1635789234567!5m2!1ses!2smx"
+                src="https://www.google.com/maps?q=Merlo,+Buenos+Aires,+Argentina&output=embed"
                 width="100%"
                 height="100%"
                 style={{ border: 0, filter: 'sepia(0.15) contrast(0.9)' }}
                 allowFullScreen
                 loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
-                title="Ubicación Sor Juana"
+                title="Ubicación Sor Juana en Merlo, Buenos Aires, Argentina"
               />
             </div>
           </motion.div>
