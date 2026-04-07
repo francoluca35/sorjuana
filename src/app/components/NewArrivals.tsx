@@ -88,7 +88,7 @@ export function NewArrivals() {
               className="text-[#8b6f47] tracking-[0.3em] text-sm"
               style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
             >
-              NOUVEAUTÉS
+              NOVEDADES
             </span>
             <Sparkles className="w-5 h-5 text-[#b8956a] ml-3" strokeWidth={1.5} />
           </motion.div>
@@ -159,7 +159,7 @@ export function NewArrivals() {
                       className="bg-[#1a1410] text-[#b8956a] px-3 py-1.5 text-xs tracking-[0.2em] border border-[#b8956a]/50 inline-block"
                       style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
                     >
-                      NOUVEAU
+                      NUEVO
                     </motion.span>
                   </div>
                 )}
@@ -167,7 +167,7 @@ export function NewArrivals() {
                 {product.oldPrice && (
                   <div className="absolute top-3 right-3 z-20">
                     <span className="bg-[#8b6f47] text-white px-3 py-1.5 text-xs tracking-wider">
-                      SOLDE
+                      OFERTA
                     </span>
                   </div>
                 )}

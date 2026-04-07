@@ -30,7 +30,7 @@ export function ContactSection() {
               className="mx-6 text-[#8b6f47] tracking-[0.3em] text-sm"
               style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
             >
-              CONTACTEZ-NOUS
+              CONTÁCTANOS
             </span>
             <motion.div 
               initial={{ width: 0 }}
@@ -50,7 +50,7 @@ export function ContactSection() {
               letterSpacing: '0.05em'
             }}
           >
-            Visitez Notre Maison
+            Visítanos
           </h2>
           
           <motion.p 
@@ -61,7 +61,7 @@ export function ContactSection() {
             className="text-[#6b6156] mt-4 max-w-2xl mx-auto italic"
             style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.15rem' }}
           >
-            Nuestras puertas están abiertas para recibirle
+            Nuestras puertas están abiertas para recibirte
           </motion.p>
         </motion.div>
 
@@ -92,11 +92,11 @@ export function ContactSection() {
                     {
                       icon: Phone,
                       title: 'Teléfono',
-                      content: ['+52 55 1234 5678', 'Lun - Sáb: 10:00 AM - 8:00 PM']
+                      content: ['+52 55 1234 5678', 'Lunes a sábado: 10:00 - 20:00 h']
                     },
                     {
                       icon: Mail,
-                      title: 'Email',
+                      title: 'Correo electrónico',
                       content: ['info@sorjuana.com', 'ventas@sorjuana.com']
                     }
                   ].map((item, index) => (
@@ -143,7 +143,7 @@ export function ContactSection() {
                   className="text-[#1a1410] mb-6"
                   style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.75rem', fontWeight: 400 }}
                 >
-                  Réseaux Sociaux
+                  Redes sociales
                 </h3>
                 <div className="flex space-x-4">
                   {[
@@ -177,18 +177,18 @@ export function ContactSection() {
                   className="text-[#1a1410] mb-4"
                   style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.75rem', fontWeight: 400 }}
                 >
-                  Newsletter
+                  Boletín
                 </h3>
                 <p 
                   className="text-[#6b6156] mb-6 italic"
                   style={{ fontFamily: 'Cormorant Garamond, serif' }}
                 >
-                  Recibez nos dernières nouvelles et offres exclusives
+                  Recibe nuestras novedades y ofertas exclusivas
                 </p>
                 <div className="flex gap-2">
                   <input
                     type="email"
-                    placeholder="Votre email"
+                    placeholder="Tu correo electrónico"
                     className="flex-1 px-4 py-3 border-2 border-[#b8956a]/30 focus:outline-none focus:border-[#b8956a] bg-[#f5f2ed] transition-colors duration-300"
                     style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
                   />

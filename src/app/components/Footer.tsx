@@ -56,7 +56,7 @@ export function Footer() {
                 className="text-[#b8956a] tracking-[0.3em] text-xs"
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
-                EST. 2015
+                DESDE 2015
               </span>
               <div className="h-px w-12 bg-[#b8956a]/50" />
             </div>
@@ -78,15 +78,15 @@ export function Footer() {
                 color: '#b8956a'
               }}
             >
-              Navigation
+              Navegación
             </h4>
             <ul className="space-y-3">
               {[
-                { href: '/', label: 'Accueil' },
-                { href: '/catalogo', label: 'Catalogue' },
-                { href: '/catalogo?filter=italiana', label: 'Moda Italiana' },
-                { href: '/catalogo?filter=francesa', label: 'Moda Francesa' },
-                { href: '/#contacto', label: 'Contact' }
+                { href: '/', label: 'Inicio' },
+                { href: '/catalogo', label: 'Catálogo' },
+                { href: '/catalogo?filter=italiana', label: 'Moda italiana' },
+                { href: '/catalogo?filter=francesa', label: 'Moda francesa' },
+                { href: '/#contacto', label: 'Contacto' }
               ].map((link, index) => (
                 <motion.li 
                   key={link.label}
@@ -124,7 +124,7 @@ export function Footer() {
                 color: '#b8956a'
               }}
             >
-              Horaires
+              Horario
             </h4>
             <ul className="space-y-3">
               <li 
@@ -132,7 +132,7 @@ export function Footer() {
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
                 <span className="text-[#b8956a] mr-2">•</span>
-                Lun - Sáb: 10:00 - 20:00
+                Lunes a sábado: 10:00 - 20:00
               </li>
               <li 
                 className="text-[#e8e3db]/70 flex items-start"
@@ -173,7 +173,7 @@ export function Footer() {
               className="text-[#e8e3db]/50 text-sm"
               style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
             >
-              © 2026 Sor Juana. Tous droits réservés.
+              © 2026 Sor Juana. Todos los derechos reservados.
             </p>
             
             <div className="flex items-center space-x-4">
@@ -181,7 +181,7 @@ export function Footer() {
                 className="text-[#e8e3db]/50 text-xs tracking-wider"
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
-                Conçu avec élégance
+                Diseñado con elegancia
               </span>
               <motion.div
                 animate={{ rotate: 360 }}
