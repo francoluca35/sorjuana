@@ -55,7 +55,7 @@ export function FashionCategories() {
   return (
     <section
       id="coleccion"
-      className="relative overflow-hidden scroll-mt-28 bg-[#1a141000] pt-10 pb-0"
+      className="relative overflow-hidden scroll-mt-28 bg-[#1a14101b] pt-10 pb-0"
     >
       {/* Decorative vintage background */}
       <div className="absolute inset-0 opacity-5">
