@@ -13,6 +13,7 @@ import 'slick-carousel/slick/slick-theme.css';
 import { ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
+import { getCloudinaryAsset } from '@/app/config/cloudinaryAssets';
 
 type HeroOffer = {
   id: number;
@@ -44,9 +45,9 @@ const offers: HeroOffer[] = [
     id: 1,
     eyebrow: 'TIENDA SOR JUANA',
     title: 'De europa a tu armario',
-    subtitle: 'Conoce nuestro catalogo completo',
-    image: '/Assets/fondo-home.png',
-    imageMobile: '/Assets/fondo-home-m.png',
+    subtitle: 'Con envios a todo el pais desde Merlo, Buenos Aires, Argentina',
+    image: getCloudinaryAsset('/Assets/fondo-home.png'),
+    imageMobile: getCloudinaryAsset('/Assets/fondo-home-m.png'),
     filter: 'all',
     buttonText: 'DESCUBRIR COLECCIÓN',
     vintageImageFilter: false,
@@ -54,22 +55,26 @@ const offers: HeroOffer[] = [
   {
     id: 2,
     title: 'Temporada Especial',
-    subtitle: 'Ofertas excepcionales',
-    description: 'Piezas únicas, precios extraordinarios',
+    subtitle: 'Ofertas excepcionales + envios a todo el pais',
+    description: 'Piezas únicas, precios extraordinarios y entrega en toda Argentina',
     discount: 'HASTA 50% DE DESCUENTO',
     filter: 'all',
-    videoSrc: '/Assets/video/francia.mp4',
-    videoSrcMobile: '/Assets/video/francia-m.mp4',
+    image:
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1600&q=80',
+    videoSrc: getCloudinaryAsset('/Assets/video/francia.mp4'),
+    videoSrcMobile: getCloudinaryAsset('/Assets/video/francia-m.mp4'),
   },
   {
     id: 3,
     title: 'Nueva colección',
     subtitle: 'Primavera 2026',
-    description: 'La esencia de la moda italiana renace',
+    description: 'La esencia de la moda italiana renace con envios a todo el pais',
     discount: '30% DE DESCUENTO',
     filter: 'italiana',
-    videoSrc: '/Assets/video/italia.mp4',
-    videoSrcMobile: '/Assets/video/italia-m.mp4',
+    image:
+      'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1600&q=80',
+    videoSrc: getCloudinaryAsset('/Assets/video/italia.mp4'),
+    videoSrcMobile: getCloudinaryAsset('/Assets/video/italia-m.mp4'),
   },
 ];
 
@@ -79,6 +84,8 @@ function slideDurationForIndex(index: number) {
 
 export function HeroCarousel() {
   const carouselRootRef = useRef<HTMLDivElement>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
   const [autoplayMs, setAutoplayMs] = useState(() => slideDurationForIndex(0));
 
   const syncActiveHeroVideo = useCallback(() => {
@@ -101,9 +108,15 @@ export function HeroCarousel() {
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
+    const updateViewport = () => setIsMobileViewport(mq.matches);
+    updateViewport();
     const onChange = () => queueMicrotask(() => syncActiveHeroVideo());
+    mq.addEventListener('change', updateViewport);
     mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
+    return () => {
+      mq.removeEventListener('change', updateViewport);
+      mq.removeEventListener('change', onChange);
+    };
   }, [syncActiveHeroVideo]);
 
   const settings = {
@@ -125,6 +138,7 @@ export function HeroCarousel() {
         .forEach((el) => el.pause());
     },
     afterChange: (index: number) => {
+      setCurrentSlide(index);
       setAutoplayMs(slideDurationForIndex(index));
       queueMicrotask(() => syncActiveHeroVideo());
     },
@@ -148,7 +162,7 @@ export function HeroCarousel() {
   return (
     <div ref={carouselRootRef} className="relative w-full overflow-hidden">
       <Slider {...settings}>
-        {offers.map((offer) => (
+        {offers.map((offer, index) => (
           <div key={offer.id} className="relative">
             <div className="relative h-[100dvh] min-h-[100dvh] md:min-h-0 md:h-[800px] overflow-hidden">
               {/* Imagen o video de fondo */}
@@ -159,47 +173,26 @@ export function HeroCarousel() {
                 className="absolute inset-0"
               >
                 {offer.videoSrc ? (
-                  offer.videoSrcMobile ? (
-                    <>
-                      <video
-                        className="hero-carousel-vid--mobile h-full w-full object-cover md:hidden"
-                        muted
-                        loop
-                        playsInline
-                        preload="metadata"
-                        {...(offer.image ? { poster: offer.image } : {})}
-                        aria-hidden
-                        style={getMediaStyle(offer)}
-                      >
-                        <source src={offer.videoSrcMobile} type="video/mp4" />
-                      </video>
-                      <video
-                        className="hero-carousel-vid--desktop hidden h-full w-full object-cover md:block"
-                        muted
-                        loop
-                        playsInline
-                        preload="metadata"
-                        {...(offer.image ? { poster: offer.image } : {})}
-                        aria-hidden
-                        style={getMediaStyle(offer)}
-                      >
-                        <source src={offer.videoSrc} type="video/mp4" />
-                      </video>
-                    </>
-                  ) : (
-                    <video
-                      className="h-full w-full object-cover"
-                      muted
-                      loop
-                      playsInline
-                      preload="metadata"
-                      {...(offer.image ? { poster: offer.image } : {})}
-                      aria-hidden
-                      style={getMediaStyle(offer)}
-                    >
-                      <source src={offer.videoSrc} type="video/mp4" />
-                    </video>
-                  )
+                  <video
+                    className={`h-full w-full object-cover ${
+                      isMobileViewport ? 'hero-carousel-vid--mobile' : 'hero-carousel-vid--desktop'
+                    }`}
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    aria-hidden
+                    style={getMediaStyle(offer)}
+                  >
+                    <source
+                      src={
+                        isMobileViewport && offer.videoSrcMobile
+                          ? offer.videoSrcMobile
+                          : offer.videoSrc
+                      }
+                      type="video/mp4"
+                    />
+                  </video>
                 ) : offer.image ? (
                   offer.imageMobile ? (
                     <picture className="contents">

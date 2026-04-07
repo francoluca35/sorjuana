@@ -1,4 +1,5 @@
 import { HeroCarouselClient } from '../components/HeroCarouselClient';
+import { StoreBenefits } from '../components/StoreBenefits';
 import { FashionCategories } from '../components/FashionCategories';
 import { AboutSection } from '../components/AboutSection';
 import { PopularProducts } from '../components/PopularProducts';
@@ -9,6 +10,7 @@ export function HomePage() {
   return (
     <>
       <HeroCarouselClient />
+      <StoreBenefits />
       <FashionCategories />
       <AboutSection />
       <PopularProducts />

@@ -2,24 +2,60 @@
 
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { motion, useScroll, useTransform } from 'motion/react';
-import { useRef } from 'react';
+import { motion } from 'motion/react';
+import { useState } from 'react';
+import { getCloudinaryAsset } from '@/app/config/cloudinaryAssets';
+
+type CollectionPanel = {
+  title: string;
+  country: string;
+  href: string;
+  videoSrc: string;
+  previewImage: string;
+};
+
+const PANELS: CollectionPanel[] = [
+  {
+    title: 'Elegancia italiana',
+    country: 'ITALIA',
+    href: '/catalogo?filter=italiana',
+    videoSrc: getCloudinaryAsset('/Assets/video/italia.mp4'),
+    previewImage:
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1280&q=80',
+  },
+  {
+    title: 'Chic frances',
+    country: 'FRANCIA',
+    href: '/catalogo?filter=francesa',
+    videoSrc: getCloudinaryAsset('/Assets/video/francia.mp4'),
+    previewImage:
+      'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1280&q=80',
+  },
+  {
+    title: 'Accesorios premium',
+    country: 'EUROPA',
+    href: '/catalogo',
+    videoSrc: getCloudinaryAsset('/Assets/video/italia-m.mp4'),
+    previewImage:
+      'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1280&q=80',
+  },
+  {
+    title: 'Looks urbanos',
+    country: 'COLECCION',
+    href: '/catalogo',
+    videoSrc: 'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594296/francia-m_gxsq71.mp4',
+    previewImage:
+      'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1280&q=80',
+  },
+];
 
 export function FashionCategories() {
-  const containerRef = useRef(null);
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start end", "end start"]
-  });
-
-  const y1 = useTransform(scrollYProgress, [0, 1], [100, -100]);
-  const y2 = useTransform(scrollYProgress, [0, 1], [-100, 100]);
+  const [activePanel, setActivePanel] = useState(0);
 
   return (
     <section
       id="coleccion"
-      ref={containerRef}
-      className="py-32 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto relative overflow-hidden scroll-mt-28"
+      className="relative overflow-hidden scroll-mt-28 py-10"
     >
       {/* Decorative vintage background */}
       <div className="absolute inset-0 opacity-5">
@@ -33,187 +69,143 @@ export function FashionCategories() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 0.8 }}
-        className="text-center mb-20"
+        className="mx-auto mb-20 max-w-7xl px-4 text-center sm:px-6 lg:px-8"
       >
-        <div className="flex items-center justify-center mb-6">
+        <div className="flex items-center justify-center">
           <div className="h-px w-20 bg-gradient-to-r from-transparent to-[#b8956a]" />
-          <span 
+          <span
             className="mx-6 text-[#8b6f47] tracking-[0.3em] text-sm"
             style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
           >
-            NUESTRAS COLECCIONES
+            NUESTRA COLECCION
           </span>
           <div className="h-px w-20 bg-gradient-to-l from-transparent to-[#b8956a]" />
         </div>
-        <h2 
-          className="text-[#1a1410]"
-          style={{ 
-            fontFamily: 'Cormorant Garamond, serif',
-            fontSize: 'clamp(2.5rem, 5vw, 4rem)',
-            fontWeight: 300,
-            letterSpacing: '0.05em'
-          }}
+        <p
+          className="mt-4 text-[#8b6f47] tracking-[0.16em] text-xs sm:text-sm uppercase"
+          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
         >
-          Orígenes Europeos
-        </h2>
+          Envíos a todo el país desde Merlo, Buenos Aires, Argentina
+        </p>
       </motion.div>
 
-      <div className="grid md:grid-cols-2 gap-12">
-        {/* Moda Italiana */}
-        <motion.div 
-          style={{ y: y1 }}
-          className="group relative overflow-hidden cursor-pointer"
-        >
-          <Link href="/catalogo?filter=italiana">
-            <div className="relative h-[600px] overflow-hidden">
-              {/* Vintage frame overlay */}
-              <div className="absolute inset-0 border-8 border-[#e8e3db] z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-              
-              <motion.img
-                whileHover={{ scale: 1.08 }}
-                transition={{ duration: 1, ease: [0.43, 0.13, 0.23, 0.96] }}
-                src="https://images.unsplash.com/photo-1602918222760-fa82314869d7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpdGFsaWFuJTIwZmFzaGlvbiUyMGx1eHVyeSUyMGNsb3RoaW5nfGVufDF8fHx8MTc3NTUwOTAyN3ww&ixlib=rb-4.1.0&q=80&w=1080"
-                alt="Moda Italiana"
-                className="w-full h-full object-cover"
-                style={{ filter: 'sepia(0.1) contrast(1.05)' }}
-              />
-              
-              {/* Gradient overlay with vintage effect */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#1a1410]/95 via-[#1a1410]/40 to-transparent" />
-              <div className="absolute inset-0 bg-[#b8956a]/10 mix-blend-multiply" />
-              
-              {/* Corner ornaments */}
-              <div className="absolute top-6 left-6 w-20 h-20 border-t-2 border-l-2 border-[#b8956a] opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="absolute bottom-6 right-6 w-20 h-20 border-b-2 border-r-2 border-[#b8956a] opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-              
-              <div className="absolute bottom-0 left-0 right-0 p-10">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2, duration: 0.6 }}
-                >
-                  <div className="flex items-center mb-4">
-                    <div className="h-px w-12 bg-[#b8956a]" />
-                    <span 
-                      className="ml-4 text-[#b8956a] tracking-[0.3em] text-xs"
-                      style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
-                    >
-                      ITALIA
-                    </span>
-                  </div>
-                  
-                  <h3 
-                    className="text-[#f5f2ed] mb-4"
-                    style={{ 
-                      fontFamily: 'Cormorant Garamond, serif',
-                      fontSize: 'clamp(2rem, 4vw, 3.5rem)',
-                      fontWeight: 300,
-                      letterSpacing: '0.05em'
+      <div
+        className="hidden md:flex h-[72vh] min-h-[460px] max-h-[760px] w-full overflow-hidden border-y border-[#b8956a]/25 bg-[#1a1410]"
+        onMouseLeave={() => setActivePanel(0)}
+      >
+        {PANELS.map((panel, index) => {
+          const isActive = activePanel === index;
+          return (
+            <Link
+              key={panel.title}
+              href={panel.href}
+              onMouseEnter={() => setActivePanel(index)}
+              className="relative h-full min-w-0 border-r border-[#b8956a]/25 last:border-r-0"
+              style={{
+                flex: isActive ? 7 : 1,
+                transition: 'flex 450ms cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+            >
+              {isActive ? (
+                <video
+                  className="h-full w-full object-cover"
+                  src={panel.videoSrc}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={panel.previewImage}
+                  alt={panel.title}
+                  className="h-full w-full object-cover"
+                />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-[#1a1410]/80 via-[#1a1410]/20 to-transparent" />
+              <div className="absolute inset-0 bg-[#8b6f47]/10 mix-blend-multiply" />
+              {!isActive ? (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span
+                    className="text-[#f5f2ed] tracking-[0.16em] text-[0.9rem] uppercase"
+                    style={{
+                      fontFamily: 'Montserrat, sans-serif',
+                      fontWeight: 400,
+                      writingMode: 'vertical-rl',
+                      transform: 'rotate(180deg)',
                     }}
                   >
-                    Elegancia italiana
-                  </h3>
-                  
-                  <p 
-                    className="text-[#e8e3db]/90 mb-6 max-w-md leading-relaxed italic"
-                    style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem' }}
-                  >
-                    Desde las ateliers de Milano, donde la sofisticación encuentra su máxima expresión en cada costura.
-                  </p>
-                  
-                  <div className="inline-flex items-center space-x-3 text-[#b8956a] group-hover:gap-5 transition-all duration-500">
-                    <span 
-                      className="tracking-[0.2em] text-sm"
-                      style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
-                    >
-                      EXPLORAR
-                    </span>
-                    <ArrowRight className="w-5 h-5" strokeWidth={1.5} />
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-          </Link>
-        </motion.div>
+                    {panel.title}
+                  </span>
+                </div>
+              ) : null}
 
-        {/* Moda Francesa */}
-        <motion.div 
-          style={{ y: y2 }}
-          className="group relative overflow-hidden cursor-pointer"
-        >
-          <Link href="/catalogo?filter=francesa">
-            <div className="relative h-[600px] overflow-hidden">
-              {/* Vintage frame overlay */}
-              <div className="absolute inset-0 border-8 border-[#e8e3db] z-10 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-              
-              <motion.img
-                whileHover={{ scale: 1.08 }}
-                transition={{ duration: 1, ease: [0.43, 0.13, 0.23, 0.96] }}
-                src="https://images.unsplash.com/photo-1694659224329-54c712ec64d7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmVuY2glMjBmYXNoaW9uJTIwZWxlZ2FudCUyMGNsb3RoaW5nfGVufDF8fHx8MTc3NTUwOTAyN3ww&ixlib=rb-4.1.0&q=80&w=1080"
-                alt="Moda Francesa"
-                className="w-full h-full object-cover"
-                style={{ filter: 'sepia(0.1) contrast(1.05)' }}
-              />
-              
-              {/* Gradient overlay with vintage effect */}
-              <div className="absolute inset-0 bg-gradient-to-t from-[#1a1410]/95 via-[#1a1410]/40 to-transparent" />
-              <div className="absolute inset-0 bg-[#b8956a]/10 mix-blend-multiply" />
-              
-              {/* Corner ornaments */}
-              <div className="absolute top-6 left-6 w-20 h-20 border-t-2 border-l-2 border-[#b8956a] opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="absolute bottom-6 right-6 w-20 h-20 border-b-2 border-r-2 border-[#b8956a] opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-              
-              <div className="absolute bottom-0 left-0 right-0 p-10">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.2, duration: 0.6 }}
+              <div
+                className={`absolute bottom-0 left-0 right-0 p-6 transition-all duration-300 ${
+                  isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                }`}
+              >
+                <span
+                  className="text-[#b8956a] tracking-[0.28em] text-xs"
+                  style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
                 >
-                  <div className="flex items-center mb-4">
-                    <div className="h-px w-12 bg-[#b8956a]" />
-                    <span 
-                      className="ml-4 text-[#b8956a] tracking-[0.3em] text-xs"
-                      style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
-                    >
-                      FRANCIA
-                    </span>
-                  </div>
-                  
-                  <h3 
-                    className="text-[#f5f2ed] mb-4"
-                    style={{ 
-                      fontFamily: 'Cormorant Garamond, serif',
-                      fontSize: 'clamp(2rem, 4vw, 3.5rem)',
-                      fontWeight: 300,
-                      letterSpacing: '0.05em'
-                    }}
+                  {panel.country}
+                </span>
+                <h3
+                  className="mt-2 text-[#f5f2ed]"
+                  style={{
+                    fontFamily: 'Cormorant Garamond, serif',
+                    fontSize: 'clamp(1.5rem, 2vw, 2.5rem)',
+                    fontWeight: 300,
+                    letterSpacing: '0.04em',
+                  }}
+                >
+                  {panel.title}
+                </h3>
+                <div className="mt-4 inline-flex items-center gap-2 text-[#b8956a]">
+                  <span
+                    className="tracking-[0.2em] text-xs"
+                    style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
                   >
-                    Chic parisino
-                  </h3>
-                  
-                  <p 
-                    className="text-[#e8e3db]/90 mb-6 max-w-md leading-relaxed italic"
-                    style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem' }}
-                  >
-                    El arte francés de la alta costura, donde cada prenda cuenta una historia de elegancia atemporal.
-                  </p>
-                  
-                  <div className="inline-flex items-center space-x-3 text-[#b8956a] group-hover:gap-5 transition-all duration-500">
-                    <span 
-                      className="tracking-[0.2em] text-sm"
-                      style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
-                    >
-                      EXPLORAR
-                    </span>
-                    <ArrowRight className="w-5 h-5" strokeWidth={1.5} />
-                  </div>
-                </motion.div>
+                    EXPLORAR
+                  </span>
+                  <ArrowRight className="w-4 h-4" strokeWidth={1.5} />
+                </div>
               </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 px-4 sm:px-6 md:hidden">
+        {PANELS.map((panel) => (
+          <Link key={panel.title} href={panel.href} className="relative h-56 overflow-hidden">
+            <img
+              className="h-full w-full object-cover"
+              src={panel.previewImage}
+              alt={panel.title}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#1a1410]/80 via-[#1a1410]/25 to-transparent" />
+            <div className="absolute left-4 bottom-4">
+              <p
+                className="text-[#b8956a] tracking-[0.25em] text-[11px]"
+                style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
+              >
+                {panel.country}
+              </p>
+              <h3
+                className="text-[#f5f2ed]"
+                style={{
+                  fontFamily: 'Cormorant Garamond, serif',
+                  fontSize: '1.8rem',
+                  fontWeight: 300,
+                }}
+              >
+                {panel.title}
+              </h3>
             </div>
           </Link>
-        </motion.div>
+        ))}
       </div>
     </section>
   );
