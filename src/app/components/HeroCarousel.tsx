@@ -1,382 +1,490 @@
 'use client';
 
+import Image from 'next/image';
+import useEmblaCarousel from 'embla-carousel-react';
 import {
   useCallback,
   useEffect,
-  useRef,
   useState,
-  type CSSProperties,
 } from 'react';
-import Slider from 'react-slick';
-import 'slick-carousel/slick/slick.css';
-import 'slick-carousel/slick/slick-theme.css';
-import { ArrowRight } from 'lucide-react';
+import { ArrowUpRight, Plus, ShoppingCart, X } from 'lucide-react';
 import Link from 'next/link';
-import { motion } from 'motion/react';
-import { getCloudinaryAsset } from '@/app/config/cloudinaryAssets';
+import { toast } from 'sonner';
+import { useCart } from '@/app/context/CartContext';
+import { cn } from '@/app/components/ui/utils';
 
-type HeroOffer = {
+type HeroHotspot = {
+  id: string;
+  top: string;
+  left: string;
+  productName: string;
+  price: number;
+  thumbnailSrc: string;
+};
+
+type HeroSlide = {
   id: number;
-  eyebrow?: string;
   title: string;
-  subtitle: string;
-  description?: string;
-  discount?: string;
-  /** Requerida si no hay `videoSrc`; con video, opcional como poster. */
-  image?: string;
-  /** Imagen en móvil (hasta breakpoint `md` de Tailwind). */
+  image: string;
   imageMobile?: string;
-  filter: string;
-  buttonText?: string;
-  /** When false, image keeps natural colors (e.g. branded hero art). */
-  vintageImageFilter?: boolean;
-  /** MP4 URL (muted loop), escritorio (md+). */
-  videoSrc?: string;
-  /** MP4 en móvil (hasta `md`). */
-  videoSrcMobile?: string;
-  /** Tiempo visible de esta slide en ms; por defecto 5 s. */
-  slideDurationMs?: number;
+  filter: 'all' | 'italiana' | 'francesa';
+  hotspots: HeroHotspot[];
+  objectPositionMobile?: string;
+  objectPositionDesktop?: string;
 };
 
 const HERO_AUTOPLAY_MS = 8000;
 
-const offers: HeroOffer[] = [
+const slides: HeroSlide[] = [
   {
     id: 1,
-    eyebrow: 'TIENDA SOR JUANA',
-    title: 'De europa a tu armario',
-    subtitle: 'Con envios a todo el pais desde Merlo, Buenos Aires, Argentina',
-    image: getCloudinaryAsset('/Assets/fondo-home.png'),
-    imageMobile: getCloudinaryAsset('/Assets/fondo-home-m.png'),
-    filter: 'all',
-    buttonText: 'DESCUBRIR COLECCIÓN',
-    vintageImageFilter: false,
+    title: 'ALTA COSTURA FRANCESA',
+    image:
+      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=3840&q=90',
+    imageMobile:
+      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1200&h=1600&q=90',
+    objectPositionMobile: 'center 20%',
+    objectPositionDesktop: 'center center',
+    filter: 'francesa',
+    hotspots: [
+      {
+        id: 'hero-h1a',
+        top: '36%',
+        left: '44%',
+        productName: 'Blusa encaje Saint-Germain',
+        price: 189,
+        thumbnailSrc:
+          'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?auto=format&fit=crop&w=400&h=400&q=88',
+      },
+      {
+        id: 'hero-h1b',
+        top: '58%',
+        left: '48%',
+        productName: 'Pantalón pinzas Marais',
+        price: 219,
+        thumbnailSrc:
+          'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=400&h=400&q=88',
+      },
+    ],
   },
   {
     id: 2,
-    title: 'Temporada Especial',
-    subtitle: 'Ofertas excepcionales + envios a todo el pais',
-    description: 'Piezas únicas, precios extraordinarios y entrega en toda Argentina',
-    discount: 'HASTA 50% DE DESCUENTO',
-    filter: 'all',
+    title: 'MODA ITALIANA 26',
     image:
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1600&q=80',
-    videoSrc: getCloudinaryAsset('/Assets/video/francia.mp4'),
-    videoSrcMobile: getCloudinaryAsset('/Assets/video/francia-m.mp4'),
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=3840&q=90',
+    imageMobile:
+      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&h=1600&q=90',
+    objectPositionMobile: 'center 24%',
+    objectPositionDesktop: 'center 15%',
+    filter: 'italiana',
+    hotspots: [
+      {
+        id: 'hero-h2a',
+        top: '40%',
+        left: '50%',
+        productName: 'Vestido seda Lake Como',
+        price: 289,
+        thumbnailSrc:
+          'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=400&h=400&q=88',
+      },
+      {
+        id: 'hero-h2b',
+        top: '52%',
+        left: '38%',
+        productName: 'Cinturón piel Toscana',
+        price: 95,
+        thumbnailSrc:
+          'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=400&h=400&q=88',
+      },
+    ],
   },
   {
     id: 3,
-    title: 'Nueva colección',
-    subtitle: 'Primavera 2026',
-    description: 'La esencia de la moda italiana renace con envios a todo el pais',
-    discount: '30% DE DESCUENTO',
-    filter: 'italiana',
+    title: 'COSTURA FRANCESA 26',
     image:
-      'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1600&q=80',
-    videoSrc: getCloudinaryAsset('/Assets/video/italia.mp4'),
-    videoSrcMobile: getCloudinaryAsset('/Assets/video/italia-m.mp4'),
+      'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=3840&q=90',
+    imageMobile:
+      'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1200&h=1600&q=90',
+    objectPositionMobile: 'center 26%',
+    objectPositionDesktop: 'center center',
+    filter: 'francesa',
+    hotspots: [
+      {
+        id: 'hero-h3a',
+        top: '34%',
+        left: '42%',
+        productName: 'Abrigo lana Champagne',
+        price: 420,
+        thumbnailSrc:
+          'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?auto=format&fit=crop&w=400&h=400&q=88',
+      },
+      {
+        id: 'hero-h3b',
+        top: '48%',
+        left: '55%',
+        productName: 'Pañuelo seda Lyon',
+        price: 78,
+        thumbnailSrc:
+          'https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?auto=format&fit=crop&w=400&h=400&q=88',
+      },
+    ],
+  },
+  {
+    id: 4,
+    title: 'DOLCE VITA',
+    image:
+      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=3840&q=90',
+    imageMobile:
+      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=1200&h=1600&q=90',
+    objectPositionMobile: 'center 22%',
+    objectPositionDesktop: 'center 30%',
+    filter: 'italiana',
+    hotspots: [
+      {
+        id: 'hero-h4a',
+        top: '38%',
+        left: '46%',
+        productName: 'Blazer ligero Napoli',
+        price: 265,
+        thumbnailSrc:
+          'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=400&h=400&q=88',
+      },
+      {
+        id: 'hero-h4b',
+        top: '55%',
+        left: '44%',
+        productName: 'Pantalón cropped Capri',
+        price: 175,
+        thumbnailSrc:
+          'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=400&h=400&q=88',
+      },
+    ],
   },
 ];
 
-function slideDurationForIndex(index: number) {
-  return offers[index]?.slideDurationMs ?? HERO_AUTOPLAY_MS;
+function catalogHref(filter: HeroSlide['filter']) {
+  return filter === 'all' ? '/catalogo' : `/catalogo?filter=${filter}`;
 }
 
 export function HeroCarousel() {
-  const carouselRootRef = useRef<HTMLDivElement>(null);
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [autoplayMs, setAutoplayMs] = useState(() => slideDurationForIndex(0));
+  const { addItem } = useCart();
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    loop: true,
+    align: 'start',
+    duration: 26,
+    dragFree: false,
+  });
 
-  const syncActiveHeroVideo = useCallback(() => {
-    const root = carouselRootRef.current;
-    if (!root) return;
-    root.querySelectorAll('video').forEach((el) => el.pause());
-    const activeSlide = root.querySelector('.slick-slide.slick-active');
-    if (!activeSlide) return;
-    const isMobile = window.matchMedia('(max-width: 767px)').matches;
-    const preferred = activeSlide.querySelector(
-      isMobile
-        ? 'video.hero-carousel-vid--mobile'
-        : 'video.hero-carousel-vid--desktop'
-    ) as HTMLVideoElement | null;
-    const toPlay =
-      preferred ??
-      (activeSlide.querySelector('video') as HTMLVideoElement | null);
-    void toPlay?.play();
+  const [selected, setSelected] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  const [activeHotspot, setActiveHotspot] = useState<HeroHotspot | null>(null);
+  const [modalPos, setModalPos] = useState<{
+    top: number;
+    left: number;
+    placeAbove: boolean;
+  } | null>(null);
+
+  const closeHotspotModal = useCallback(() => {
+    setActiveHotspot(null);
+    setModalPos(null);
   }, []);
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)');
-    const updateViewport = () => setIsMobileViewport(mq.matches);
-    updateViewport();
-    const onChange = () => queueMicrotask(() => syncActiveHeroVideo());
-    mq.addEventListener('change', updateViewport);
-    mq.addEventListener('change', onChange);
-    return () => {
-      mq.removeEventListener('change', updateViewport);
-      mq.removeEventListener('change', onChange);
+    if (!emblaApi) return;
+    const sync = () => {
+      setSelected(emblaApi.selectedScrollSnap());
+      closeHotspotModal();
     };
-  }, [syncActiveHeroVideo]);
+    sync();
+    emblaApi.on('reInit', sync);
+    emblaApi.on('select', sync);
+    return () => {
+      emblaApi.off('reInit', sync);
+      emblaApi.off('select', sync);
+    };
+  }, [emblaApi, closeHotspotModal]);
 
-  const settings = {
-    dots: true,
-    infinite: true,
-    speed: 800,
-    slidesToShow: 1,
-    slidesToScroll: 1,
-    autoplay: true,
-    autoplaySpeed: autoplayMs,
-    fade: true,
-    cssEase: 'cubic-bezier(0.87, 0, 0.13, 1)',
-    /* En móvil el toque dispara “hover” y a veces no hay mouseleave: el autoplay queda colgado para siempre. */
-    pauseOnHover: false,
-    pauseOnDotsHover: false,
-    beforeChange: () => {
-      carouselRootRef.current
-        ?.querySelectorAll('video')
-        .forEach((el) => el.pause());
-    },
-    afterChange: (index: number) => {
-      setCurrentSlide(index);
-      setAutoplayMs(slideDurationForIndex(index));
-      queueMicrotask(() => syncActiveHeroVideo());
-    },
-    customPaging: () => (
-      <div className="mt-4">
-        <div className="w-12 h-0.5 bg-[#b8956a]/30 hover:bg-[#b8956a] transition-all duration-500 cursor-pointer" />
-      </div>
-    ),
-    appendDots: (dots: React.ReactNode) => (
-      <div className="bottom-12">
-        <ul className="flex justify-center space-x-4"> {dots} </ul>
-      </div>
-    ),
-  };
+  useEffect(() => {
+    if (!emblaApi || paused) return;
+    const id = window.setInterval(() => {
+      emblaApi.scrollNext();
+    }, HERO_AUTOPLAY_MS);
+    return () => window.clearInterval(id);
+  }, [emblaApi, paused]);
 
-  const getMediaStyle = (offer: HeroOffer): CSSProperties | undefined =>
-    offer.vintageImageFilter === false
-      ? undefined
-      : { filter: 'sepia(0.15) contrast(1.1)' };
+  useEffect(() => {
+    if (!activeHotspot) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeHotspotModal();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeHotspot, closeHotspotModal]);
+
+  const openHotspot = useCallback(
+    (h: HeroHotspot, el: HTMLButtonElement) => {
+      const rect = el.getBoundingClientRect();
+      const margin = 12;
+      const estH = 300;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const placeAbove = spaceBelow < estH + margin;
+      const halfModal = 168;
+      const cx = rect.left + rect.width / 2;
+      const left = Math.min(
+        Math.max(cx, margin + halfModal),
+        window.innerWidth - margin - halfModal,
+      );
+      setModalPos({
+        top: placeAbove ? rect.top - margin : rect.bottom + margin,
+        left,
+        placeAbove,
+      });
+      setActiveHotspot(h);
+    },
+    [],
+  );
+
+  const onAddHotspotToCart = useCallback(() => {
+    if (!activeHotspot) return;
+    addItem({
+      id: activeHotspot.id,
+      name: activeHotspot.productName,
+      price: activeHotspot.price,
+    });
+    toast.success('Prenda añadida al carrito');
+    closeHotspotModal();
+  }, [activeHotspot, addItem, closeHotspotModal]);
+
+  const scrollTo = useCallback(
+    (i: number) => emblaApi?.scrollTo(i),
+    [emblaApi],
+  );
 
   return (
-    <div ref={carouselRootRef} className="relative w-full overflow-hidden">
-      <Slider {...settings}>
-        {offers.map((offer, index) => (
-          <div key={offer.id} className="relative">
-            <div className="relative h-[100dvh] min-h-[100dvh] md:min-h-0 md:h-[800px] overflow-hidden">
-              {/* Imagen o video de fondo */}
-              <motion.div
-                initial={{ scale: 1.1 }}
-                animate={{ scale: 1 }}
-                transition={{ duration: 8, ease: "easeOut" }}
-                className="absolute inset-0"
-              >
-                {offer.videoSrc ? (
-                  <video
-                    className={`h-full w-full object-cover ${
-                      isMobileViewport ? 'hero-carousel-vid--mobile' : 'hero-carousel-vid--desktop'
-                    }`}
-                    muted
-                    loop
-                    playsInline
-                    preload="metadata"
-                    aria-hidden
-                    style={getMediaStyle(offer)}
-                  >
-                    <source
-                      src={
-                        isMobileViewport && offer.videoSrcMobile
-                          ? offer.videoSrcMobile
-                          : offer.videoSrc
-                      }
-                      type="video/mp4"
-                    />
-                  </video>
-                ) : offer.image ? (
-                  offer.imageMobile ? (
-                    <picture className="contents">
-                      <source
-                        media="(max-width: 767px)"
-                        srcSet={offer.imageMobile}
-                      />
-                      <img
-                        src={offer.image}
-                        alt={offer.title}
-                        className="h-full w-full object-cover"
-                        style={getMediaStyle(offer)}
-                      />
-                    </picture>
-                  ) : (
-                    <img
-                      src={offer.image}
-                      alt={offer.title}
-                      className="h-full w-full object-cover"
-                      style={getMediaStyle(offer)}
-                    />
-                  )
-                ) : null}
-              </motion.div>
+    <section
+      className={cn(
+        'relative isolate w-full overflow-hidden bg-[#1a1410]',
+        /* Viewport completo (móvil sin tocar; en desktop ya no hay recorte ni hueco con la sección de abajo) */
+        'min-h-[100dvh] h-[100dvh]',
+      )}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      aria-roledescription="carrusel"
+    >
+      <div
+        ref={emblaRef}
+        className="h-full min-h-0 overflow-hidden"
+      >
+        <div className="flex h-full">
+          {slides.map((slide, index) => (
+            <div
+              key={slide.id}
+              className="relative h-full min-h-0 min-w-0 shrink-0 grow-0 basis-full"
+            >
+              <div className="relative h-full w-full">
+                {/* Capa imagen — móvil / escritorio optimizados */}
+                <div className="absolute inset-0">
+                  <Image
+                    src={slide.imageMobile ?? slide.image}
+                    alt={slide.title}
+                    fill
+                    priority={index === 0}
+                    quality={88}
+                    sizes="100vw"
+                    className="object-cover md:hidden"
+                    style={{
+                      objectPosition:
+                        slide.objectPositionMobile ?? 'center 22%',
+                    }}
+                  />
+                  <Image
+                    src={slide.image}
+                    alt={slide.title}
+                    fill
+                    priority={index === 0}
+                    quality={90}
+                    sizes="100vw"
+                    className="hidden object-cover md:block"
+                    style={{
+                      objectPosition:
+                        slide.objectPositionDesktop ?? 'center center',
+                    }}
+                  />
+                </div>
 
-              {/* Vintage overlay — lighter on branded hero so the collage reads */}
-              <div
-                className={
-                  offer.vintageImageFilter === false
-                    ? 'absolute inset-0 bg-gradient-to-br from-[#1a1410]/55 via-[#2a2520]/35 to-transparent'
-                    : 'absolute inset-0 bg-gradient-to-br from-[#1a1410]/80 via-[#2a2520]/50 to-transparent'
-                }
-              />
-              <div
-                className={
-                  offer.vintageImageFilter === false
-                    ? 'absolute inset-0 mix-blend-multiply opacity-20'
-                    : 'absolute inset-0 mix-blend-multiply opacity-30'
-                }
-                style={{
-                  background:
-                    'radial-gradient(ellipse at center, transparent 0%, #1a1410 100%)',
-                }}
-              />
-              
-              {/* Decorative vintage frame */}
-              <div className="absolute inset-8 border-2 border-[#b8956a]/20 pointer-events-none">
-                <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-[#b8956a]" />
-                <div className="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-[#b8956a]" />
-                <div className="absolute bottom-0 left-0 w-16 h-16 border-b-2 border-l-2 border-[#b8956a]" />
-                <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-[#b8956a]" />
-              </div>
-              
-              <div className="absolute inset-0 flex items-center pt-[6.25rem] sm:pt-28 md:pt-[6.5rem]">
-                <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 w-full">
-                  <div className="max-w-3xl">
-                    {/* Ornamental divider */}
-                    {offer.eyebrow ? (
-                      <motion.p
-                        initial={{ opacity: 0, y: -12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2, duration: 0.6 }}
-                        className="text-[#e8e3db]/90 tracking-[0.35em] text-xs sm:text-sm mb-6"
-                        style={{
-                          fontFamily: 'Montserrat, sans-serif',
-                          fontWeight: 400,
-                        }}
-                      >
-                        {offer.eyebrow}
-                      </motion.p>
-                    ) : null}
+                <div
+                  className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/15"
+                  aria-hidden
+                />
 
-                    <motion.div
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: 100, opacity: 1 }}
-                      transition={{ delay: 0.3, duration: 0.8 }}
-                      className="h-px bg-gradient-to-r from-[#b8956a] to-transparent mb-8"
-                    />
-
-                    {offer.discount ? (
-                      <motion.div
-                        initial={{ opacity: 0, y: 30 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5, duration: 0.8 }}
-                        className="inline-block border border-[#b8956a] px-8 py-3 mb-6 backdrop-blur-sm bg-[#1a1410]/30"
-                      >
-                        <span
-                          className="text-[#b8956a] tracking-[0.3em] text-sm"
-                          style={{
-                            fontFamily: 'Montserrat, sans-serif',
-                            fontWeight: 300,
-                          }}
-                        >
-                          {offer.discount}
-                        </span>
-                      </motion.div>
-                    ) : null}
-                    
-                    <motion.div
-                      initial={{ opacity: 0, x: -30 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.7, duration: 0.8 }}
-                      className={offer.description ? undefined : 'mb-10'}
+                <div className="absolute inset-0 z-20">
+                  {slide.hotspots.map((h) => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={(e) => openHotspot(h, e.currentTarget)}
+                      className="absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur-sm transition hover:scale-105 hover:bg-black/65 active:scale-95 md:h-10 md:w-10"
+                      style={{ top: h.top, left: h.left }}
+                      aria-label={`Ver ${h.productName}`}
                     >
-                      <h1 
-                        className="text-[#f5f2ed] mb-3 drop-shadow-2xl"
-                        style={{ 
-                          fontFamily: 'Cormorant Garamond, serif',
-                          fontSize: 'clamp(3rem, 7vw, 6rem)',
-                          lineHeight: '1.1',
-                          fontWeight: 300,
-                          letterSpacing: '0.02em'
-                        }}
-                      >
-                        {offer.title}
-                      </h1>
-                      <p 
-                        className="text-[#ffffff] mb-3 tracking-widest"
-                        style={{ 
-                          fontFamily: 'Montserrat, sans-serif',
-                          fontSize: 'clamp(0.9rem, 2vw, 1.2rem)',
-                          fontWeight: 300,
-                          letterSpacing: '0.2em'
-                        }}
-                      >
-                        {offer.subtitle}
-                      </p>
-                    </motion.div>
-                    
-                    {offer.description ? (
-                      <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.9, duration: 0.8 }}
-                        className="text-[#e8e3db] text-xl mb-10 italic max-w-lg"
-                        style={{
-                          fontFamily: 'Cormorant Garamond, serif',
-                          fontWeight: 300,
-                        }}
-                      >
-                        {offer.description}
-                      </motion.p>
-                    ) : null}
-                    
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 1.1, duration: 0.8 }}
+                      <Plus className="h-5 w-5 md:h-[1.35rem] md:w-[1.35rem]" strokeWidth={2.25} />
+                    </button>
+                  ))}
+                </div>
+
+                <div
+                  className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-end"
+                  style={{
+                    paddingBottom: 'max(1.75rem, env(safe-area-inset-bottom))',
+                    paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+                    paddingRight: 'max(1rem, env(safe-area-inset-right))',
+                  }}
+                >
+                  <div className="max-w-[min(100%,22rem)] pb-20 sm:max-w-xl sm:pb-24 md:pb-28 md:pl-2 lg:pl-4">
+                    <h1
+                      className="mb-3 text-balance text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)] sm:mb-4"
+                      style={{
+                        fontFamily: 'Montserrat, sans-serif',
+                        fontWeight: 700,
+                        fontSize:
+                          'clamp(1.35rem, calc(0.35rem + 3.8vw), 3rem)',
+                        lineHeight: 1.05,
+                        letterSpacing: '0.06em',
+                      }}
                     >
+                      {slide.title}
+                    </h1>
+                    <div className="pointer-events-auto">
                       <Link
-                        href={`/catalogo${offer.filter !== 'all' ? `?filter=${offer.filter}` : ''}`}
-                        className="group inline-flex items-center space-x-4 bg-transparent border-2 border-[#b8956a] text-[#f5f2ed] px-10 py-5 hover:bg-[#b8956a] hover:border-[#b8956a] transition-all duration-500 relative overflow-hidden"
+                        href={catalogHref(slide.filter)}
+                        className="group inline-flex max-w-full items-center gap-2.5 rounded-full bg-white px-4 py-2.5 text-[#1a1410] shadow-md transition hover:bg-[#f5f2ed] sm:gap-3 sm:px-6 sm:py-3"
+                        style={{
+                          fontFamily: 'Montserrat, sans-serif',
+                          fontWeight: 600,
+                          fontSize: 'clamp(0.65rem, 1.1vw + 0.45rem, 0.8rem)',
+                          letterSpacing: '0.14em',
+                        }}
                       >
-                        <span
-                          className="relative z-10 tracking-[0.2em] text-sm"
-                          style={{
-                            fontFamily: 'Montserrat, sans-serif',
-                            fontWeight: 400,
-                          }}
-                        >
-                          {offer.buttonText ?? 'DESCUBRIR COLECCIÓN'}
+                        <span className="whitespace-nowrap">VER CATÁLOGO</span>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-black/[0.07] transition group-hover:bg-black/12 sm:h-9 sm:w-9">
+                          <ArrowUpRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2.2} aria-hidden />
                         </span>
-                        <ArrowRight className="w-5 h-5 relative z-10 group-hover:translate-x-2 transition-transform duration-500" strokeWidth={1.5} />
-                        <div className="absolute inset-0 bg-[#8b6f47] transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
                       </Link>
-                    </motion.div>
-
-                    {/* Decorative ornament */}
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 0.3, scale: 1 }}
-                      transition={{ delay: 1.3, duration: 1 }}
-                      className="mt-12 text-[#b8956a] text-4xl"
-                      style={{ fontFamily: 'Cormorant Garamond, serif' }}
-                    >
-                      ❦
-                    </motion.div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Paginación */}
+      <div
+        className="pointer-events-auto absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-0 right-0 z-30 flex justify-center gap-3 px-4 md:bottom-8"
+        role="tablist"
+        aria-label="Slides del hero"
+      >
+        {slides.map((s, i) => (
+          <button
+            key={s.id}
+            type="button"
+            role="tab"
+            aria-selected={selected === i}
+            aria-label={`Slide ${i + 1} de ${slides.length}`}
+            onClick={() => scrollTo(i)}
+            className="flex items-center p-2"
+          >
+            <span
+              className={cn(
+                'block h-[2px] rounded-full transition-all duration-500 ease-out md:h-[3px]',
+                selected === i
+                  ? 'w-10 bg-white shadow-[0_0_12px_rgba(255,255,255,0.35)] md:w-12'
+                  : 'w-6 bg-white/35 hover:w-7 hover:bg-white/55 md:w-7',
+              )}
+            />
+          </button>
         ))}
-      </Slider>
-    </div>
+      </div>
+
+      {activeHotspot && modalPos ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px]"
+            aria-label="Cerrar"
+            onClick={closeHotspotModal}
+          />
+          <div
+            className="fixed z-[101] w-[min(calc(100vw-1.5rem),20rem)] rounded-xl border border-white/15 bg-[#1a1410]/96 p-4 text-[#f5f2ed] shadow-2xl backdrop-blur-md sm:p-5"
+            style={{
+              left: modalPos.left,
+              top: modalPos.top,
+              transform: modalPos.placeAbove
+                ? 'translate(-50%, calc(-100% - 8px))'
+                : 'translate(-50%, 8px)',
+            }}
+          >
+            <div className="relative mb-3">
+              <button
+                type="button"
+                onClick={closeHotspotModal}
+                className="absolute top-0 right-0 z-10 rounded-md p-1 text-[#e8e3db]/85 hover:bg-white/10 hover:text-white"
+                aria-label="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div className="flex gap-3 pr-8">
+                <div className="relative h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/25 sm:h-[5.25rem] sm:w-[5.25rem]">
+                  <Image
+                    src={activeHotspot.thumbnailSrc}
+                    alt={activeHotspot.productName}
+                    width={112}
+                    height={112}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p
+                    className="text-[0.62rem] uppercase tracking-[0.22em] text-[#b8956a]"
+                    style={{ fontFamily: 'Montserrat, sans-serif' }}
+                  >
+                    Prenda destacada
+                  </p>
+                  <p
+                    className="mt-1 text-[0.95rem] leading-snug text-[#f5f2ed] sm:text-base"
+                    style={{
+                      fontFamily: 'Montserrat, sans-serif',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {activeHotspot.productName}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <p
+              className="mb-4 text-xl text-white sm:text-2xl"
+              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
+            >
+              ${' '}
+              {activeHotspot.price.toLocaleString('es-AR', {
+                minimumFractionDigits: 2,
+              })}
+            </p>
+            <button
+              type="button"
+              onClick={onAddHotspotToCart}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#b8956a] py-3 text-xs tracking-[0.14em] text-[#1a1410] transition hover:bg-[#c9a578] sm:text-sm sm:tracking-[0.15em]"
+              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+            >
+              <ShoppingCart className="h-4 w-4" strokeWidth={2} />
+              AÑADIR AL CARRITO
+            </button>
+          </div>
+        </>
+      ) : null}
+    </section>
   );
 }

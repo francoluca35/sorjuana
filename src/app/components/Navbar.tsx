@@ -8,6 +8,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/app/components/ui/utils';
 import { siteWhatsAppUrl } from '@/app/config/contact';
+import { useCart } from '@/app/context/CartContext';
 
 /** Reemplazá por tus URLs reales */
 const SOCIAL = {
@@ -36,6 +37,7 @@ const navLinkFont = { fontFamily: 'Montserrat, sans-serif', fontWeight: 300 } as
 
 export function Navbar() {
   const pathname = usePathname();
+  const { totalCount } = useCart();
   const isCatalog = pathname.startsWith('/catalogo');
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -166,7 +168,7 @@ export function Navbar() {
               >
                 <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  (0)
+                  ({totalCount})
                 </span>
               </motion.button>
             </div>
@@ -219,7 +221,7 @@ export function Navbar() {
               >
                 <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  (0)
+                  ({totalCount})
                 </span>
               </motion.button>
             </div>
@@ -235,7 +237,7 @@ export function Navbar() {
             >
               <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
               <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                (0)
+                ({totalCount})
               </span>
             </motion.button>
             <motion.button

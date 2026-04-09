@@ -11,7 +11,6 @@ import {
   ShieldCheck,
   Play,
   ChevronRight,
-  ChevronLeft,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -22,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from './ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { cn } from './ui/utils';
 
 /** URLs de muestra — reemplazá por tus .mp4 (Cloudinary, CDN propio, etc.) */
@@ -47,42 +47,6 @@ export type PopularProduct = {
   perks: string[];
   stockHint: string;
 };
-
-type ModalSlide =
-  | { kind: 'video'; src: string; poster: string; label: string }
-  | { kind: 'image'; src: string; label: string };
-
-function productToSlides(p: PopularProduct): ModalSlide[] {
-  const slides: ModalSlide[] = [
-    { kind: 'video', src: p.videoSrc, poster: p.poster, label: 'Video principal' },
-  ];
-  const seen = new Set<string>([`video:${p.videoSrc}`]);
-
-  let fotoIdx = 0;
-  for (const src of p.gallery) {
-    const key = `image:${src}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    fotoIdx += 1;
-    slides.push({ kind: 'image', src, label: `Foto ${fotoIdx}` });
-  }
-
-  let extraVideoIdx = 1;
-  for (const src of p.detailVideos) {
-    const key = `video:${src}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    extraVideoIdx += 1;
-    slides.push({
-      kind: 'video',
-      src,
-      poster: p.poster,
-      label: `Video ${extraVideoIdx}`,
-    });
-  }
-
-  return slides;
-}
 
 const products: PopularProduct[] = [
   {
@@ -265,47 +229,21 @@ function ProductCardVideo({
 export function PopularProducts() {
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState<PopularProduct | null>(null);
-  const [slideIndex, setSlideIndex] = React.useState(0);
   const reducedMotion = usePrefersReducedMotion();
-
-  const modalSlides = React.useMemo(() => (active ? productToSlides(active) : []), [active]);
+  const modalVideoRef = React.useRef<HTMLVideoElement>(null);
 
   const openProduct = (p: PopularProduct) => {
     setActive(p);
-    setSlideIndex(0);
     setOpen(true);
   };
 
   React.useEffect(() => {
-    setSlideIndex(0);
-  }, [active?.id]);
-
-  const goSlide = React.useCallback(
-    (delta: number) => {
-      if (modalSlides.length === 0) return;
-      setSlideIndex((i) => (i + delta + modalSlides.length) % modalSlides.length);
-    },
-    [modalSlides.length],
-  );
-
-  React.useEffect(() => {
-    if (!open || modalSlides.length === 0) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        goSlide(-1);
-      }
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        goSlide(1);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, modalSlides.length, goSlide]);
-
-  const modalSlide =
-    active && modalSlides.length > 0 ? modalSlides[Math.min(slideIndex, modalSlides.length - 1)] : null;
+    if (!open) {
+      modalVideoRef.current?.pause();
+    } else {
+      void modalVideoRef.current?.play().catch(() => {});
+    }
+  }, [open, active?.id]);
 
   return (
     <section className="relative overflow-hidden bg-[#f5f2ed] px-4 py-28 sm:px-6 lg:px-8">
@@ -343,7 +281,13 @@ export function PopularProducts() {
             Productos Mas Vendidos
           </h2>
 
-       
+          <p
+            className="mx-auto mb-8 max-w-2xl text-[#6b6156]"
+            style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '0.95rem', fontWeight: 400 }}
+          >
+            Tocá cualquier pieza: abrís ficha completa con fotos, clips y beneficios para decidir
+            rápido. Envío express y cambios sin vueltas.
+          </p>
 
           <div className="mx-auto flex flex-wrap items-center justify-center gap-6 text-[#5c5349]">
             <span className="flex items-center gap-2 text-sm">
@@ -541,143 +485,20 @@ export function PopularProducts() {
               </DialogHeader>
 
               <div className="grid lg:grid-cols-[1.05fr_1fr]">
-                <div className="relative flex flex-col border-b border-[#1a1410]/10 bg-[#0a0a0a] lg:min-h-0 lg:border-b-0 lg:border-r">
-                  {modalSlide ? (
-                    <>
-                      <div className="relative flex min-h-[min(46vh,400px)] w-full flex-1 items-center justify-center overflow-hidden lg:min-h-[min(72vh,780px)]">
-                        {modalSlide.kind === 'video' ? (
-                          <video
-                            key={`${active.id}-slide-${slideIndex}`}
-                            className="max-h-[min(46vh,400px)] w-full max-w-full object-contain lg:max-h-[min(72vh,780px)]"
-                            poster={modalSlide.poster}
-                            src={modalSlide.src}
-                            controls
-                            playsInline
-                            preload="metadata"
-                          />
-                        ) : (
-                          <div className="relative h-[min(46vh,400px)] w-full max-w-full lg:h-[min(72vh,780px)]">
-                            <Image
-                              src={modalSlide.src}
-                              alt=""
-                              fill
-                              className="object-contain object-center"
-                              sizes="(max-width: 1024px) 96vw, 52vw"
-                              priority={slideIndex === 0}
-                            />
-                          </div>
-                        )}
-
-                        <div className="pointer-events-none absolute left-3 top-3 z-10 border border-white/25 bg-black/60 px-2.5 py-1 text-[10px] tracking-[0.18em] text-white backdrop-blur-sm">
-                          {modalSlide.kind === 'video' ? (
-                            <span
-                              className="flex items-center gap-1.5"
-                              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-                            >
-                              <Play className="size-3 fill-current" aria-hidden />
-                              {modalSlide.label.toUpperCase()}
-                            </span>
-                          ) : (
-                            <span style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}>
-                              {modalSlide.label.toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-
-                        {modalSlides.length > 1 ? (
-                          <div
-                            className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/15 bg-black/65 px-3 py-1 text-[11px] tabular-nums text-white backdrop-blur-sm"
-                            style={{ fontFamily: 'Montserrat, sans-serif' }}
-                          >
-                            {slideIndex + 1} / {modalSlides.length}
-                          </div>
-                        ) : null}
-
-                        {modalSlides.length > 1 ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                goSlide(-1);
-                              }}
-                              className="absolute left-2 top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white text-[#1a1410] shadow-lg transition hover:bg-[#f5f2ed] sm:left-3 sm:size-11"
-                              aria-label="Ver anterior"
-                            >
-                              <ChevronLeft className="size-6 sm:size-7" strokeWidth={1.75} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                goSlide(1);
-                              }}
-                              className="absolute right-2 top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white text-[#1a1410] shadow-lg transition hover:bg-[#f5f2ed] sm:right-3 sm:size-11"
-                              aria-label="Ver siguiente"
-                            >
-                              <ChevronRight className="size-6 sm:size-7" strokeWidth={1.75} />
-                            </button>
-                          </>
-                        ) : null}
-                      </div>
-
-                      {modalSlides.length > 1 ? (
-                        <div className="shrink-0 border-t border-white/10 bg-black/90 px-2 py-2 sm:px-3">
-                          <div
-                            className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                            role="tablist"
-                            aria-label="Miniaturas de la galería"
-                          >
-                            {modalSlides.map((s, i) => (
-                              <button
-                                key={`${active.id}-thumb-${i}-${s.kind}-${s.src}`}
-                                type="button"
-                                role="tab"
-                                aria-selected={i === slideIndex}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSlideIndex(i);
-                                }}
-                                className={cn(
-                                  'relative size-[52px] shrink-0 overflow-hidden border-2 transition-all sm:size-[60px]',
-                                  i === slideIndex
-                                    ? 'border-[#b8956a] opacity-100 ring-1 ring-[#b8956a]/50'
-                                    : 'border-transparent opacity-65 hover:opacity-100',
-                                )}
-                              >
-                                {s.kind === 'video' ? (
-                                  <>
-                                    <Image
-                                      src={s.poster}
-                                      alt=""
-                                      fill
-                                      className="object-cover"
-                                      sizes="60px"
-                                    />
-                                    <span className="absolute inset-0 flex items-center justify-center bg-black/35">
-                                      <Play
-                                        className="size-4 text-white drop-shadow-md"
-                                        fill="currentColor"
-                                        aria-hidden
-                                      />
-                                    </span>
-                                  </>
-                                ) : (
-                                  <Image
-                                    src={s.src}
-                                    alt=""
-                                    fill
-                                    className="object-cover"
-                                    sizes="60px"
-                                  />
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                    </>
-                  ) : null}
+                <div className="relative border-b border-[#1a1410]/10 bg-black lg:border-b-0 lg:border-r">
+                  <video
+                    key={active.id}
+                    ref={modalVideoRef}
+                    className="aspect-[3/4] max-h-[min(52vh,640px)] w-full object-cover lg:max-h-[min(88vh,820px)] lg:aspect-auto lg:min-h-[420px]"
+                    poster={active.poster}
+                    src={active.videoSrc}
+                    controls
+                    playsInline
+                    preload="metadata"
+                  />
+                  <div className="absolute left-3 top-3 rounded-none border border-white/20 bg-black/55 px-2 py-1 text-[10px] tracking-[0.2em] text-white backdrop-blur-sm">
+                    VIDEO PRINCIPAL
+                  </div>
                 </div>
 
                 <div className="flex flex-col p-6 sm:p-8">
@@ -765,6 +586,67 @@ export function PopularProducts() {
                       VER MÁS MODELOS
                     </Link>
                   </div>
+
+                  <Tabs defaultValue="fotos" className="mt-8">
+                    <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-none border border-[#1a1410]/10 bg-[#e8e3db]/80 p-1">
+                      <TabsTrigger
+                        value="fotos"
+                        className="rounded-none data-[state=active]:bg-[#1a1410] data-[state=active]:text-[#f5f2ed]"
+                        style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '0.7rem' }}
+                      >
+                        FOTOS
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="videos"
+                        className="rounded-none data-[state=active]:bg-[#1a1410] data-[state=active]:text-[#f5f2ed]"
+                        style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '0.7rem' }}
+                      >
+                        MÁS VIDEOS
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="fotos" className="mt-4">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                        {active.gallery.map((src) => (
+                          <button
+                            key={src}
+                            type="button"
+                            className="relative aspect-square overflow-hidden border border-[#1a1410]/10 bg-white transition-transform hover:scale-[1.02]"
+                            onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}
+                          >
+                            <Image
+                              src={src}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 640px) 33vw, 180px"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="videos" className="mt-4 space-y-4">
+                      {active.detailVideos.map((src, i) => (
+                        <div
+                          key={`${active.id}-v-${i}`}
+                          className="overflow-hidden border border-[#1a1410]/15 bg-black"
+                        >
+                          <p
+                            className="bg-[#1a1410] px-3 py-2 text-[10px] tracking-[0.2em] text-[#b8956a]"
+                            style={{ fontFamily: 'Montserrat, sans-serif' }}
+                          >
+                            CLIP {i + 1}
+                          </p>
+                          <video
+                            className="aspect-video w-full object-cover"
+                            src={src}
+                            controls
+                            playsInline
+                            preload="metadata"
+                          />
+                        </div>
+                      ))}
+                    </TabsContent>
+                  </Tabs>
                 </div>
               </div>
             </>
