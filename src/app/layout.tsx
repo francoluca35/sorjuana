@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import '@/styles/index.css';
+import { SiteProviders } from '@/app/components/SiteProviders';
 
 export const metadata: Metadata = {
   title: 'Sor Juana — Moda italiana y francesa',
@@ -14,7 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <SiteProviders>{children}</SiteProviders>
+      </body>
     </html>
   );
 }
