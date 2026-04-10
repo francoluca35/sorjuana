@@ -1,18 +1,9 @@
-import { Navbar } from '@/app/components/Navbar';
-import { Footer } from '@/app/components/Footer';
-import { FloatingWhatsApp } from '@/app/components/FloatingWhatsApp';
+import { SiteChrome } from '@/app/components/SiteChrome';
 
 export default function SiteLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <>
-      <Navbar />
-      {children}
-      <Footer />
-      <FloatingWhatsApp />
-    </>
-  );
+  return <SiteChrome>{children}</SiteChrome>;
 }

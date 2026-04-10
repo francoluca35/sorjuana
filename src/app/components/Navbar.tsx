@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { ShoppingBag, Menu, X, Instagram } from 'lucide-react';
+import { ShoppingBag, Menu, X, Instagram, User } from 'lucide-react';
 import { useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/app/components/ui/utils';
@@ -159,6 +159,11 @@ export function Navbar() {
                   {underline}
                 </Link>
               </motion.div>
+              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
+                <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
+                  <User className="h-5 w-5" strokeWidth={1.5} />
+                </Link>
+              </motion.div>
               <motion.button
                 whileHover={{ scale: 1.08 }}
                 whileTap={{ scale: 0.95 }}
@@ -212,6 +217,9 @@ export function Navbar() {
               >
                 <TikTokIcon className="h-5 w-5" />
               </a>
+              <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
+                <User className="h-5 w-5" strokeWidth={1.5} />
+              </Link>
               <motion.button
                 whileHover={{ scale: 1.08 }}
                 whileTap={{ scale: 0.95 }}
@@ -228,6 +236,9 @@ export function Navbar() {
           )}
 
           <div className="flex items-center gap-3 lg:hidden">
+            <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
+              <User className="h-5 w-5" strokeWidth={1.5} />
+            </Link>
             <motion.button
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.95 }}
@@ -288,6 +299,9 @@ export function Navbar() {
                     <MobileLink href="/#contacto" onNavigate={() => setIsOpen(false)}>
                       Contacto
                     </MobileLink>
+                    <MobileLink href="/login" onNavigate={() => setIsOpen(false)}>
+                      Iniciar sesión
+                    </MobileLink>
                   </>
                 )}
                 {isCatalog && (
@@ -297,6 +311,9 @@ export function Navbar() {
                     </MobileLink>
                     <MobileLink href="/catalogo" onNavigate={() => setIsOpen(false)}>
                       Catálogo
+                    </MobileLink>
+                    <MobileLink href="/login" onNavigate={() => setIsOpen(false)}>
+                      Iniciar sesión
                     </MobileLink>
                     <div className="flex items-center justify-center gap-6 px-4 pt-4">
                       <a
