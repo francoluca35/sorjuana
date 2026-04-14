@@ -175,6 +175,16 @@ export function Footer() {
           transition={{ delay: 0.6, duration: 0.6 }}
           className="border-t border-[#b8956a]/20 pt-8"
         >
+          <div className="mb-8 flex flex-col items-center justify-center sm:flex-row sm:gap-4">
+            <Link
+              href="/politica-cambios-devoluciones"
+              className="inline-flex items-center justify-center border border-[#b8956a]/60 bg-transparent px-6 py-2.5 text-xs font-medium uppercase tracking-[0.2em] text-[#e8e3db] transition-colors duration-300 hover:border-[#b8956a] hover:bg-[#b8956a]/10 hover:text-[#f5f2ed]"
+              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+            >
+              Política de cambios y devoluciones
+            </Link>
+          </div>
+
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <p 
               className="text-[#e8e3db]/50 text-sm"

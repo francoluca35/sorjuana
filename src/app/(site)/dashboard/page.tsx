@@ -1,11 +1,6 @@
-import type { Metadata } from 'next';
-import { DashboardHome } from '@/app/pages/DashboardHome';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'Panel — Sor Juana Liberté',
-  description: 'Panel de administración de Sor Juana Liberté.',
-};
-
-export default function DashboardPage() {
-  return <DashboardHome />;
+/** Ruta histórica: el panel vive bajo /app */
+export default function DashboardLegacyRedirect() {
+  redirect('/app/dashboard');
 }

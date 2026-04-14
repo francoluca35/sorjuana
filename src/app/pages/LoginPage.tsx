@@ -43,7 +43,7 @@ export function LoginPage() {
       const result = await loginWithUsername(username, password);
       if (result.ok) {
         router.refresh();
-        router.push('/dashboard');
+        router.push('/app/dashboard');
       } else {
         alert(result.message);
       }

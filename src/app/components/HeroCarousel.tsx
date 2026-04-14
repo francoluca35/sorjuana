@@ -12,155 +12,15 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { useCart } from '@/app/context/CartContext';
 import { cn } from '@/app/components/ui/utils';
-
-type HeroHotspot = {
-  id: string;
-  top: string;
-  left: string;
-  productName: string;
-  price: number;
-  thumbnailSrc: string;
-};
-
-type HeroSlide = {
-  id: number;
-  title: string;
-  image: string;
-  imageMobile?: string;
-  filter: 'all' | 'italiana' | 'francesa';
-  hotspots: HeroHotspot[];
-  objectPositionMobile?: string;
-  objectPositionDesktop?: string;
-};
+import {
+  DEFAULT_HERO_SLIDES,
+  HERO_SLIDES_UPDATED_EVENT,
+  type HeroHotspot,
+  type HeroSlide,
+  readHeroSlidesFromStorage,
+} from '@/lib/heroSlidesConfig';
 
 const HERO_AUTOPLAY_MS = 8000;
-
-const slides: HeroSlide[] = [
-  {
-    id: 1,
-    title: 'ALTA COSTURA FRANCESA',
-    image:
-      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=3840&q=90',
-    imageMobile:
-      'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1200&h=1600&q=90',
-    objectPositionMobile: 'center 20%',
-    objectPositionDesktop: 'center center',
-    filter: 'francesa',
-    hotspots: [
-      {
-        id: 'hero-h1a',
-        top: '36%',
-        left: '44%',
-        productName: 'Blusa encaje Saint-Germain',
-        price: 189,
-        thumbnailSrc:
-          'https://images.unsplash.com/photo-1434389677669-e08b4cac3105?auto=format&fit=crop&w=400&h=400&q=88',
-      },
-      {
-        id: 'hero-h1b',
-        top: '58%',
-        left: '48%',
-        productName: 'Pantalón pinzas Marais',
-        price: 219,
-        thumbnailSrc:
-          'https://images.unsplash.com/photo-1594938298603-c8148c4dae35?auto=format&fit=crop&w=400&h=400&q=88',
-      },
-    ],
-  },
-  {
-    id: 2,
-    title: 'MODA ITALIANA 26',
-    image:
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=3840&q=90',
-    imageMobile:
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&h=1600&q=90',
-    objectPositionMobile: 'center 24%',
-    objectPositionDesktop: 'center 15%',
-    filter: 'italiana',
-    hotspots: [
-      {
-        id: 'hero-h2a',
-        top: '40%',
-        left: '50%',
-        productName: 'Vestido seda Lake Como',
-        price: 289,
-        thumbnailSrc:
-          'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=400&h=400&q=88',
-      },
-      {
-        id: 'hero-h2b',
-        top: '52%',
-        left: '38%',
-        productName: 'Cinturón piel Toscana',
-        price: 95,
-        thumbnailSrc:
-          'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?auto=format&fit=crop&w=400&h=400&q=88',
-      },
-    ],
-  },
-  {
-    id: 3,
-    title: 'COSTURA FRANCESA 26',
-    image:
-      'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=3840&q=90',
-    imageMobile:
-      'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=1200&h=1600&q=90',
-    objectPositionMobile: 'center 26%',
-    objectPositionDesktop: 'center center',
-    filter: 'francesa',
-    hotspots: [
-      {
-        id: 'hero-h3a',
-        top: '34%',
-        left: '42%',
-        productName: 'Abrigo lana Champagne',
-        price: 420,
-        thumbnailSrc:
-          'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?auto=format&fit=crop&w=400&h=400&q=88',
-      },
-      {
-        id: 'hero-h3b',
-        top: '48%',
-        left: '55%',
-        productName: 'Pañuelo seda Lyon',
-        price: 78,
-        thumbnailSrc:
-          'https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?auto=format&fit=crop&w=400&h=400&q=88',
-      },
-    ],
-  },
-  {
-    id: 4,
-    title: 'DOLCE VITA',
-    image:
-      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=3840&q=90',
-    imageMobile:
-      'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=1200&h=1600&q=90',
-    objectPositionMobile: 'center 22%',
-    objectPositionDesktop: 'center 30%',
-    filter: 'italiana',
-    hotspots: [
-      {
-        id: 'hero-h4a',
-        top: '38%',
-        left: '46%',
-        productName: 'Blazer ligero Napoli',
-        price: 265,
-        thumbnailSrc:
-          'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=400&h=400&q=88',
-      },
-      {
-        id: 'hero-h4b',
-        top: '55%',
-        left: '44%',
-        productName: 'Pantalón cropped Capri',
-        price: 175,
-        thumbnailSrc:
-          'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=400&h=400&q=88',
-      },
-    ],
-  },
-];
 
 function catalogHref(filter: HeroSlide['filter']) {
   return filter === 'all' ? '/catalogo' : `/catalogo?filter=${filter}`;
@@ -168,6 +28,7 @@ function catalogHref(filter: HeroSlide['filter']) {
 
 export function HeroCarousel() {
   const { addItem } = useCart();
+  const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: true,
     align: 'start',
@@ -177,6 +38,29 @@ export function HeroCarousel() {
 
   const [selected, setSelected] = useState(0);
   const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const load = () => {
+      const stored = readHeroSlidesFromStorage();
+      setSlides(stored?.length ? stored : DEFAULT_HERO_SLIDES);
+    };
+    load();
+    window.addEventListener('storage', load);
+    window.addEventListener(HERO_SLIDES_UPDATED_EVENT, load);
+    return () => {
+      window.removeEventListener('storage', load);
+      window.removeEventListener(HERO_SLIDES_UPDATED_EVENT, load);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.reInit();
+    const len = slides.length;
+    if (len === 0) return;
+    const idx = emblaApi.selectedScrollSnap();
+    if (idx >= len) emblaApi.scrollTo(0);
+  }, [emblaApi, slides]);
 
   const [activeHotspot, setActiveHotspot] = useState<HeroHotspot | null>(null);
   const [modalPos, setModalPos] = useState<{
@@ -289,6 +173,7 @@ export function HeroCarousel() {
                     src={slide.imageMobile ?? slide.image}
                     alt={slide.title}
                     fill
+                    unoptimized
                     priority={index === 0}
                     quality={88}
                     sizes="100vw"
@@ -302,6 +187,7 @@ export function HeroCarousel() {
                     src={slide.image}
                     alt={slide.title}
                     fill
+                    unoptimized
                     priority={index === 0}
                     quality={90}
                     sizes="100vw"
@@ -318,17 +204,34 @@ export function HeroCarousel() {
                   aria-hidden
                 />
 
-                <div className="absolute inset-0 z-20">
+                <div className="absolute inset-0 z-20 md:hidden">
                   {slide.hotspots.map((h) => (
                     <button
-                      key={h.id}
+                      key={`${h.id}-sm`}
                       type="button"
                       onClick={(e) => openHotspot(h, e.currentTarget)}
-                      className="absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur-sm transition hover:scale-105 hover:bg-black/65 active:scale-95 md:h-10 md:w-10"
+                      className="absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur-sm transition hover:scale-105 hover:bg-black/65 active:scale-95"
+                      style={{
+                        top: h.topMobile ?? h.top,
+                        left: h.leftMobile ?? h.left,
+                      }}
+                      aria-label={`Ver ${h.productName}`}
+                    >
+                      <Plus className="h-5 w-5" strokeWidth={2.25} />
+                    </button>
+                  ))}
+                </div>
+                <div className="absolute inset-0 z-20 hidden md:block">
+                  {slide.hotspots.map((h) => (
+                    <button
+                      key={`${h.id}-md`}
+                      type="button"
+                      onClick={(e) => openHotspot(h, e.currentTarget)}
+                      className="absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur-sm transition hover:scale-105 hover:bg-black/65 active:scale-95"
                       style={{ top: h.top, left: h.left }}
                       aria-label={`Ver ${h.productName}`}
                     >
-                      <Plus className="h-5 w-5 md:h-[1.35rem] md:w-[1.35rem]" strokeWidth={2.25} />
+                      <Plus className="h-[1.35rem] w-[1.35rem]" strokeWidth={2.25} />
                     </button>
                   ))}
                 </div>
@@ -442,6 +345,7 @@ export function HeroCarousel() {
                     alt={activeHotspot.productName}
                     width={112}
                     height={112}
+                    unoptimized
                     className="h-full w-full object-cover"
                   />
                 </div>
