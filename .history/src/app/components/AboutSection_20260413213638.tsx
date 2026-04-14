@@ -92,7 +92,7 @@ export function AboutSection() {
                 transition={{ duration: 0.6 }}
                 src="https://images.unsplash.com/photo-1765009433753-c7462637d21f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbG90aGluZyUyMGJvdXRpcXVlfGVufDF8fHx8MTc3NTUwOTAyOHww&ixlib=rb-4.1.0&q=80&w=1080"
                 alt="Interior de la boutique Sor Juana"
-                className="w-full h-[500px] object-cover relative z-10 mt-0 sm:-mt-20"
+                className="w-full h-[500px] object-cover relative z-10"
                 style={{ filter: 'sepia(0.15) contrast(1.05)' }}
               />
             </div>
@@ -107,21 +107,20 @@ export function AboutSection() {
           >
             {[
               {
-                title: 'Origen & Liderazgo',
-                year: '2016',
-                text: 'Hace 10 años nació Sor Juana Liberté, un espacio pensado para abastecer a mujeres reales, auténticas, con curvas, actitud y un estilo único. Ese mismo año, Carla Marucci, asesora de imagen, da vida al proyecto con una visión clara: combinar moda con identidad, ayudando a cada mujer a vestirse como quiera, sentirse segura y expresar quién es.'
-              }
-              ,{
-                title: 'Trayectoria',
-                year: '2016-Actualidad',
-                text: 'A lo largo de estos años, Sor Juana Liberté se consolidó ofreciendo una selección exclusiva de prendas importadas y nacionales. Su diferencial siempre fue el mismo: cada pieza es única, sin repetición de modelos, apostando a la autenticidad y al estilo individual.'
+                title: 'El Origen',
+                year: '2015',
+                text: 'Hace 10 años nació Sor Juana Liberté, un espacio pensado para abastecer a mujeres reales, auténticas, con curvas, actitud y un estilo único.'
               },
               {
-                title: 'Presente',
-                year: '2026',
-                text: 'Hoy, Sor Juana Liberté es mucho más que una tienda: es un espacio de asesoramiento personalizado, donde cada clienta puede descubrir su mejor versión, potenciar su imagen y expresarse con total libertad.'
+                title: 'Nuestra Dedicación',
+                year: 'Presente',
+                text: 'Nos especializamos en la importación directa desde Milano y París, seleccionando cuidadosamente cada pieza. Viajamos cada temporada para descubrir las últimas tendencias de las mejores casas europeas.'
               },
-              
+              {
+                title: 'Nuestra Trayectoria',
+                year: '2015-2026',
+                text: 'Durante casi una década, construimos relaciones sólidas con diseñadores europeos, permitiéndonos ofrecer piezas exclusivas y ediciones limitadas. Sor Juana es sinónimo de autenticidad europea.'
+              }
             ].map((item, index) => (
               <motion.div
                 key={item.title}

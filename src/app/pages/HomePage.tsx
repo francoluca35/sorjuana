@@ -5,8 +5,11 @@ import { AboutSection } from '../components/AboutSection';
 import { PopularProducts } from '../components/PopularProducts';
 import { NewArrivals } from '../components/NewArrivals';
 import { ContactSection } from '../components/ContactSection';
+import { fetchRecentProducts } from '@/lib/data/recentProducts';
 
-export function HomePage() {
+export async function HomePage() {
+  const recienLlegados = await fetchRecentProducts(80);
+
   return (
     <>
       <HeroCarouselClient />
@@ -14,7 +17,7 @@ export function HomePage() {
       <FashionCategories />
       <AboutSection />
       <PopularProducts />
-      <NewArrivals />
+      <NewArrivals products={recienLlegados} />
       <ContactSection />
     </>
   );

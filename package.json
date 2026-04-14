@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.0.1",
   "scripts": {
+    "clean": "node scripts/clean-next.cjs",
     "dev": "next dev",
+    "dev:fresh": "npm run clean && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

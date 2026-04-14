@@ -42,14 +42,14 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isLoginPath = pathname === '/login' || pathname === '/login/';
 
-  if (pathname.startsWith('/dashboard') && !user) {
+  if (pathname.startsWith('/app') && !user) {
     const redirectResponse = NextResponse.redirect(new URL('/login', request.url));
     copyCookies(supabaseResponse, redirectResponse);
     return redirectResponse;
   }
 
   if (isLoginPath && user) {
-    const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url));
+    const redirectResponse = NextResponse.redirect(new URL('/app/dashboard', request.url));
     copyCookies(supabaseResponse, redirectResponse);
     return redirectResponse;
   }

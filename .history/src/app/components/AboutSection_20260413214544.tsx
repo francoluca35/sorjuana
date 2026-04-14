@@ -92,7 +92,7 @@ export function AboutSection() {
                 transition={{ duration: 0.6 }}
                 src="https://images.unsplash.com/photo-1765009433753-c7462637d21f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbG90aGluZyUyMGJvdXRpcXVlfGVufDF8fHx8MTc3NTUwOTAyOHww&ixlib=rb-4.1.0&q=80&w=1080"
                 alt="Interior de la boutique Sor Juana"
-                className="w-full h-[500px] object-cover relative z-10 mt-0 sm:-mt-20"
+                className="w-full h-[500px] object-cover relative z-10 -mt-20 sm:-mt-0"
                 style={{ filter: 'sepia(0.15) contrast(1.05)' }}
               />
             </div>
