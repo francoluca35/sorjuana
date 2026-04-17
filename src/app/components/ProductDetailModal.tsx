@@ -169,8 +169,7 @@ export function ProductMediaCarousel({
 								transition={{ duration: 0.35 }}
 								src={media[idx].src}
 								alt={productName}
-								className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
-								style={{ filter: 'sepia(0.08) contrast(1.05)' }}
+								className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} contrast-[1.02] md:contrast-[1.05] md:sepia-[0.06]`}
 							/>
 						)}
 					</AnimatePresence>
@@ -180,24 +179,24 @@ export function ProductMediaCarousel({
 							<button
 								type="button"
 								onClick={goPrev}
-								className="absolute left-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/70"
+								className="absolute left-2 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 touch-manipulation items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 md:h-10 md:w-10 md:bg-black/45 md:backdrop-blur-sm"
 								aria-label="Imagen anterior"
 							>
-								<ChevronLeft className="h-5 w-5" />
+								<ChevronLeft className="h-6 w-6 md:h-5 md:w-5" />
 							</button>
 							<button
 								type="button"
 								onClick={goNext}
-								className="absolute right-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-sm transition hover:bg-black/70"
+								className="absolute right-2 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 touch-manipulation items-center justify-center rounded-full bg-black/55 text-white transition hover:bg-black/75 md:h-10 md:w-10 md:bg-black/45 md:backdrop-blur-sm"
 								aria-label="Imagen siguiente"
 							>
-								<ChevronRight className="h-5 w-5" />
+								<ChevronRight className="h-6 w-6 md:h-5 md:w-5" />
 							</button>
 						</>
 					) : null}
 
 					{!showThumbnails && showControls ? (
-						<div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 gap-1.5 rounded-full bg-black/35 px-2 py-1 backdrop-blur-sm">
+						<div className="absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 gap-2 rounded-full bg-black/45 px-2.5 py-1.5 md:gap-1.5 md:bg-black/35 md:px-2 md:py-1 md:backdrop-blur-sm">
 							{media.map((m, i) => (
 								<button
 									key={`${m.type}-${m.src}-${i}`}
@@ -288,7 +287,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 				<>
 					<motion.button
 						type="button"
-						className="fixed inset-0 z-[120] bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.35),rgba(0,0,0,0.72))] backdrop-blur-[3px]"
+						className="fixed inset-0 z-[120] bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.45),rgba(0,0,0,0.78))] md:bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.35),rgba(0,0,0,0.72))] md:backdrop-blur-[3px]"
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
@@ -296,7 +295,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 						aria-label="Cerrar detalle de producto"
 					/>
 					<motion.div
-						className="fixed inset-x-3 top-[3vh] z-[121] mx-auto max-h-[94vh] w-full max-w-6xl overflow-hidden border border-black/10 bg-white shadow-[0_20px_80px_rgba(0,0,0,0.35)] md:inset-x-6"
+						className="fixed inset-0 z-[121] mx-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden border-0 bg-white shadow-[0_20px_80px_rgba(0,0,0,0.35)] sm:inset-x-4 sm:top-[3vh] sm:h-auto sm:max-h-[94vh] sm:rounded-sm sm:border sm:border-black/10 md:inset-x-6 lg:max-w-6xl"
 						initial={{ opacity: 0, y: 24, scale: 0.98 }}
 						animate={{ opacity: 1, y: 0, scale: 1 }}
 						exit={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -304,47 +303,47 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 					>
 						<button
 							type="button"
-							className="absolute right-4 top-4 z-30 rounded-full bg-black/60 p-2 text-white backdrop-blur-sm transition hover:bg-black/75"
+							className="absolute right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex h-11 w-11 touch-manipulation items-center justify-center rounded-full bg-black/70 text-white shadow-md transition active:scale-95 hover:bg-black/85 md:right-4 md:top-4 md:h-10 md:w-10 md:bg-black/60 md:backdrop-blur-sm"
 							onClick={closeProductModal}
 							aria-label="Cerrar"
 						>
-							<X className="h-4 w-4" />
+							<X className="h-6 w-6 md:h-5 md:w-5" strokeWidth={2} />
 						</button>
-						<div className="grid max-h-[94vh] lg:grid-cols-[minmax(0,1fr)_420px]">
-							<div className="relative bg-[#111]">
+						<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:max-h-[94vh] lg:grid-cols-[minmax(0,1fr)_420px]">
+							<div className="relative shrink-0 bg-[#111] lg:min-h-0 lg:max-h-[94vh]">
 								<ProductMediaCarousel
 									media={product.media}
 									productName={product.name}
-									className="h-[52vh] min-h-[320px] max-h-[640px] lg:h-[94vh]"
+									className="h-[min(40vh,360px)] min-h-[240px] max-h-[480px] sm:h-[min(48vh,420px)] sm:min-h-[280px] lg:h-[min(94vh,900px)] lg:max-h-[94vh]"
 									fit="contain"
 									autoPlay={false}
 									showThumbRail
 								/>
 							</div>
-							<div className="overflow-y-auto bg-white p-6">
+							<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-t-[1.25rem] bg-white px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-6 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] sm:px-6 sm:pt-6 lg:rounded-none lg:p-6 lg:shadow-none">
 								<p
-									className="text-xs uppercase tracking-[0.18em] text-[#8a8a8a]"
-									style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+									className="pl-0.5 text-[0.7rem] uppercase tracking-[0.22em] text-[#6b6156]"
+									style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 								>
 									{product.category_db ? displayCategoryLabel(product.category_db) : 'Sin categoría'}
 								</p>
 								<h2
-									className="mt-2 text-[#1f1f1f]"
+									className="mt-3 text-balance text-[#1f1f1f]"
 									style={{
 										fontFamily: 'Montserrat, sans-serif',
-										fontSize: 'clamp(1.8rem, 3.2vw, 2.2rem)',
+										fontSize: 'clamp(1.35rem, 4.2vw, 2.2rem)',
 										fontWeight: 700,
-										lineHeight: 1.1,
+										lineHeight: 1.2,
 									}}
 								>
 									{product.name}
 								</h2>
 								<p
-									className="mt-3 text-[#2a2a2a]"
+									className="mt-4 text-[#2a2a2a]"
 									style={{
 										fontFamily: 'Montserrat, sans-serif',
-										fontSize: '2.6rem',
-										fontWeight: 400,
+										fontSize: 'clamp(1.65rem, 5vw, 2.6rem)',
+										fontWeight: 600,
 										letterSpacing: '-0.02em',
 									}}
 								>
@@ -358,8 +357,11 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 										${getCardPrice(product)!.toFixed(2)} con tarjetas
 									</p>
 								) : null}
-								<div className="mt-5 rounded-xl border border-[#ececec] bg-[#fafafa] p-4">
-									<p className="text-sm leading-relaxed text-[#5e5448]" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+								<div className="mt-5 rounded-xl border border-[#e4dfd6] bg-[#f5f2ed] p-4">
+									<p
+										className="text-sm leading-relaxed text-[#3d3830]"
+										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+									>
 										{product.description?.trim() || 'Prenda seleccionada de nuestra colección.'}
 									</p>
 								</div>
@@ -367,12 +369,12 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 								{product.size_inventory.length > 0 ? (
 									<div className="mt-7">
 										<p
-											className="mb-3 text-xs uppercase tracking-[0.18em] text-[#666]"
+											className="mb-3 text-[0.7rem] uppercase tracking-[0.2em] text-[#5c5349]"
 											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
 										>
 											Elegí talle
 										</p>
-										<div className="flex flex-wrap gap-2">
+										<div className="flex flex-wrap gap-2.5">
 											{product.size_inventory.map((s) => {
 												const disabled = s.qty <= 0;
 												const active = selectedSize === s.size;
@@ -382,14 +384,14 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 														type="button"
 														disabled={disabled}
 														onClick={() => setSelectedSize(s.size)}
-														className={`rounded-md border px-3.5 py-2 text-xs transition ${
+														className={`min-h-[44px] min-w-[44px] touch-manipulation rounded-lg border px-4 py-2.5 text-sm transition active:scale-[0.98] ${
 															active
 																? 'border-[#202020] bg-[#202020] text-white shadow-sm'
 																: disabled
 																	? 'cursor-not-allowed border-slate-200 bg-white/50 text-slate-400'
 																	: 'border-[#d7d7d7] bg-white text-[#1a1410] hover:border-[#202020]'
 														}`}
-														style={{ fontFamily: 'Montserrat, sans-serif' }}
+														style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 													>
 														{s.size} {disabled ? '(sin stock)' : ''}
 													</button>
@@ -406,11 +408,11 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 									</p>
 								)}
 
-								<div className="mt-8 grid grid-cols-[7.5rem_1fr] gap-3">
+								<div className="mt-8 grid grid-cols-1 gap-3 min-[400px]:grid-cols-[7.5rem_1fr]">
 									<div className="flex h-12 items-center rounded-md border border-[#d7d7d7] bg-white">
 										<button
 											type="button"
-											className="flex h-full w-10 items-center justify-center text-xl text-[#666] transition hover:bg-[#f6f6f6]"
+											className="flex h-full min-w-[44px] touch-manipulation items-center justify-center text-xl text-[#666] transition hover:bg-[#f6f6f6] active:bg-[#ececec]"
 											onClick={() => setSelectedQty((q) => Math.max(1, q - 1))}
 											aria-label="Restar cantidad"
 										>
@@ -421,7 +423,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 										</div>
 										<button
 											type="button"
-											className="flex h-full w-10 items-center justify-center text-xl text-[#666] transition hover:bg-[#f6f6f6]"
+											className="flex h-full min-w-[44px] touch-manipulation items-center justify-center text-xl text-[#666] transition hover:bg-[#f6f6f6] active:bg-[#ececec]"
 											onClick={() => setSelectedQty((q) => q + 1)}
 											aria-label="Sumar cantidad"
 										>
@@ -431,10 +433,10 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 									<button
 										type="button"
 										onClick={onAddSelectedToCart}
-										className="flex h-12 items-center justify-center gap-2 rounded-md bg-[#1f1f1f] px-4 text-sm text-white shadow-[0_8px_20px_rgba(26,20,16,0.24)] transition hover:bg-[#343434]"
+										className="flex min-h-[48px] touch-manipulation items-center justify-center gap-2 rounded-md bg-[#1f1f1f] px-4 py-3 text-sm text-white shadow-[0_8px_20px_rgba(26,20,16,0.24)] transition hover:bg-[#343434] active:scale-[0.99] sm:h-12 sm:min-h-0 sm:py-0"
 										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 									>
-										<ShoppingCart className="h-4 w-4" strokeWidth={1.7} />
+										<ShoppingCart className="h-4 w-4 shrink-0" strokeWidth={1.7} />
 										Agregar al carrito
 									</button>
 								</div>
