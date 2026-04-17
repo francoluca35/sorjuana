@@ -10,7 +10,7 @@ import { fetchRecentProducts } from '@/lib/data/recentProducts';
 import { fetchCategorySpotlights } from '@/lib/data/categorySpotlights';
 
 export async function HomePage() {
-  const [recienLlegados, categorySpotlights] = await Promise.all([
+  const [homeCatalog, categorySpotlights] = await Promise.all([
     fetchRecentProducts(24),
     fetchCategorySpotlights(),
   ]);
@@ -22,8 +22,8 @@ export async function HomePage() {
       <FashionCategories />
       <AdminCategorySpotlightRail items={categorySpotlights} />
 
-      <PopularProducts />
-      <NewArrivals products={recienLlegados} />
+      <PopularProducts products={homeCatalog} />
+      <NewArrivals products={homeCatalog} />
       <AboutSection />
       <ContactSection />
     </>

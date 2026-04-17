@@ -11,12 +11,12 @@ import { Checkbox } from '@/app/components/ui/checkbox';
 import { Input } from '@/app/components/ui/input';
 import { cn } from '@/app/components/ui/utils';
 import {
-	RECENT_ARRIVALS_IDS_STORAGE_KEY,
-	RECENT_ARRIVALS_MAX,
-	broadcastRecentArrivalsSelectionUpdated,
+	BEST_SELLERS_IDS_STORAGE_KEY,
+	BEST_SELLERS_MAX,
+	broadcastBestSellersSelectionUpdated,
 	parseStoredProductIds,
 	serializeProductIds,
-} from '@/lib/recentArrivalsSelection';
+} from '@/lib/bestSellersSelection';
 
 const sans = 'Montserrat, sans-serif';
 const serif = "'Cormorant Garamond', serif";
@@ -32,7 +32,7 @@ function formatFecha(iso: string) {
 	}
 }
 
-export function MapaPaginaRecienLlegadosPanel() {
+export function MapaPaginaMasVendidosPanel() {
 	const [rows, setRows] = useState<ProductRow[] | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [err, setErr] = useState<string | null>(null);
@@ -70,8 +70,8 @@ export function MapaPaginaRecienLlegadosPanel() {
 
 	useEffect(() => {
 		if (typeof window === 'undefined' || !rows) return;
-		const raw = localStorage.getItem(RECENT_ARRIVALS_IDS_STORAGE_KEY);
-		const parsed = parseStoredProductIds(raw);
+		const raw = localStorage.getItem(BEST_SELLERS_IDS_STORAGE_KEY);
+		const parsed = parseStoredProductIds(raw, BEST_SELLERS_MAX);
 		const valid = new Set(rows.map((r) => r.id));
 		setSelectedIds(parsed.filter((id) => valid.has(id)));
 	}, [rows]);
@@ -81,8 +81,8 @@ export function MapaPaginaRecienLlegadosPanel() {
 			if (prev.includes(id)) {
 				return prev.filter((x) => x !== id);
 			}
-			if (prev.length >= RECENT_ARRIVALS_MAX) {
-				toast.message(`Solo podés elegir hasta ${RECENT_ARRIVALS_MAX} productos para el inicio.`);
+			if (prev.length >= BEST_SELLERS_MAX) {
+				toast.message(`Solo podés elegir hasta ${BEST_SELLERS_MAX} productos para Más vendidos.`);
 				return prev;
 			}
 			return [...prev, id];
@@ -103,18 +103,20 @@ export function MapaPaginaRecienLlegadosPanel() {
 
 	function saveSelection() {
 		if (typeof window === 'undefined') return;
-		localStorage.setItem(RECENT_ARRIVALS_IDS_STORAGE_KEY, serializeProductIds(selectedIds));
-		broadcastRecentArrivalsSelectionUpdated();
-		toast.success('Selección guardada. La home mostrará estos productos en ese orden.');
+		localStorage.setItem(BEST_SELLERS_IDS_STORAGE_KEY, serializeProductIds(selectedIds, BEST_SELLERS_MAX));
+		broadcastBestSellersSelectionUpdated();
+		toast.success('Selección guardada. El inicio mostrará estos productos en «Más vendidos» en ese orden.');
 	}
 
 	function clearSelection() {
 		setSelectedIds([]);
 		if (typeof window !== 'undefined') {
-			localStorage.removeItem(RECENT_ARRIVALS_IDS_STORAGE_KEY);
-			broadcastRecentArrivalsSelectionUpdated();
+			localStorage.removeItem(BEST_SELLERS_IDS_STORAGE_KEY);
+			broadcastBestSellersSelectionUpdated();
 		}
-		toast.success('Listo: en el inicio se mostrarán los 6 más recientes por fecha de alta.');
+		toast.success(
+			'Listo: en el inicio se usarán hasta 6 artículos del catálogo (por fecha de alta) como sugerencia.',
+		);
 	}
 
 	const selectedRows = selectedIds
@@ -128,12 +130,12 @@ export function MapaPaginaRecienLlegadosPanel() {
 					className="mb-1 text-lg font-light text-[#1a1410] sm:text-xl"
 					style={{ fontFamily: serif }}
 				>
-					Recién llegados
+					Más vendidos
 				</h2>
 				<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-					Elegí hasta {RECENT_ARRIVALS_MAX} productos para la sección pública &quot;Recién llegados&quot; del
-					inicio. Si no guardás ninguna selección (o la limpiás), se muestran automáticamente los{' '}
-					{RECENT_ARRIVALS_MAX} más nuevos por fecha de alta.
+					Elegí hasta {BEST_SELLERS_MAX} productos para la sección pública &quot;Productos más vendidos&quot; del
+					inicio. Si no guardás ninguna selección (o la limpiás), se muestran hasta {BEST_SELLERS_MAX} del
+					catálogo (los más nuevos por fecha de alta) como referencia.
 				</p>
 				<div className="mt-4 flex flex-wrap gap-2">
 					<Button
@@ -154,10 +156,10 @@ export function MapaPaginaRecienLlegadosPanel() {
 						onClick={saveSelection}
 						disabled={loading || !rows?.length}
 					>
-						Guardar selección ({selectedIds.length}/{RECENT_ARRIVALS_MAX})
+						Guardar selección ({selectedIds.length}/{BEST_SELLERS_MAX})
 					</Button>
 					<Button type="button" variant="ghost" size="sm" onClick={clearSelection} disabled={loading}>
-						Usar los 6 más recientes (automático)
+						Usar sugerencia automática (catálogo reciente)
 					</Button>
 				</div>
 			</div>
@@ -297,7 +299,7 @@ export function MapaPaginaRecienLlegadosPanel() {
 								const img =
 									p.image_urls?.[0]?.trim() || p.image_url?.trim() || '/Assets/logo-b.png';
 								const checked = selectedIds.includes(p.id);
-								const atCap = !checked && selectedIds.length >= RECENT_ARRIVALS_MAX;
+								const atCap = !checked && selectedIds.length >= BEST_SELLERS_MAX;
 								return (
 									<tr key={p.id} className="border-b border-[#b8956a]/10 last:border-0">
 										<td className="px-3 py-3">
@@ -305,7 +307,9 @@ export function MapaPaginaRecienLlegadosPanel() {
 												checked={checked}
 												disabled={atCap}
 												onCheckedChange={() => toggleProduct(p.id)}
-												aria-label={checked ? 'Quitar del inicio' : 'Mostrar en el inicio'}
+												aria-label={
+													checked ? 'Quitar de Más vendidos' : 'Incluir en Más vendidos'
+												}
 											/>
 										</td>
 										<td className="px-4 py-3 text-[#8a7a68]" style={{ fontFamily: sans }}>

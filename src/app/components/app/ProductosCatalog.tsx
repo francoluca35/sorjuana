@@ -37,8 +37,10 @@ import {
 } from '@/app/actions/products';
 import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { SizeInventoryEditor } from '@/app/components/app/SizeInventoryEditor';
+import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
 import type { CatalogProduct } from '@/lib/data/productCatalog';
 import { displayCategoryLabel, PLACEHOLDER_IMG } from '@/lib/data/productCatalog';
+import type { ShopCategoryTree } from '@/lib/data/shopCategories';
 import { normalizeSizeInventoryForDb, sumSizeInventoryQty } from '@/lib/data/productSizes';
 
 const sans = 'Montserrat, sans-serif';
@@ -81,6 +83,30 @@ function stockTextClass(stock: number) {
   return 'text-slate-800';
 }
 
+function idsFromCategoryDb(
+  tree: ShopCategoryTree[],
+  raw: string | null,
+): { catId: string; subId: string } {
+  if (!raw?.trim()) return { catId: '', subId: '' };
+  const t = raw.trim().toLowerCase();
+  if (t === 'combo') return { catId: '', subId: '' };
+  const parts = raw
+    .trim()
+    .toLowerCase()
+    .split('/')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return { catId: '', subId: '' };
+  const cat = tree.find((c) => c.slug === parts[0]);
+  if (!cat) return { catId: '', subId: '' };
+  if (parts.length < 2) return { catId: cat.id, subId: '' };
+  const sub = cat.subcategories.find((s) => s.slug === parts[1]);
+  return { catId: cat.id, subId: sub?.id ?? '' };
+}
+
+const categorySelectClass =
+  'mt-1.5 flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/30';
+
 type MainTab = 'items' | 'stock' | 'categorias' | 'resumen';
 
 function isProductKind(v: string): v is 'producto' | 'combo' | 'ofertas' {
@@ -103,11 +129,41 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
   const [draft, setDraft] = useState<CatalogProduct | null>(null);
   const [optOpen, setOptOpen] = useState(true);
   const [imageUploading, setImageUploading] = useState(false);
+  const [videoUploading, setVideoUploading] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const draftRef = useRef<CatalogProduct | null>(null);
   draftRef.current = draft;
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+
+  const [categoryTree, setCategoryTree] = useState<ShopCategoryTree[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [panelCategoryId, setPanelCategoryId] = useState('');
+  const [panelSubcategoryId, setPanelSubcategoryId] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setCategoriesLoading(true);
+      try {
+        const data = await listShopCategoryTreeAction();
+        if (!cancelled) setCategoryTree(data);
+      } catch {
+        if (!cancelled) setCategoryTree([]);
+      } finally {
+        if (!cancelled) setCategoriesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selectedEditCategory = useMemo(
+    () => categoryTree.find((c) => c.id === panelCategoryId) ?? null,
+    [categoryTree, panelCategoryId],
+  );
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -172,8 +228,31 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
   function openProduct(p: CatalogProduct) {
     setDraft({ ...p });
     setDrawerTab('registro');
+    if (categoryTree.length > 0) {
+      const ids = idsFromCategoryDb(categoryTree, p.category_db);
+      setPanelCategoryId(ids.catId);
+      setPanelSubcategoryId(ids.subId);
+    } else {
+      setPanelCategoryId('');
+      setPanelSubcategoryId('');
+    }
     setSheetOpen(true);
   }
+
+  useEffect(() => {
+    if (!sheetOpen || !draft || categoryTree.length === 0) return;
+    if (draft.kind === 'combo') return;
+    const ids = idsFromCategoryDb(categoryTree, draft.category_db);
+    setPanelCategoryId(ids.catId);
+    setPanelSubcategoryId(ids.subId);
+  }, [sheetOpen, draft?.id, draft?.kind, categoryTree]);
+
+  useEffect(() => {
+    if (!sheetOpen) {
+      setPanelCategoryId('');
+      setPanelSubcategoryId('');
+    }
+  }, [sheetOpen]);
 
   async function saveDraft() {
     if (!draft) return;
@@ -188,11 +267,13 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       compare_at_price: draft.promoPrice,
       category: draft.category_db?.trim() || null,
       description: draft.description,
-      color: draft.color,
+      /** Siempre string: las server actions omiten `undefined` y antes el servidor interpretaba color ausente como `null`. */
+      color: draft.color ?? '',
       stock: draft.stock,
       cost: draft.cost,
       size_inventory: draft.size_inventory,
       image_urls: galleryList(draft).slice(0, MAX_PRODUCT_IMAGES),
+      video_url: draft.video_url != null ? draft.video_url.trim() || null : null,
     });
     if (!res.ok) {
       toast.error(res.message);
@@ -368,6 +449,39 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       const next = galleryList(d).filter((_, i) => i !== index);
       return syncDraftImages(d, next);
     });
+  }
+
+  async function handleEditVideoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    const current = draftRef.current;
+    if (!current) {
+      toast.error('No hay producto seleccionado.');
+      return;
+    }
+
+    setVideoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('kind', 'video');
+      const res = await uploadSorjuanaMedia(fd);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setDraft((d) => (d ? { ...d, video_url: res.publicUrl } : d));
+      toast.success('Video agregado.');
+    } finally {
+      setVideoUploading(false);
+    }
+  }
+
+  function removeDraftVideo() {
+    setDraft((d) => (d ? { ...d, video_url: null } : d));
   }
 
   async function shareProduct() {
@@ -707,6 +821,45 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                       ) : null}
                     </div>
                     <div>
+                      <Label className="text-slate-800">Video del producto</Label>
+                      <p className="mt-1 text-xs text-slate-500">Un video opcional (p. ej. para la ficha y Recién llegados).</p>
+                      <input
+                        ref={videoInputRef}
+                        type="file"
+                        accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+                        className="hidden"
+                        onChange={(ev) => void handleEditVideoChange(ev)}
+                      />
+                      {draft.video_url?.trim() ? (
+                        <div className="relative mt-3 overflow-hidden rounded-lg border border-slate-200 bg-black">
+                          <video
+                            src={draft.video_url.trim()}
+                            controls
+                            playsInline
+                            className="max-h-48 w-full object-contain"
+                          />
+                          <button
+                            type="button"
+                            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-red-600 shadow"
+                            aria-label="Quitar video"
+                            onClick={() => removeDraftVideo()}
+                          >
+                            <X className="h-4 w-4" strokeWidth={2} />
+                          </button>
+                        </div>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-3 w-full border-dashed border-slate-300"
+                        disabled={videoUploading}
+                        onClick={() => videoInputRef.current?.click()}
+                      >
+                        <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
+                        {videoUploading ? 'Subiendo…' : draft.video_url?.trim() ? 'Cambiar video' : 'Agregar video'}
+                      </Button>
+                    </div>
+                    <div>
                       <Label htmlFor="d-name">Nombre del producto</Label>
                       <Input
                         id="d-name"
@@ -852,19 +1005,117 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                         </div>
                         <div>
                           <Label htmlFor="d-cat">Categoría</Label>
-                          <Input
-                            id="d-cat"
-                            value={draft.category_db ?? ''}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setDraft({
-                                ...draft,
-                                category_db: v || null,
-                                category: displayCategoryLabel(v || null),
-                              });
-                            }}
-                            className="mt-1.5"
-                          />
+                          {draft.kind === 'combo' ? (
+                            <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                              Combo (categoría fija en base: combo)
+                            </div>
+                          ) : (
+                            <>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Elegí de{' '}
+                                <Link href="/app/categorias" className="text-teal-700 underline underline-offset-2">
+                                  Categorías
+                                </Link>
+                                {categoriesLoading ? ' (cargando…)' : null}.
+                              </p>
+                              {draft.category_db &&
+                              categoryTree.length > 0 &&
+                              !idsFromCategoryDb(categoryTree, draft.category_db).catId ? (
+                                <p className="mt-2 text-xs text-amber-800">
+                                  Valor actual en base:{' '}
+                                  <code className="rounded bg-amber-50 px-1 py-0.5">{draft.category_db}</code> — no
+                                  coincide con el listado; al elegir arriba se reemplaza.
+                                </p>
+                              ) : null}
+                              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                                <div>
+                                  <Label htmlFor="d-cat-main" className="text-xs text-slate-600">
+                                    Categoría
+                                  </Label>
+                                  <select
+                                    id="d-cat-main"
+                                    value={panelCategoryId}
+                                    onChange={(e) => {
+                                      const catId = e.target.value;
+                                      setPanelCategoryId(catId);
+                                      setPanelSubcategoryId('');
+                                      const cat = categoryTree.find((c) => c.id === catId);
+                                      const dbVal = cat ? cat.slug : null;
+                                      setDraft((d) =>
+                                        d
+                                          ? {
+                                              ...d,
+                                              category_db: dbVal,
+                                              category: displayCategoryLabel(dbVal),
+                                            }
+                                          : null,
+                                      );
+                                    }}
+                                    disabled={categoriesLoading || categoryTree.length === 0}
+                                    className={categorySelectClass}
+                                  >
+                                    <option value="">
+                                      {categoriesLoading
+                                        ? 'Cargando…'
+                                        : categoryTree.length === 0
+                                          ? 'Sin categorías — creá en Categorías'
+                                          : 'Seleccioná'}
+                                    </option>
+                                    {categoryTree.map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <Label htmlFor="d-cat-sub" className="text-xs text-slate-600">
+                                    Subcategoría
+                                  </Label>
+                                  <select
+                                    id="d-cat-sub"
+                                    value={panelSubcategoryId}
+                                    onChange={(e) => {
+                                      const subId = e.target.value;
+                                      setPanelSubcategoryId(subId);
+                                      const cat = categoryTree.find((c) => c.id === panelCategoryId);
+                                      if (!cat) return;
+                                      const sub = cat.subcategories.find((s) => s.id === subId);
+                                      const dbVal = sub ? `${cat.slug}/${sub.slug}` : cat.slug;
+                                      setDraft((d) =>
+                                        d
+                                          ? {
+                                              ...d,
+                                              category_db: dbVal,
+                                              category: displayCategoryLabel(dbVal),
+                                            }
+                                          : null,
+                                      );
+                                    }}
+                                    disabled={
+                                      !panelCategoryId ||
+                                      !selectedEditCategory ||
+                                      selectedEditCategory.subcategories.length === 0
+                                    }
+                                    className={categorySelectClass}
+                                  >
+                                    <option value="">
+                                      {!panelCategoryId
+                                        ? 'Elegí primero una categoría'
+                                        : !selectedEditCategory?.subcategories.length
+                                          ? 'Sin subcategorías (opcional)'
+                                          : 'Seleccioná'}
+                                    </option>
+                                    {(selectedEditCategory?.subcategories ?? []).map((s) => (
+                                      <option key={s.id} value={s.id}>
+                                        {s.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                         <div>
                           <Label htmlFor="d-desc">Descripción</Label>

@@ -16,8 +16,8 @@ export default function Page() {
 				Mapa de página
 			</h1>
 			<p className="mb-8 text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-				Elegí la sección: el hero del inicio se guarda en este navegador; Recién llegados lee la tabla de
-				productos en Supabase (más nuevos primero).
+				Elegí la sección: el hero se guarda en este navegador; Más vendidos (hasta 4) y Recién llegados
+				(hasta 6) eligen productos desde la tabla en Supabase.
 			</p>
 			<MapaPaginaContent />
 		</AppPanel>

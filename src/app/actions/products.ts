@@ -3,7 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import type { ProductRow } from '@/lib/data/productCatalog';
-import { fetchRecentProducts } from '@/lib/data/recentProducts';
+import {
+	fetchAllProductsForPanel,
+	fetchProductsByIds,
+	fetchRecentProducts,
+} from '@/lib/data/recentProducts';
 import * as XLSX from 'xlsx';
 import {
 	normalizeSizeInventoryForDb,
@@ -53,18 +57,50 @@ function normalizeHeader(value: unknown): string {
 }
 
 function parseMoneyLike(value: unknown): number {
-	if (typeof value === 'number') return Number.isFinite(value) ? Math.max(0, value) : 0;
+	if (typeof value === 'number') {
+		return Number.isFinite(value) ? Math.max(0, value) : 0;
+	}
 	let text = String(value ?? '')
 		.trim()
 		.replace(/\s/g, '')
 		.replace(/[$€£]/g, '');
-	// Formato tipo 59.900 (miles con punto) o 59.900,50 (decimal con coma)
-	const hasCommaDecimal = /,\d{1,2}$/.test(text);
-	if (hasCommaDecimal) {
-		text = text.replace(/\./g, '').replace(',', '.');
-	} else {
-		text = text.replace(/\./g, '');
+	if (!text) return 0;
+
+	/** `59,900` (miles US) — si no tratamos la coma, parseFloat da 59. */
+	if (text.includes(',')) {
+		const lastComma = text.lastIndexOf(',');
+		const afterComma = text.slice(lastComma + 1);
+		if (afterComma.length <= 2 && /^\d+$/.test(afterComma)) {
+			/** Decimal EU: 59,90 o 1.234,56 */
+			if (text.includes('.')) {
+				if (lastComma > text.lastIndexOf('.')) {
+					text = text.replace(/\./g, '').replace(',', '.');
+				} else {
+					text = text.replace(/,/g, '');
+				}
+			} else {
+				const parts = text.split(',');
+				if (parts.length === 2) {
+					text = `${parts[0]!.replace(/\D/g, '')}.${parts[1]}`;
+				}
+			}
+		} else {
+			/** Miles con coma: 59,900 / 1,234,567 */
+			text = text.replace(/,/g, '');
+		}
 	}
+
+	if (text.includes('.')) {
+		const parts = text.split('.');
+		const last = parts[parts.length - 1]!;
+		if (parts.length === 2 && last.length <= 2 && /^\d+$/.test(last)) {
+			/** Decimal inglés: 10.50, 59.90 — no unir */
+		} else {
+			/** Miles AR: 59.900 o 1.234.567 */
+			text = parts.join('');
+		}
+	}
+
 	const n = Number.parseFloat(text);
 	return Number.isFinite(n) ? Math.max(0, n) : 0;
 }
@@ -119,6 +155,8 @@ export async function importProductsFromExcelAction(
 		const indexByField: Record<string, number> = {};
 		for (let i = 0; i < headerRow.length; i++) {
 			const normalized = normalizeHeader(headerRow[i]);
+			/** NAC/IMP u otras columnas ignoradas (no mapear). */
+			if (normalized === 'nacimp') continue;
 			if (normalized === 'codigo' || normalized === 'cod') indexByField.codigo = i;
 			if (normalized === 'categoria' || normalized === 'category') indexByField.categoria = i;
 			if (normalized === 'talle' || normalized === 'talla' || normalized === 'size') indexByField.talle = i;
@@ -144,7 +182,8 @@ export async function importProductsFromExcelAction(
 			}
 		}
 
-		const requiredFields = ['codigo', 'categoria', 'talle', 'precio', 'estado', 'cantidad'] as const;
+		/** Planilla tipo: CATEGORIA, SUBCATEGORIA, COLOR, TALLE, PRECIO ($ 59.900), ESTADO, CANTIDAD, NOMBRE. CODIGO opcional. */
+		const requiredFields = ['categoria', 'talle', 'precio', 'estado', 'cantidad'] as const;
 		for (const field of requiredFields) {
 			if (indexByField[field] == null) {
 				return { ok: false, message: `Falta la columna obligatoria: ${field}.` };
@@ -172,20 +211,24 @@ export async function importProductsFromExcelAction(
 
 		for (let i = 1; i < rows.length; i++) {
 			const row = rows[i] ?? [];
-			const codigo = String(row[indexByField.codigo] ?? '').trim();
+			let codigo =
+				indexByField.codigo != null ? String(row[indexByField.codigo] ?? '').trim() : '';
 			const categoria = String(row[indexByField.categoria] ?? '').trim();
 			const subcategoria =
 				indexByField.subcategoria != null ? String(row[indexByField.subcategoria] ?? '').trim() : '';
 			const nombreCol =
 				indexByField.nombre != null ? String(row[indexByField.nombre] ?? '').trim() : '';
-			const nombreFinal = nombreCol || codigo;
 			const talle = String(row[indexByField.talle] ?? '').trim();
 			const precio = parseMoneyLike(row[indexByField.precio]);
 			const estado = row[indexByField.estado];
 			const cantidad = parseQty(row[indexByField.cantidad]);
 			const colorCell =
 				indexByField.color != null ? String(row[indexByField.color] ?? '').trim() : '';
-			if (!codigo || !categoria) {
+			if (!codigo) {
+				codigo = `AUTO-${String(i + 1).padStart(4, '0')}`;
+			}
+			const nombreFinal = nombreCol.trim() || codigo;
+			if (!categoria) {
 				skipped += 1;
 				continue;
 			}
@@ -257,6 +300,16 @@ export async function importProductsFromExcelAction(
 
 export async function fetchRecentProductsAction(limit = 100): Promise<ProductRow[]> {
 	return fetchRecentProducts(limit);
+}
+
+/** Lista completa del catálogo para paneles admin (p. ej. mapa de página Recién llegados). */
+export async function fetchAllProductsForPanelAction(): Promise<ProductRow[]> {
+	return fetchAllProductsForPanel();
+}
+
+/** Para la home: completar la selección guardada con productos que no vienen en el lote reciente. */
+export async function fetchProductsByIdsAction(ids: string[]): Promise<ProductRow[]> {
+	return fetchProductsByIds(ids);
 }
 
 export type InsertProductInput = {
@@ -381,6 +434,7 @@ export type UpdateProductPatch = {
 	size_inventory: SizeInventoryRow[];
 	/** Hasta 3 URLs; la primera es la imagen principal (`image_url`). */
 	image_urls: string[];
+	video_url: string | null;
 };
 
 export async function updateProductAction(
@@ -401,7 +455,11 @@ export async function updateProductAction(
 		sizesNorm.length > 0 ? sumSizeInventoryQty(sizesNorm) : Math.max(0, Math.floor(patch.stock));
 	const imageUrls = (patch.image_urls ?? []).filter(Boolean).slice(0, 3);
 
-	const fullUpdate = {
+	/**
+	 * Las server actions pueden omitir claves `undefined` al serializar. Si `color` no viene en el patch,
+	 * no debemos mandar `color: null` o se borra el valor guardado.
+	 */
+	const fullUpdate: Record<string, unknown> = {
 		name: patch.name.trim(),
 		price: Math.max(0, patch.price),
 		base_price: patch.base_price >= 0 ? patch.base_price : null,
@@ -413,13 +471,19 @@ export async function updateProductAction(
 			patch.compare_at_price != null && patch.compare_at_price >= 0 ? patch.compare_at_price : null,
 		category: patch.category?.trim() || null,
 		description: patch.description.trim() || null,
-		color: patch.color?.trim() || null,
 		stock,
 		cost: patch.cost >= 0 ? patch.cost : null,
 		size_inventory: sizesNorm.length > 0 ? sizesNorm : [],
 		image_url: imageUrls[0] ?? null,
 		image_urls: imageUrls,
 	};
+	if (Object.prototype.hasOwnProperty.call(patch, 'color')) {
+		fullUpdate.color = typeof patch.color === 'string' ? patch.color.trim() || null : null;
+	}
+	if (Object.prototype.hasOwnProperty.call(patch, 'video_url')) {
+		const v = patch.video_url;
+		fullUpdate.video_url = typeof v === 'string' ? v.trim() || null : null;
+	}
 
 	let updateResult = await supabase
 		.from('products')
@@ -431,8 +495,11 @@ export async function updateProductAction(
 		updateResult = await supabase.from('products').update(legacyUpdate).eq('id', id);
 	}
 	if (updateResult.error && hasMissingColorColumnError(updateResult.error.message)) {
-		const { color: _color, ...legacyUpdate } = fullUpdate;
-		updateResult = await supabase.from('products').update(legacyUpdate).eq('id', id);
+		return {
+			ok: false,
+			message:
+				'No se pudo guardar el color: falta la columna `color` en la tabla products. Ejecutá la migración en Supabase (p. ej. 20260416200000_products_color.sql) y recargá el esquema.',
+		};
 	}
 
 	if (updateResult.error) {
