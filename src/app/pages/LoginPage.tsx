@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Home } from 'lucide-react';
+import { Eye, EyeOff, Home } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect, type FormEvent } from 'react';
 import { Label } from '@/app/components/ui/label';
@@ -15,20 +15,27 @@ const serif = "'Cormorant Garamond', serif";
 const sans = 'Montserrat, sans-serif';
 
 const LOGIN_VIDEO_URL =
-  'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775777413/login_jmgi0f.mp4';
+	'https://res.cloudinary.com/dqr1ehkv7/video/upload/q_auto:eco,w_1920,c_limit/v1775777413/login_jmgi0f.mp4';
+/** Primer fotograma del video (ligero): en móvil reemplaza el mp4 para fluidez y datos. */
+const LOGIN_HERO_POSTER_URL =
+	'https://res.cloudinary.com/dqr1ehkv7/video/upload/so_0,q_auto:low,w_1200,c_fill,f_jpg/v1775777413/login_jmgi0f.jpg';
 const LOGIN_LOGO_URL =
-  'https://res.cloudinary.com/dqr1ehkv7/image/upload/v1775593895/modern-fashion-store/logo-b.png';
+	'https://res.cloudinary.com/dqr1ehkv7/image/upload/v1775593895/modern-fashion-store/logo-b.png';
 
-const LOGO_SHOW_DELAY_MS = 1000;
+const LOGO_SHOW_DELAY_MOBILE_MS = 120;
+const LOGO_SHOW_DELAY_DESKTOP_MS = 600;
 
 export function LoginPage() {
   const router = useRouter();
   const [remember, setRemember] = useState(false);
   const [logoVisible, setLogoVisible] = useState(false);
   const [pending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    const id = window.setTimeout(() => setLogoVisible(true), LOGO_SHOW_DELAY_MS);
+    const narrow = window.matchMedia('(max-width: 1023px)');
+    const delay = narrow.matches ? LOGO_SHOW_DELAY_MOBILE_MS : LOGO_SHOW_DELAY_DESKTOP_MS;
+    const id = window.setTimeout(() => setLogoVisible(true), delay);
     return () => window.clearTimeout(id);
   }, []);
 
@@ -64,12 +71,25 @@ export function LoginPage() {
 
       <div className="grid min-h-dvh lg:grid-cols-2">
         <div className="relative isolate min-h-[min(42vh,320px)] lg:min-h-dvh">
+          {/* Móvil: sin video (ahorra datos, CPU y evita autoplay bloqueado). Desktop: video con poster. */}
+          <div className="absolute inset-0 z-0 bg-[#1a1410] lg:hidden">
+            <Image
+              src={LOGIN_HERO_POSTER_URL}
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover"
+            />
+          </div>
           <video
-            className="absolute inset-0 z-0 h-full w-full object-cover"
+            className="absolute inset-0 z-0 hidden h-full w-full object-cover lg:block"
             autoPlay
             loop
             muted
             playsInline
+            preload="metadata"
+            poster={LOGIN_HERO_POSTER_URL}
             aria-hidden
           >
             <source src={LOGIN_VIDEO_URL} type="video/mp4" />
@@ -145,19 +165,34 @@ export function LoginPage() {
                 >
                   Contraseña
                 </Label>
-                <input
-                  id="login-password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  disabled={pending}
-                  className={cn(
-                    'w-full border-0 border-b border-[#1a1410]/35 bg-transparent py-2.5 text-[#2a2520] outline-none transition-colors',
-                    'focus:border-[#1a1410] disabled:opacity-50',
-                  )}
-                  style={{ fontFamily: sans }}
-                />
+                <div className="relative flex items-center">
+                  <input
+                    id="login-password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    required
+                    disabled={pending}
+                    className={cn(
+                      'w-full border-0 border-b border-[#1a1410]/35 bg-transparent py-2.5 pr-11 text-[#2a2520] outline-none transition-colors',
+                      'focus:border-[#1a1410] disabled:opacity-50',
+                    )}
+                    style={{ fontFamily: sans }}
+                  />
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-0 top-1/2 z-10 flex min-h-11 min-w-11 -translate-y-1/2 touch-manipulation items-center justify-center rounded-sm text-[#6b6156] transition-colors hover:bg-[#1a1410]/5 hover:text-[#1a1410] active:bg-[#1a1410]/10 disabled:opacity-40"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden />
+                    ) : (
+                      <Eye className="h-[18px] w-[18px]" strokeWidth={1.5} aria-hidden />
+                    )}
+                  </button>
+                </div>
                 <div className="pt-1">
                   <a
                     href="#recuperar"
