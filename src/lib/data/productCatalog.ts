@@ -16,9 +16,12 @@ export type ProductRow = {
 	stock: number;
 	cost: number | null;
 	base_price: number | null;
+	transfer_price: number | null;
+	final_transfer_price: number | null;
 	tax_applies: boolean;
 	tax_percent: number | null;
 	description: string | null;
+	color: string | null;
 	product_code: string | null;
 	image_urls: string[];
 	video_url: string | null;
@@ -41,9 +44,12 @@ export type CatalogProduct = {
 	cost: number;
 	image: string;
 	description: string;
+	color: string;
 	promoPrice: number | null;
 	kind: string;
 	base_price: number;
+	transfer_price: number;
+	final_transfer_price: number;
 	tax_applies: boolean;
 	tax_percent: number | null;
 	gallery_image_urls: string[];
@@ -53,7 +59,7 @@ export type CatalogProduct = {
 	size_inventory: SizeInventoryRow[];
 };
 
-const PLACEHOLDER_IMG =
+export const PLACEHOLDER_IMG =
 	'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=200&q=70';
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -63,6 +69,24 @@ const CATEGORY_LABELS: Record<string, string> = {
 	abrigos: 'Abrigos',
 	accesorios: 'Accesorios',
 };
+
+/** Slugs permitidos en `products.category` (panel admin / `category_db`). */
+export const ADMIN_CATEGORY_SLUGS = [
+	'remeras',
+	'pantalones',
+	'vestidos',
+	'abrigos',
+	'accesorios',
+] as const;
+
+export type AdminCategorySlug = (typeof ADMIN_CATEGORY_SLUGS)[number];
+
+export function getAdminCategories(): { slug: AdminCategorySlug; label: string }[] {
+	return ADMIN_CATEGORY_SLUGS.map((slug) => ({
+		slug,
+		label: CATEGORY_LABELS[slug] ?? slug,
+	}));
+}
 
 export function displayCategoryLabel(raw: string | null | undefined): string {
 	if (!raw?.trim()) return 'Sin categoría';
@@ -120,9 +144,12 @@ export function normalizeProductRow(raw: Record<string, unknown>): ProductRow {
 		stock: Math.max(0, Math.floor(toNum(raw.stock))),
 		cost: toNumNull(raw.cost),
 		base_price: toNumNull(raw.base_price),
+		transfer_price: toNumNull(raw.transfer_price),
+		final_transfer_price: toNumNull(raw.final_transfer_price),
 		tax_applies: toBool(raw.tax_applies, false),
 		tax_percent: toNumNull(raw.tax_percent),
 		description: toStr(raw.description),
+		color: toStr(raw.color),
 		product_code: toStr(raw.product_code),
 		image_urls: mergedGallery,
 		video_url: toStr(raw.video_url),
@@ -153,9 +180,12 @@ export function productRowToCatalogProduct(row: ProductRow): CatalogProduct {
 		cost: row.cost != null ? row.cost : 0,
 		image: primary,
 		description: row.description?.trim() ?? '',
+		color: row.color?.trim() ?? '',
 		promoPrice: row.compare_at_price,
 		kind: row.kind || 'producto',
 		base_price: row.base_price != null ? row.base_price : 0,
+		transfer_price: row.transfer_price != null ? row.transfer_price : 0,
+		final_transfer_price: row.final_transfer_price != null ? row.final_transfer_price : 0,
 		tax_applies: row.tax_applies,
 		tax_percent: row.tax_percent != null ? row.tax_percent : null,
 		gallery_image_urls: urls,

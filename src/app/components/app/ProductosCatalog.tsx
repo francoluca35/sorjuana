@@ -1,18 +1,19 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  Camera,
   ChevronDown,
   Copy,
   Filter,
+  Plus,
   Search,
   Share2,
   Trash2,
+  X,
 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -27,16 +28,45 @@ import {
 } from '@/app/components/ui/sheet';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/app/components/ui/collapsible';
 import { cn } from '@/app/components/ui/utils';
-import { deleteProductAction, insertProductAction, updateProductAction } from '@/app/actions/products';
+import { Checkbox } from '@/app/components/ui/checkbox';
+import {
+  deleteProductAction,
+  deleteProductsBulkAction,
+  insertProductAction,
+  updateProductAction,
+} from '@/app/actions/products';
+import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { SizeInventoryEditor } from '@/app/components/app/SizeInventoryEditor';
 import type { CatalogProduct } from '@/lib/data/productCatalog';
-import { displayCategoryLabel } from '@/lib/data/productCatalog';
+import { displayCategoryLabel, PLACEHOLDER_IMG } from '@/lib/data/productCatalog';
 import { normalizeSizeInventoryForDb, sumSizeInventoryQty } from '@/lib/data/productSizes';
 
 const sans = 'Montserrat, sans-serif';
 
+const MAX_PRODUCT_IMAGES = 3;
+
+function syncDraftImages(d: CatalogProduct, urls: string[]): CatalogProduct {
+  const gallery = urls.filter(Boolean).slice(0, MAX_PRODUCT_IMAGES);
+  return {
+    ...d,
+    gallery_image_urls: [...gallery],
+    image: gallery[0] ?? PLACEHOLDER_IMG,
+  };
+}
+
+function galleryList(d: CatalogProduct): string[] {
+  const g = d.gallery_image_urls;
+  return Array.isArray(g) ? g.filter(Boolean) : [];
+}
+
 function formatMoney(n: number) {
   return `$ ${n.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
+}
+
+function computeFinalPrice(base: number, taxApplies: boolean, taxPercent: number | null): number {
+  if (!taxApplies) return Math.round(Math.max(0, base));
+  const pct = Math.max(0, taxPercent ?? 0);
+  return Math.round(Math.max(0, base) * (1 + pct / 100));
 }
 
 function stockDotClass(stock: number) {
@@ -72,6 +102,25 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
   const [drawerTab, setDrawerTab] = useState<'registro' | 'stock'>('registro');
   const [draft, setDraft] = useState<CatalogProduct | null>(null);
   const [optOpen, setOptOpen] = useState(true);
+  const [imageUploading, setImageUploading] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const draftRef = useRef<CatalogProduct | null>(null);
+  draftRef.current = draft;
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const valid = new Set(products.map((p) => p.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (valid.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [products]);
 
   const categories = useMemo(() => {
     const m = new Map<string, number>();
@@ -131,12 +180,19 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     const res = await updateProductAction(draft.id, {
       name: draft.name,
       price: draft.price,
+      base_price: draft.base_price,
+      transfer_price: draft.transfer_price,
+      final_transfer_price: draft.final_transfer_price,
+      tax_applies: draft.tax_applies,
+      tax_percent: draft.tax_percent,
       compare_at_price: draft.promoPrice,
       category: draft.category_db?.trim() || null,
       description: draft.description,
+      color: draft.color,
       stock: draft.stock,
       cost: draft.cost,
       size_inventory: draft.size_inventory,
+      image_urls: galleryList(draft).slice(0, MAX_PRODUCT_IMAGES),
     });
     if (!res.ok) {
       toast.error(res.message);
@@ -145,8 +201,11 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     const sizesNorm = normalizeSizeInventoryForDb(draft.size_inventory);
     const nextStock =
       sizesNorm.length > 0 ? sumSizeInventoryQty(sizesNorm) : Math.max(0, Math.floor(draft.stock));
+    const gallery = galleryList(draft).slice(0, MAX_PRODUCT_IMAGES);
     const next: CatalogProduct = {
       ...draft,
+      gallery_image_urls: gallery,
+      image: gallery[0] ?? PLACEHOLDER_IMG,
       size_inventory: sizesNorm.length > 0 ? sizesNorm : [],
       stock: nextStock,
       category: displayCategoryLabel(draft.category_db?.trim() || null),
@@ -169,6 +228,58 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     toast.success('Producto eliminado.');
   }
 
+  const allDisplayedSelected =
+    displayed.length > 0 && displayed.every((p) => selectedIds.has(p.id));
+  const someDisplayedSelected = displayed.some((p) => selectedIds.has(p.id));
+
+  function toggleSelectOne(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    if (allDisplayedSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const p of displayed) next.delete(p.id);
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const p of displayed) next.add(p.id);
+        return next;
+      });
+    }
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  async function deleteSelectedBulk() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!confirm(`¿Eliminar ${ids.length} producto(s) de la base de datos? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    const res = await deleteProductsBulkAction(ids);
+    if (!res.ok) {
+      toast.error(res.message);
+      return;
+    }
+    setProducts((prev) => prev.filter((p) => !ids.includes(p.id)));
+    clearSelection();
+    setSheetOpen(false);
+    setDraft(null);
+    toast.success(`${res.deleted} producto(s) eliminado(s).`);
+    router.refresh();
+  }
+
   async function duplicateProduct() {
     if (!draft) return;
     const baseCode = draft.code === '—' ? `cpy-${Date.now()}` : draft.code;
@@ -184,15 +295,18 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       sizeInventory: draft.size_inventory.map((r) => ({ ...r })),
       cost: draft.cost,
       basePrice: draft.base_price,
+      transferPrice: draft.transfer_price,
       price: draft.price,
+      finalTransferPrice: draft.final_transfer_price,
       taxApplies: draft.tax_applies,
       taxPercent: draft.tax_percent,
       description: draft.description.trim() || null,
+      color: draft.color?.trim() || null,
       productCode: copyCode,
       category: draft.category_db?.trim() || null,
       minOrderQty: draft.min_order_qty,
       maxOrderQty: draft.max_order_qty,
-      imageUrls: draft.gallery_image_urls.slice(0, 3),
+      imageUrls: galleryList(draft).slice(0, 3),
       videoUrl: draft.video_url,
       compareAtPrice: draft.promoPrice,
     });
@@ -204,6 +318,56 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     setSheetOpen(false);
     setDraft(null);
     router.refresh();
+  }
+
+  async function handleEditImagesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target;
+    const picked = input.files?.length ? Array.from(input.files) : [];
+    input.value = '';
+    if (!picked.length) return;
+
+    const current = draftRef.current;
+    if (!current) {
+      toast.error('No hay producto seleccionado.');
+      return;
+    }
+
+    const room = MAX_PRODUCT_IMAGES - galleryList(current).length;
+    if (room <= 0) {
+      toast.message(`Máximo ${MAX_PRODUCT_IMAGES} imágenes.`);
+      return;
+    }
+
+    setImageUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (let i = 0; i < picked.length && uploaded.length < room; i++) {
+        const file = picked[i]!;
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('kind', 'image');
+        const res = await uploadSorjuanaMedia(fd);
+        if (!res.ok) {
+          toast.error(res.message);
+          return;
+        }
+        uploaded.push(res.publicUrl);
+      }
+      if (uploaded.length) {
+        setDraft((d) => (d ? syncDraftImages(d, [...galleryList(d), ...uploaded]) : d));
+        toast.success(uploaded.length === 1 ? 'Imagen agregada.' : `${uploaded.length} imágenes agregadas.`);
+      }
+    } finally {
+      setImageUploading(false);
+    }
+  }
+
+  function removeDraftImageAt(index: number) {
+    setDraft((d) => {
+      if (!d) return d;
+      const next = galleryList(d).filter((_, i) => i !== index);
+      return syncDraftImages(d, next);
+    });
   }
 
   async function shareProduct() {
@@ -344,6 +508,47 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
             </div>
           ) : null}
 
+          {displayed.length > 0 ? (
+            <div className="flex flex-none flex-wrap items-center gap-3 border-b border-slate-200/90 bg-white px-3 py-2.5 sm:px-6">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="select-all-displayed"
+                  checked={
+                    displayed.length === 0
+                      ? false
+                      : allDisplayedSelected
+                        ? true
+                        : someDisplayedSelected
+                          ? 'indeterminate'
+                          : false
+                  }
+                  onCheckedChange={() => toggleSelectAllVisible()}
+                  aria-label="Seleccionar todos los productos visibles"
+                />
+                <label htmlFor="select-all-displayed" className="cursor-pointer text-xs text-slate-600">
+                  Seleccionar visibles ({displayed.length})
+                </label>
+              </div>
+              {selectedIds.size > 0 ? (
+                <>
+                  <span className="text-xs font-medium text-slate-700">{selectedIds.size} seleccionado(s)</span>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => void deleteSelectedBulk()}
+                  >
+                    Eliminar seleccionados
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={clearSelection}>
+                    Quitar selección
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="relative flex-1 overflow-y-auto bg-slate-50/80 pb-8">
             <ul className="divide-y divide-slate-200/80">
               {displayed.length === 0 ? (
@@ -352,11 +557,22 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                 </li>
               ) : null}
               {displayed.map((p) => (
-                <li key={p.id}>
+                <li key={p.id} className="flex items-stretch">
+                  <div
+                    className="flex shrink-0 items-center pl-2 sm:pl-4"
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      checked={selectedIds.has(p.id)}
+                      onCheckedChange={(v) => toggleSelectOne(p.id, v === true)}
+                      aria-label={`Seleccionar ${p.name}`}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => openProduct(p)}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-white sm:gap-4 sm:px-6"
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-3 text-left transition hover:bg-white sm:gap-4 sm:pr-6"
                   >
                     <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white sm:h-16 sm:w-16">
                       <span
@@ -443,15 +659,52 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
               <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
                 {drawerTab === 'registro' ? (
                   <div className="space-y-5">
-                    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                      <Image src={draft.image} alt="" fill className="object-cover" sizes="(max-width:768px) 100vw, 400px" />
-                      <button
-                        type="button"
-                        className="absolute bottom-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-slate-700 shadow-md"
-                        aria-label="Cambiar imagen"
-                      >
-                        <Camera className="h-5 w-5" />
-                      </button>
+                    <div>
+                      <Label className="text-slate-800">Imágenes del producto</Label>
+                      <p className="mt-1 text-xs text-slate-500">Hasta {MAX_PRODUCT_IMAGES} fotos. La primera es la portada.</p>
+                      <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(ev) => void handleEditImagesChange(ev)}
+                      />
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        {galleryList(draft).map((url, idx) => (
+                          <div
+                            key={`${url}-${idx}`}
+                            className="relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                          >
+                            <Image src={url} alt="" fill className="object-cover" sizes="120px" unoptimized />
+                            <button
+                              type="button"
+                              className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 text-red-600 shadow"
+                              aria-label={`Quitar imagen ${idx + 1}`}
+                              onClick={() => removeDraftImageAt(idx)}
+                            >
+                              <X className="h-4 w-4" strokeWidth={2} />
+                            </button>
+                            {idx === 0 ? (
+                              <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                Portada
+                              </span>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                      {galleryList(draft).length < MAX_PRODUCT_IMAGES ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="mt-3 w-full border-dashed border-slate-300"
+                          disabled={imageUploading}
+                          onClick={() => imageInputRef.current?.click()}
+                        >
+                          <Plus className="mr-2 h-4 w-4" strokeWidth={2} />
+                          {imageUploading ? 'Subiendo…' : 'Agregar imagen'}
+                        </Button>
+                      ) : null}
                     </div>
                     <div>
                       <Label htmlFor="d-name">Nombre del producto</Label>
@@ -463,15 +716,116 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                       />
                     </div>
                     <div>
-                      <Label htmlFor="d-price">Precio</Label>
+                      <Label htmlFor="d-color">Color</Label>
                       <Input
-                        id="d-price"
+                        id="d-color"
+                        value={draft.color}
+                        onChange={(e) => setDraft({ ...draft, color: e.target.value })}
+                        className="mt-1.5"
+                        placeholder="Ej. beige, negro"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="d-base-price">Precio efectivo</Label>
+                      <Input
+                        id="d-base-price"
                         type="number"
                         min={0}
-                        value={draft.price}
-                        onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) || 0 })}
+                        value={draft.base_price}
+                        onChange={(e) => {
+                          const basePrice = Number(e.target.value) || 0;
+                          setDraft({
+                            ...draft,
+                            base_price: basePrice,
+                            price: computeFinalPrice(basePrice, draft.tax_applies, draft.tax_percent),
+                          });
+                        }}
                         className="mt-1.5"
                       />
+                    </div>
+                    <div>
+                      <Label htmlFor="d-transfer-price">Precio tarjetas</Label>
+                      <Input
+                        id="d-transfer-price"
+                        type="number"
+                        min={0}
+                        value={draft.transfer_price}
+                        onChange={(e) => {
+                          const transferPrice = Number(e.target.value) || 0;
+                          setDraft({
+                            ...draft,
+                            transfer_price: transferPrice,
+                            final_transfer_price: computeFinalPrice(transferPrice, draft.tax_applies, draft.tax_percent),
+                          });
+                        }}
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="d-tax-applies">Impuesto</Label>
+                        <select
+                          id="d-tax-applies"
+                          value={draft.tax_applies ? 'si' : 'no'}
+                          onChange={(e) => {
+                            const taxApplies = e.target.value === 'si';
+                            setDraft({
+                              ...draft,
+                              tax_applies: taxApplies,
+                              price: computeFinalPrice(draft.base_price, taxApplies, draft.tax_percent),
+                              final_transfer_price: computeFinalPrice(draft.transfer_price, taxApplies, draft.tax_percent),
+                            });
+                          }}
+                          className="mt-1.5 flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
+                        >
+                          <option value="no">No</option>
+                          <option value="si">Sí</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Label htmlFor="d-tax-pct">Impuesto (%)</Label>
+                        <Input
+                          id="d-tax-pct"
+                          type="number"
+                          min={0}
+                          value={draft.tax_percent ?? 0}
+                          onChange={(e) => {
+                            const taxPercent = Number(e.target.value) || 0;
+                            setDraft({
+                              ...draft,
+                              tax_percent: taxPercent,
+                              price: computeFinalPrice(draft.base_price, draft.tax_applies, taxPercent),
+                              final_transfer_price: computeFinalPrice(draft.transfer_price, draft.tax_applies, taxPercent),
+                            });
+                          }}
+                          className="mt-1.5"
+                          disabled={!draft.tax_applies}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label htmlFor="d-price">Precio total efectivo</Label>
+                        <Input
+                          id="d-price"
+                          type="number"
+                          min={0}
+                          value={draft.price}
+                          onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) || 0 })}
+                          className="mt-1.5"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="d-final-transfer">Precio final transferencia</Label>
+                        <Input
+                          id="d-final-transfer"
+                          type="number"
+                          min={0}
+                          value={draft.final_transfer_price}
+                          onChange={(e) => setDraft({ ...draft, final_transfer_price: Number(e.target.value) || 0 })}
+                          className="mt-1.5"
+                        />
+                      </div>
                     </div>
                     <Collapsible open={optOpen} onOpenChange={setOptOpen}>
                       <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-800">

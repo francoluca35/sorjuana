@@ -3,16 +3,10 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import * as React from 'react';
-import { Heart, Eye, Sparkles, Play, ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
+import { Heart, Eye, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from './ui/dialog';
+import { ProductDetailModal, productRowToDetailModalProduct } from './ProductDetailModal';
 import { cn } from './ui/utils';
 import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
@@ -25,10 +19,6 @@ import {
 
 const PLACEHOLDER_IMG =
 	'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80';
-
-type ModalSlide =
-	| { kind: 'video'; src: string; poster: string; label: string }
-	| { kind: 'image'; src: string; label: string };
 
 type NewArrivalProduct = {
 	id: string;
@@ -81,25 +71,6 @@ function mapRowToNewArrivalProduct(p: ProductRow): NewArrivalProduct {
 		sizeInventory: p.size_inventory?.length ? p.size_inventory.map((r) => ({ ...r })) : [],
 		isNew: true,
 	};
-}
-
-function arrivalToModalSlides(p: NewArrivalProduct): ModalSlide[] {
-	const poster = p.cardImages[0] ?? PLACEHOLDER_IMG;
-	const slides: ModalSlide[] = [];
-	const seen = new Set<string>();
-	if (p.videoUrl) {
-		slides.push({ kind: 'video', src: p.videoUrl, poster, label: 'Video' });
-		seen.add(`video:${p.videoUrl}`);
-	}
-	let fotoIdx = 0;
-	for (const src of p.cardImages) {
-		const key = `image:${src}`;
-		if (seen.has(key)) continue;
-		seen.add(key);
-		fotoIdx += 1;
-		slides.push({ kind: 'image', src, label: `Foto ${fotoIdx}` });
-	}
-	return slides;
 }
 
 function subscribeRecentArrivalsStorage(onStoreChange: () => void) {
@@ -197,53 +168,17 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 	const newProducts = React.useMemo(() => displayRows.map(mapRowToNewArrivalProduct), [displayRows]);
 
 	const reducedMotion = usePrefersReducedMotion();
-	const [modalOpen, setModalOpen] = React.useState(false);
-	const [modalProduct, setModalProduct] = React.useState<NewArrivalProduct | null>(null);
-	const [slideIndex, setSlideIndex] = React.useState(0);
+	const [detailProductId, setDetailProductId] = React.useState<string | null>(null);
 
-	const modalSlides = React.useMemo(
-		() => (modalProduct ? arrivalToModalSlides(modalProduct) : []),
-		[modalProduct],
-	);
+	const detailModalProduct = React.useMemo(() => {
+		if (!detailProductId) return null;
+		const row = displayRows.find((r) => r.id === detailProductId);
+		return row ? productRowToDetailModalProduct(row) : null;
+	}, [detailProductId, displayRows]);
 
 	const openProduct = React.useCallback((p: NewArrivalProduct) => {
-		setModalProduct(p);
-		setSlideIndex(0);
-		setModalOpen(true);
+		setDetailProductId(p.id);
 	}, []);
-
-	React.useEffect(() => {
-		setSlideIndex(0);
-	}, [modalProduct?.id]);
-
-	const goSlide = React.useCallback(
-		(delta: number) => {
-			if (modalSlides.length === 0) return;
-			setSlideIndex((i) => (i + delta + modalSlides.length) % modalSlides.length);
-		},
-		[modalSlides.length],
-	);
-
-	React.useEffect(() => {
-		if (!modalOpen || modalSlides.length === 0) return;
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'ArrowLeft') {
-				e.preventDefault();
-				goSlide(-1);
-			}
-			if (e.key === 'ArrowRight') {
-				e.preventDefault();
-				goSlide(1);
-			}
-		};
-		window.addEventListener('keydown', onKey);
-		return () => window.removeEventListener('keydown', onKey);
-	}, [modalOpen, modalSlides.length, goSlide]);
-
-	const modalSlide =
-		modalProduct && modalSlides.length > 0
-			? modalSlides[Math.min(slideIndex, modalSlides.length - 1)]
-			: null;
 
 	return (
 		<section className="relative bg-white px-4 py-32 sm:px-6 lg:px-8">
@@ -465,295 +400,10 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 				</motion.div>
 			</div>
 
-			<Dialog open={modalOpen} onOpenChange={setModalOpen}>
-				<DialogContent
-					className={cn(
-						'max-h-[min(92vh,900px)] w-[min(96vw,56rem)] gap-0 overflow-y-auto rounded-none border-[#1a1410]/15 bg-[#f5f2ed] p-0 sm:max-w-[min(96vw,56rem)]',
-					)}
-					onOpenAutoFocus={(e) => e.preventDefault()}
-				>
-					{modalProduct ? (
-						<>
-							<DialogHeader className="sr-only">
-								<DialogTitle>{modalProduct.name}</DialogTitle>
-								<DialogDescription>
-									{modalProduct.description ?? 'Detalle del producto'}
-								</DialogDescription>
-							</DialogHeader>
-
-							<div className="grid lg:grid-cols-[1.05fr_1fr]">
-								<div className="relative flex flex-col border-b border-[#1a1410]/10 bg-[#0a0a0a] lg:min-h-0 lg:border-b-0 lg:border-r">
-									{modalSlide ? (
-										<>
-											<div className="relative flex min-h-[min(46vh,400px)] w-full flex-1 items-center justify-center overflow-hidden lg:min-h-[min(72vh,780px)]">
-												{modalSlide.kind === 'video' ? (
-													<video
-														key={`${modalProduct.id}-slide-${slideIndex}`}
-														className="max-h-[min(46vh,400px)] w-full max-w-full object-contain lg:max-h-[min(72vh,780px)]"
-														poster={modalSlide.poster}
-														src={modalSlide.src}
-														controls
-														playsInline
-														preload="metadata"
-													/>
-												) : (
-													<div className="relative h-[min(46vh,400px)] w-full max-w-full lg:h-[min(72vh,780px)]">
-														<Image
-															src={modalSlide.src}
-															alt=""
-															fill
-															className="object-contain object-center"
-															sizes="(max-width: 1024px) 96vw, 52vw"
-															unoptimized
-															priority={slideIndex === 0}
-														/>
-													</div>
-												)}
-
-												<div className="pointer-events-none absolute left-3 top-3 z-10 border border-white/25 bg-black/60 px-2.5 py-1 text-[10px] tracking-[0.18em] text-white backdrop-blur-sm">
-													{modalSlide.kind === 'video' ? (
-														<span
-															className="flex items-center gap-1.5"
-															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-														>
-															<Play className="size-3 fill-current" aria-hidden />
-															{modalSlide.label.toUpperCase()}
-														</span>
-													) : (
-														<span style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}>
-															{modalSlide.label.toUpperCase()}
-														</span>
-													)}
-												</div>
-
-												{modalSlides.length > 1 ? (
-													<div
-														className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/15 bg-black/65 px-3 py-1 text-[11px] tabular-nums text-white backdrop-blur-sm"
-														style={{ fontFamily: 'Montserrat, sans-serif' }}
-													>
-														{slideIndex + 1} / {modalSlides.length}
-													</div>
-												) : null}
-
-												{modalSlides.length > 1 ? (
-													<>
-														<button
-															type="button"
-															onClick={(e) => {
-																e.stopPropagation();
-																goSlide(-1);
-															}}
-															className="absolute left-2 top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white text-[#1a1410] shadow-lg transition hover:bg-[#f5f2ed] sm:left-3 sm:size-11"
-															aria-label="Ver anterior"
-														>
-															<ChevronLeft className="size-6 sm:size-7" strokeWidth={1.75} />
-														</button>
-														<button
-															type="button"
-															onClick={(e) => {
-																e.stopPropagation();
-																goSlide(1);
-															}}
-															className="absolute right-2 top-1/2 z-20 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-black/10 bg-white text-[#1a1410] shadow-lg transition hover:bg-[#f5f2ed] sm:right-3 sm:size-11"
-															aria-label="Ver siguiente"
-														>
-															<ChevronRight className="size-6 sm:size-7" strokeWidth={1.75} />
-														</button>
-													</>
-												) : null}
-											</div>
-
-											{modalSlides.length > 1 ? (
-												<div className="shrink-0 border-t border-white/10 bg-black/90 px-2 py-2 sm:px-3">
-													<div
-														className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-														role="tablist"
-														aria-label="Miniaturas de la galería"
-													>
-														{modalSlides.map((s, i) => (
-															<button
-																key={`${modalProduct.id}-thumb-${i}-${s.kind}-${s.src}`}
-																type="button"
-																role="tab"
-																aria-selected={i === slideIndex}
-																onClick={(e) => {
-																	e.stopPropagation();
-																	setSlideIndex(i);
-																}}
-																className={cn(
-																	'relative size-[52px] shrink-0 overflow-hidden border-2 transition-all sm:size-[60px]',
-																	i === slideIndex
-																		? 'border-[#b8956a] opacity-100 ring-1 ring-[#b8956a]/50'
-																		: 'border-transparent opacity-65 hover:opacity-100',
-																)}
-															>
-																{s.kind === 'video' ? (
-																	<>
-																		<Image
-																			src={s.poster}
-																			alt=""
-																			fill
-																			className="object-cover"
-																			sizes="60px"
-																			unoptimized
-																		/>
-																		<span className="absolute inset-0 flex items-center justify-center bg-black/35">
-																			<Play
-																				className="size-4 text-white drop-shadow-md"
-																				fill="currentColor"
-																				aria-hidden
-																			/>
-																		</span>
-																	</>
-																) : (
-																	<Image
-																		src={s.src}
-																		alt=""
-																		fill
-																		className="object-cover"
-																		sizes="60px"
-																		unoptimized
-																	/>
-																)}
-															</button>
-														))}
-													</div>
-												</div>
-											) : null}
-										</>
-									) : null}
-								</div>
-
-								<div className="flex flex-col p-6 sm:p-8">
-									<p
-										className="mb-1 text-[10px] tracking-[0.28em] text-[#8b6f47]"
-										style={{ fontFamily: 'Montserrat, sans-serif' }}
-									>
-										{modalProduct.category.toUpperCase()}
-									</p>
-									<h2
-										className="mb-3 text-2xl text-[#1a1410] sm:text-3xl"
-										style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 500 }}
-									>
-										{modalProduct.name}
-									</h2>
-
-									<div className="mb-4 flex flex-wrap items-baseline gap-3">
-										<span
-											className="text-3xl text-[#b8956a]"
-											style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 600 }}
-										>
-											$
-											{modalProduct.price.toLocaleString('es-AR', {
-												minimumFractionDigits: 0,
-												maximumFractionDigits: 0,
-											})}
-										</span>
-										{modalProduct.oldPrice != null ? (
-											<span
-												className="text-lg text-[#9a9085] line-through"
-												style={{ fontFamily: 'Montserrat, sans-serif' }}
-											>
-												$
-												{modalProduct.oldPrice.toLocaleString('es-AR', {
-													minimumFractionDigits: 0,
-													maximumFractionDigits: 0,
-												})}
-											</span>
-										) : null}
-									</div>
-
-									{modalProduct.description ? (
-										<p
-											className="mb-6 text-sm leading-relaxed text-[#6b6156]"
-											style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.05rem' }}
-										>
-											{modalProduct.description}
-										</p>
-									) : null}
-
-									<div className="mb-6 space-y-3">
-										{modalProduct.sizeInventory.length > 0 ? (
-											<div className="rounded-none border border-[#b8956a]/40 bg-white/60 px-4 py-3">
-												<p
-													className="mb-2.5 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8b6f47]"
-													style={{ fontFamily: 'Montserrat, sans-serif' }}
-												>
-													Talles disponibles
-												</p>
-												<ul className="flex flex-wrap justify-center gap-2">
-													{modalProduct.sizeInventory.map((row, idx) => (
-														<li
-															key={`${row.size}-${idx}`}
-															className={cn(
-																'min-w-[3.25rem] rounded-sm border px-2.5 py-2 text-center',
-																row.qty > 0
-																	? 'border-[#b8956a]/50 bg-[#f5f2ed]/90'
-																	: 'border-[#1a1410]/10 bg-white/40 opacity-80',
-															)}
-														>
-															<span
-																className="block text-[11px] font-medium tracking-wide text-[#1a1410]"
-																style={{ fontFamily: 'Montserrat, sans-serif' }}
-															>
-																{row.size}
-															</span>
-															<span
-																className={cn(
-																	'mt-0.5 block text-sm tabular-nums',
-																	row.qty > 0 ? 'text-[#b8956a]' : 'text-[#9a9085]',
-																)}
-																style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 600 }}
-															>
-																{row.qty}
-															</span>
-														</li>
-													))}
-												</ul>
-												<p
-													className="mt-3 border-t border-[#b8956a]/20 pt-2 text-center text-[11px] text-[#5c5349]"
-													style={{ fontFamily: 'Montserrat, sans-serif' }}
-												>
-													Total en tienda:{' '}
-													<strong className="text-[#1a1410]">{modalProduct.stock}</strong> unidades
-												</p>
-											</div>
-										) : (
-											<div className="rounded-none border border-[#b8956a]/40 bg-white/60 px-4 py-3">
-												<p
-													className="text-center text-xs font-semibold uppercase tracking-wide text-[#5c5349]"
-													style={{ fontFamily: 'Montserrat, sans-serif' }}
-												>
-													Stock disponible: {modalProduct.stock} unidades
-												</p>
-											</div>
-										)}
-									</div>
-
-									<div className="mt-auto flex flex-col gap-3 sm:flex-row">
-										<button
-											type="button"
-											className="flex flex-1 items-center justify-center gap-2 bg-[#1a1410] py-4 text-[#f5f2ed] transition-colors hover:bg-[#b8956a] hover:text-[#1a1410]"
-											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
-										>
-											<ShoppingCart className="size-4" strokeWidth={1.5} />
-											COMPRAR AHORA
-										</button>
-										<Link
-											href="/catalogo"
-											className="flex flex-1 items-center justify-center border-2 border-[#1a1410] py-4 text-center text-sm tracking-wide text-[#1a1410] transition-colors hover:bg-[#1a1410] hover:text-[#f5f2ed]"
-											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-											onClick={() => setModalOpen(false)}
-										>
-											VER MÁS MODELOS
-										</Link>
-									</div>
-								</div>
-							</div>
-						</>
-					) : null}
-				</DialogContent>
-			</Dialog>
+			<ProductDetailModal
+				product={detailModalProduct}
+				onClose={() => setDetailProductId(null)}
+			/>
 		</section>
 	);
 }

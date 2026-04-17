@@ -1,2 +1,2 @@
-/** Número internacional sin + (ej. Argentina 54911XXXXXXXX). Reemplazá con el número real. */
-export const siteWhatsAppUrl = 'https://wa.me/5490000000000';
+/** WhatsApp del local (solo dígitos en wa.me: país + número sin +). */
+export const siteWhatsAppUrl = 'https://wa.me/541131199882';
