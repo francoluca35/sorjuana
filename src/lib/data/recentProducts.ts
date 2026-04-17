@@ -45,13 +45,13 @@ export async function fetchRecentProducts(limit = 12): Promise<ProductRow[]> {
 
 		let { data, error } = await run(PANEL_SELECT);
 		if (!error) {
-			return (data ?? []).map((raw) => normalizeProductRow(raw as Record<string, unknown>));
+			return (data ?? []).map((raw) => normalizeProductRow(raw as unknown as Record<string, unknown>));
 		}
 
 		if (missingColorColumn(error.message)) {
 			const second = await run(PANEL_SELECT.replace(',color', ''));
 			if (!second.error) {
-				return (second.data ?? []).map((raw) => normalizeProductRow(raw as Record<string, unknown>));
+				return (second.data ?? []).map((raw) => normalizeProductRow(raw as unknown as Record<string, unknown>));
 			}
 			error = second.error;
 		}
@@ -59,12 +59,12 @@ export async function fetchRecentProducts(limit = 12): Promise<ProductRow[]> {
 		if (missingNewPriceColumns(error.message)) {
 			let third = await run(PANEL_SELECT_LEGACY);
 			if (!third.error) {
-				return (third.data ?? []).map((raw) => normalizeProductRow(raw as Record<string, unknown>));
+				return (third.data ?? []).map((raw) => normalizeProductRow(raw as unknown as Record<string, unknown>));
 			}
 			if (missingColorColumn(third.error.message)) {
 				const fourth = await run(PANEL_SELECT_LEGACY.replace(',color', ''));
 				if (!fourth.error) {
-					return (fourth.data ?? []).map((raw) => normalizeProductRow(raw as Record<string, unknown>));
+					return (fourth.data ?? []).map((raw) => normalizeProductRow(raw as unknown as Record<string, unknown>));
 				}
 				console.error('[fetchRecentProducts]', fourth.error.message);
 				return [];
