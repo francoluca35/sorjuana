@@ -1,6 +1,21 @@
+import { Suspense } from 'react';
 import { CatalogoPage } from '@/app/pages/CatalogoPage';
 import { fetchRecentProducts } from '@/lib/data/recentProducts';
 import { PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
+
+/** Supabase server client usa cookies; el catálogo no puede pre-renderizarse estático. */
+export const dynamic = 'force-dynamic';
+
+function CatalogoFallback() {
+	return (
+		<div
+			className="flex min-h-[50vh] items-center justify-center text-sm text-[#6b6156]"
+			style={{ fontFamily: 'Montserrat, sans-serif' }}
+		>
+			Cargando catálogo…
+		</div>
+	);
+}
 
 export default async function Page() {
 	const rows = await fetchRecentProducts(500);
@@ -22,5 +37,9 @@ export default async function Page() {
 		};
 	});
 
-	return <CatalogoPage products={products} />;
+	return (
+		<Suspense fallback={<CatalogoFallback />}>
+			<CatalogoPage products={products} />
+		</Suspense>
+	);
 }
