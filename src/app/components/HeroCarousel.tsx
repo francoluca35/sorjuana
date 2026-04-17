@@ -10,6 +10,7 @@ import {
 import { ArrowUpRight, Plus, ShoppingCart, X } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { getSiteHomeConfigAction } from '@/app/actions/siteHomeConfig';
 import { useCart } from '@/app/context/CartContext';
 import { cn } from '@/app/components/ui/utils';
 import {
@@ -27,9 +28,16 @@ function catalogHref(filter: HeroSlide['filter']) {
   return filter === 'all' ? '/catalogo' : `/catalogo?filter=${filter}`;
 }
 
-export function HeroCarousel() {
+export type HeroCarouselProps = {
+  /** Slides publicados desde la base (mapa de página). Si no hay, se usa predeterminado o fallback. */
+  initialSlides?: HeroSlide[] | null;
+};
+
+export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
   const { addItem, openCart } = useCart();
-  const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
+  const [slides, setSlides] = useState<HeroSlide[]>(() =>
+    initialSlides?.length ? initialSlides : DEFAULT_HERO_SLIDES,
+  );
   const [isCompact, setIsCompact] = useState(false);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -56,11 +64,26 @@ export function HeroCarousel() {
   }, [emblaApi, isCompact]);
 
   useEffect(() => {
-    const load = () => {
+    if (initialSlides?.length) {
+      setSlides(initialSlides);
+    }
+  }, [initialSlides]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const cfg = await getSiteHomeConfigAction();
+        if (cfg.heroSlides?.length) {
+          setSlides(cfg.heroSlides);
+          return;
+        }
+      } catch {
+        /* ignore */
+      }
       const stored = readHeroSlidesFromStorage();
       setSlides(stored?.length ? stored : DEFAULT_HERO_SLIDES);
     };
-    load();
+    void load();
     window.addEventListener('storage', load);
     window.addEventListener(HERO_SLIDES_UPDATED_EVENT, load);
     return () => {

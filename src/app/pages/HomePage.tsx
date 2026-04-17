@@ -8,22 +8,24 @@ import { NewArrivals } from '../components/NewArrivals';
 import { ContactSection } from '../components/ContactSection';
 import { fetchRecentProducts } from '@/lib/data/recentProducts';
 import { fetchCategorySpotlights } from '@/lib/data/categorySpotlights';
+import { fetchSiteHomeConfig } from '@/lib/data/siteHomeConfig';
 
 export async function HomePage() {
-  const [homeCatalog, categorySpotlights] = await Promise.all([
+  const [homeCatalog, categorySpotlights, siteHome] = await Promise.all([
     fetchRecentProducts(24),
     fetchCategorySpotlights(),
+    fetchSiteHomeConfig(),
   ]);
 
   return (
     <>
-      <HeroCarouselClient />
+      <HeroCarouselClient initialSlides={siteHome.heroSlides} />
       <StoreBenefits />
       <FashionCategories />
       <AdminCategorySpotlightRail items={categorySpotlights} />
 
-      <PopularProducts products={homeCatalog} />
-      <NewArrivals products={homeCatalog} />
+      <PopularProducts products={homeCatalog} bestSellersIdsJson={siteHome.bestSellersIdsJson} />
+      <NewArrivals products={homeCatalog} recentArrivalsIdsJson={siteHome.recentArrivalsIdsJson} />
       <AboutSection />
       <ContactSection />
     </>

@@ -5,16 +5,17 @@ import Link from 'next/link';
 import { Plus, Save, RotateCcw, ExternalLink, Crosshair, Trash2, Upload, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { getSiteHomeConfigAction, saveHeroSlidesAction } from '@/app/actions/siteHomeConfig';
 import { fetchAllProductsForPanelAction } from '@/app/actions/products';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import {
+	broadcastHeroSlidesUpdated,
 	DEFAULT_HERO_SLIDES,
 	type HeroHotspot,
 	type HeroSlide,
 	readHeroSlidesFromStorage,
-	writeHeroSlidesToStorage,
 } from '@/lib/heroSlidesConfig';
 import { productRowToCatalogProduct, type ProductRow } from '@/lib/data/productCatalog';
 import { formatPrecioListaAr } from '@/lib/formatPrice';
@@ -41,7 +42,7 @@ function emptyHotspot(slideId: number): HeroHotspot {
 const HERO_IMG_MAX_BYTES = 2_400_000;
 const HERO_IMG_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
 
-/** Reduce tamaño para caber en localStorage; devuelve data URL JPEG. */
+/** Reduce tamaño para persistencia; devuelve data URL JPEG. */
 function fileToHeroDataUrl(file: File, maxSide: number, jpegQuality: number): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const objUrl = URL.createObjectURL(file);
@@ -134,8 +135,14 @@ export function MapaPaginaHeroEditor() {
 	}, [loadCatalog]);
 
 	useEffect(() => {
-		const fromStore = readHeroSlidesFromStorage();
-		if (fromStore?.length) setSlides(fromStore);
+		void getSiteHomeConfigAction().then((cfg) => {
+			if (cfg.heroSlides?.length) {
+				setSlides(cfg.heroSlides);
+				return;
+			}
+			const fromLs = readHeroSlidesFromStorage();
+			if (fromLs?.length) setSlides(fromLs);
+		});
 	}, []);
 
 	const slide = slides[slideIndex];
@@ -296,17 +303,29 @@ export function MapaPaginaHeroEditor() {
 	);
 
 	const save = useCallback(() => {
-		writeHeroSlidesToStorage(slides);
-		toast.success('Carrusel del inicio actualizado');
+		void saveHeroSlidesAction(slides).then((res) => {
+			if (!res.ok) {
+				toast.error(res.message ?? 'No se pudo guardar el carrusel. Si las imágenes son muy pesadas, probá otras más livianas.');
+				return;
+			}
+			broadcastHeroSlidesUpdated();
+			toast.success('Carrusel guardado en el sitio (visible para todos los visitantes).');
+		});
 	}, [slides]);
 
 	const resetDefaults = useCallback(() => {
-		setSlides(DEFAULT_HERO_SLIDES);
-		writeHeroSlidesToStorage(DEFAULT_HERO_SLIDES);
 		setSlideIndex(0);
 		setPreviewMode('desktop');
 		setPlacementHotspotId(null);
-		toast.message('Restaurado al contenido por defecto');
+		setSlides(DEFAULT_HERO_SLIDES);
+		void saveHeroSlidesAction(DEFAULT_HERO_SLIDES).then((res) => {
+			if (!res.ok) {
+				toast.error(res.message ?? 'No se pudo guardar el predeterminado.');
+				return;
+			}
+			broadcastHeroSlidesUpdated();
+			toast.message('Restaurado al contenido por defecto y guardado en el sitio');
+		});
 	}, []);
 
 	if (!slide) {

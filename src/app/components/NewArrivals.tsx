@@ -12,8 +12,8 @@ import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog
 import { formatPrecioListaAr } from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 import { fetchProductsByIdsAction } from '@/app/actions/products';
+import { getSiteHomeStoredIdsAction } from '@/app/actions/siteHomeConfig';
 import {
-	RECENT_ARRIVALS_IDS_STORAGE_KEY,
 	RECENT_ARRIVALS_UPDATED_EVENT,
 	parseStoredProductIds,
 	resolveRecentArrivalsForDisplay,
@@ -75,26 +75,6 @@ export function mapRowToNewArrivalProduct(p: ProductRow): NewArrivalProduct {
 	};
 }
 
-function subscribeRecentArrivalsStorage(onStoreChange: () => void) {
-	if (typeof window === 'undefined') return () => {};
-	const on = () => onStoreChange();
-	window.addEventListener(RECENT_ARRIVALS_UPDATED_EVENT, on);
-	window.addEventListener('storage', on);
-	return () => {
-		window.removeEventListener(RECENT_ARRIVALS_UPDATED_EVENT, on);
-		window.removeEventListener('storage', on);
-	};
-}
-
-function getRecentArrivalsStorageSnapshot(): string {
-	if (typeof window === 'undefined') return '';
-	return localStorage.getItem(RECENT_ARRIVALS_IDS_STORAGE_KEY) ?? '';
-}
-
-function getRecentArrivalsStorageServerSnapshot(): string {
-	return '';
-}
-
 function usePrefersReducedMotion() {
 	const [reduced, setReduced] = React.useState(false);
 	React.useEffect(() => {
@@ -154,13 +134,32 @@ export function CardImageCarousel({
 	);
 }
 
-export function NewArrivals({ products }: { products: ProductRow[] }) {
-	const storedRaw = React.useSyncExternalStore(
-		subscribeRecentArrivalsStorage,
-		getRecentArrivalsStorageSnapshot,
-		getRecentArrivalsStorageServerSnapshot,
-	);
-	const orderedIds = React.useMemo(() => parseStoredProductIds(storedRaw), [storedRaw]);
+export function NewArrivals({
+	products,
+	recentArrivalsIdsJson,
+}: {
+	products: ProductRow[];
+	recentArrivalsIdsJson: string;
+}) {
+	const [selectionRaw, setSelectionRaw] = React.useState(recentArrivalsIdsJson);
+
+	React.useEffect(() => {
+		setSelectionRaw(recentArrivalsIdsJson);
+	}, [recentArrivalsIdsJson]);
+
+	React.useEffect(() => {
+		const sync = () => {
+			void getSiteHomeStoredIdsAction().then(({ recent }) => setSelectionRaw(recent));
+		};
+		window.addEventListener(RECENT_ARRIVALS_UPDATED_EVENT, sync);
+		window.addEventListener('storage', sync);
+		return () => {
+			window.removeEventListener(RECENT_ARRIVALS_UPDATED_EVENT, sync);
+			window.removeEventListener('storage', sync);
+		};
+	}, []);
+
+	const orderedIds = React.useMemo(() => parseStoredProductIds(selectionRaw), [selectionRaw]);
 
 	const productIdSet = React.useMemo(() => new Set(products.map((p) => p.id)), [products]);
 	const missingIdsForSelection = React.useMemo(() => {

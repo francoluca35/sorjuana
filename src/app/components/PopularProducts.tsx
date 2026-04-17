@@ -12,13 +12,12 @@ import type { ProductRow } from '@/lib/data/productCatalog';
 import { formatPrecioListaAr } from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 import { fetchProductsByIdsAction } from '@/app/actions/products';
+import { getSiteHomeStoredIdsAction } from '@/app/actions/siteHomeConfig';
 import {
 	BEST_SELLERS_MAX,
-	getBestSellersStorageServerSnapshot,
-	getBestSellersStorageSnapshot,
+	BEST_SELLERS_UPDATED_EVENT,
 	parseStoredProductIds,
 	resolveRecentArrivalsForDisplay,
-	subscribeBestSellersStorage,
 } from '@/lib/bestSellersSelection';
 
 type GridProduct = {
@@ -62,13 +61,36 @@ function usePrefersReducedMotion() {
 	return reduced;
 }
 
-export function PopularProducts({ products }: { products: ProductRow[] }) {
-	const storedRaw = React.useSyncExternalStore(
-		subscribeBestSellersStorage,
-		getBestSellersStorageSnapshot,
-		getBestSellersStorageServerSnapshot,
+export function PopularProducts({
+	products,
+	bestSellersIdsJson,
+}: {
+	products: ProductRow[];
+	/** IDs publicados (Supabase `site_home_config`), mismo formato que antes en localStorage. */
+	bestSellersIdsJson: string;
+}) {
+	const [selectionRaw, setSelectionRaw] = React.useState(bestSellersIdsJson);
+
+	React.useEffect(() => {
+		setSelectionRaw(bestSellersIdsJson);
+	}, [bestSellersIdsJson]);
+
+	React.useEffect(() => {
+		const sync = () => {
+			void getSiteHomeStoredIdsAction().then(({ best }) => setSelectionRaw(best));
+		};
+		window.addEventListener(BEST_SELLERS_UPDATED_EVENT, sync);
+		window.addEventListener('storage', sync);
+		return () => {
+			window.removeEventListener(BEST_SELLERS_UPDATED_EVENT, sync);
+			window.removeEventListener('storage', sync);
+		};
+	}, []);
+
+	const orderedIds = React.useMemo(
+		() => parseStoredProductIds(selectionRaw, BEST_SELLERS_MAX),
+		[selectionRaw],
 	);
-	const orderedIds = React.useMemo(() => parseStoredProductIds(storedRaw, BEST_SELLERS_MAX), [storedRaw]);
 
 	const productIdSet = React.useMemo(() => new Set(products.map((p) => p.id)), [products]);
 	const missingIdsForSelection = React.useMemo(() => {

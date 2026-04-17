@@ -5,17 +5,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Package, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchAllProductsForPanelAction } from '@/app/actions/products';
+import {
+	clearBestSellersIdsAction,
+	getSiteHomeConfigAction,
+	saveBestSellersIdsAction,
+} from '@/app/actions/siteHomeConfig';
 import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog';
 import { Button } from '@/app/components/ui/button';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { Input } from '@/app/components/ui/input';
 import { cn } from '@/app/components/ui/utils';
 import {
-	BEST_SELLERS_IDS_STORAGE_KEY,
 	BEST_SELLERS_MAX,
 	broadcastBestSellersSelectionUpdated,
 	parseStoredProductIds,
-	serializeProductIds,
 } from '@/lib/bestSellersSelection';
 
 const sans = 'Montserrat, sans-serif';
@@ -69,11 +72,12 @@ export function MapaPaginaMasVendidosPanel() {
 	}, [load]);
 
 	useEffect(() => {
-		if (typeof window === 'undefined' || !rows) return;
-		const raw = localStorage.getItem(BEST_SELLERS_IDS_STORAGE_KEY);
-		const parsed = parseStoredProductIds(raw, BEST_SELLERS_MAX);
-		const valid = new Set(rows.map((r) => r.id));
-		setSelectedIds(parsed.filter((id) => valid.has(id)));
+		if (!rows) return;
+		void getSiteHomeConfigAction().then((cfg) => {
+			const parsed = parseStoredProductIds(cfg.bestSellersIdsJson, BEST_SELLERS_MAX);
+			const valid = new Set(rows.map((r) => r.id));
+			setSelectedIds(parsed.filter((id) => valid.has(id)));
+		});
 	}, [rows]);
 
 	function toggleProduct(id: string) {
@@ -102,21 +106,28 @@ export function MapaPaginaMasVendidosPanel() {
 	}
 
 	function saveSelection() {
-		if (typeof window === 'undefined') return;
-		localStorage.setItem(BEST_SELLERS_IDS_STORAGE_KEY, serializeProductIds(selectedIds, BEST_SELLERS_MAX));
-		broadcastBestSellersSelectionUpdated();
-		toast.success('Selección guardada. El inicio mostrará estos productos en «Más vendidos» en ese orden.');
+		void saveBestSellersIdsAction(selectedIds).then((res) => {
+			if (!res.ok) {
+				toast.error(res.message ?? 'No se pudo guardar.');
+				return;
+			}
+			broadcastBestSellersSelectionUpdated();
+			toast.success('Selección guardada en el sitio. El inicio mostrará estos productos en «Más vendidos» en ese orden.');
+		});
 	}
 
 	function clearSelection() {
 		setSelectedIds([]);
-		if (typeof window !== 'undefined') {
-			localStorage.removeItem(BEST_SELLERS_IDS_STORAGE_KEY);
+		void clearBestSellersIdsAction().then((res) => {
+			if (!res.ok) {
+				toast.error(res.message ?? 'No se pudo limpiar la selección.');
+				return;
+			}
 			broadcastBestSellersSelectionUpdated();
-		}
-		toast.success(
-			'Listo: en el inicio se usarán hasta 6 artículos del catálogo (por fecha de alta) como sugerencia.',
-		);
+			toast.success(
+				`Listo: en el inicio se sugerirán hasta ${BEST_SELLERS_MAX} artículos del catálogo (por fecha de alta).`,
+			);
+		});
 	}
 
 	const selectedRows = selectedIds

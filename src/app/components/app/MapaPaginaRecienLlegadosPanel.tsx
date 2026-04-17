@@ -5,17 +5,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, Package, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchAllProductsForPanelAction } from '@/app/actions/products';
+import {
+	clearRecentArrivalsIdsAction,
+	getSiteHomeConfigAction,
+	saveRecentArrivalsIdsAction,
+} from '@/app/actions/siteHomeConfig';
 import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog';
 import { Button } from '@/app/components/ui/button';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { Input } from '@/app/components/ui/input';
 import { cn } from '@/app/components/ui/utils';
 import {
-	RECENT_ARRIVALS_IDS_STORAGE_KEY,
 	RECENT_ARRIVALS_MAX,
 	broadcastRecentArrivalsSelectionUpdated,
 	parseStoredProductIds,
-	serializeProductIds,
 } from '@/lib/recentArrivalsSelection';
 
 const sans = 'Montserrat, sans-serif';
@@ -69,11 +72,12 @@ export function MapaPaginaRecienLlegadosPanel() {
 	}, [load]);
 
 	useEffect(() => {
-		if (typeof window === 'undefined' || !rows) return;
-		const raw = localStorage.getItem(RECENT_ARRIVALS_IDS_STORAGE_KEY);
-		const parsed = parseStoredProductIds(raw);
-		const valid = new Set(rows.map((r) => r.id));
-		setSelectedIds(parsed.filter((id) => valid.has(id)));
+		if (!rows) return;
+		void getSiteHomeConfigAction().then((cfg) => {
+			const parsed = parseStoredProductIds(cfg.recentArrivalsIdsJson);
+			const valid = new Set(rows.map((r) => r.id));
+			setSelectedIds(parsed.filter((id) => valid.has(id)));
+		});
 	}, [rows]);
 
 	function toggleProduct(id: string) {
@@ -102,19 +106,28 @@ export function MapaPaginaRecienLlegadosPanel() {
 	}
 
 	function saveSelection() {
-		if (typeof window === 'undefined') return;
-		localStorage.setItem(RECENT_ARRIVALS_IDS_STORAGE_KEY, serializeProductIds(selectedIds));
-		broadcastRecentArrivalsSelectionUpdated();
-		toast.success('Selección guardada. La home mostrará estos productos en ese orden.');
+		void saveRecentArrivalsIdsAction(selectedIds).then((res) => {
+			if (!res.ok) {
+				toast.error(res.message ?? 'No se pudo guardar.');
+				return;
+			}
+			broadcastRecentArrivalsSelectionUpdated();
+			toast.success('Selección guardada en el sitio. La home mostrará estos productos en ese orden.');
+		});
 	}
 
 	function clearSelection() {
 		setSelectedIds([]);
-		if (typeof window !== 'undefined') {
-			localStorage.removeItem(RECENT_ARRIVALS_IDS_STORAGE_KEY);
+		void clearRecentArrivalsIdsAction().then((res) => {
+			if (!res.ok) {
+				toast.error(res.message ?? 'No se pudo limpiar la selección.');
+				return;
+			}
 			broadcastRecentArrivalsSelectionUpdated();
-		}
-		toast.success('Listo: en el inicio se mostrarán los 6 más recientes por fecha de alta.');
+			toast.success(
+				`Listo: en el inicio se mostrarán los ${RECENT_ARRIVALS_MAX} más recientes por fecha de alta.`,
+			);
+		});
 	}
 
 	const selectedRows = selectedIds
