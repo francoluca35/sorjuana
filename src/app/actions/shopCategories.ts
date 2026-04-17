@@ -1,5 +1,6 @@
 'use server';
 
+import type { User } from '@supabase/supabase-js';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -13,15 +14,17 @@ export async function revalidateShopCategoryPaths() {
 	revalidatePath('/');
 }
 
-async function requireUser(supabase: Awaited<ReturnType<typeof createClient>>) {
+type RequireUserResult = { user: null; error: string } | { user: User; error: null };
+
+async function requireUser(supabase: Awaited<ReturnType<typeof createClient>>): Promise<RequireUserResult> {
 	const {
 		data: { user },
 		error,
 	} = await supabase.auth.getUser();
 	if (error || !user) {
-		return { user: null as const, error: 'Iniciá sesión para continuar.' as const };
+		return { user: null, error: 'Iniciá sesión para continuar.' };
 	}
-	return { user, error: null as const };
+	return { user, error: null };
 }
 
 async function uniqueCategorySlug(
