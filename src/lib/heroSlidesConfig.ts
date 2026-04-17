@@ -5,6 +5,8 @@ export type HeroHotspot = {
 	/** Si hay `imageMobile` en el slide, en celular se usan estas coords; si no, `top`/`left`. */
 	topMobile?: string;
 	leftMobile?: string;
+	/** UUID en `products.id` cuando el hotspot se eligió desde el catálogo (carrito / coherencia). */
+	catalogProductId?: string;
 	productName: string;
 	price: number;
 	thumbnailSrc: string;
@@ -160,7 +162,11 @@ function parseHotspot(raw: unknown): HeroHotspot | null {
 	if (!id || !top || !left || !productName || !thumbnailSrc || Number.isNaN(price)) return null;
 	const topMobile = typeof o.topMobile === 'string' ? o.topMobile : undefined;
 	const leftMobile = typeof o.leftMobile === 'string' ? o.leftMobile : undefined;
-	return { id, top, left, topMobile, leftMobile, productName, price, thumbnailSrc };
+	const catalogProductId =
+		typeof o.catalogProductId === 'string' && o.catalogProductId.trim()
+			? o.catalogProductId.trim()
+			: undefined;
+	return { id, top, left, topMobile, leftMobile, catalogProductId, productName, price, thumbnailSrc };
 }
 
 function parseSlide(raw: unknown): HeroSlide | null {

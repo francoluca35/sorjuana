@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { ShoppingCart, Filter, X } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ProductDetailModal,
   ProductMediaCarousel,
   buildProductForDetailModal,
 } from '@/app/components/ProductDetailModal';
-import { displayCategoryLabel } from '@/lib/data/productCatalog';
+import { displayCategoryLabel, parseSubcategorySlugFromDb } from '@/lib/data/productCatalog';
+import { formatPrecioListaAr } from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 
 type CatalogProduct = {
@@ -35,14 +36,37 @@ function parseCategoryRoot(raw: string | null): string | null {
 }
 
 export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const filterParam = searchParams.get('filter');
   const categoriaParam = searchParams.get('categoria');
+  const subcategoriaParam = searchParams.get('subcategoria');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [selectedSubSlug, setSelectedSubSlug] = useState<string>('all');
   const [adminCategorySlug, setAdminCategorySlug] = useState<string | null>(null);
-  const [showMobileFilter, setShowMobileFilter] = useState(false);
   const [priceRange, setPriceRange] = useState<string>('all');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+  const replaceCatalogQuery = useCallback(
+    (updates: { filter?: string | null; subcategoria?: string | null }) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (updates.filter !== undefined) {
+        if (!updates.filter || updates.filter === 'all') params.delete('filter');
+        else params.set('filter', updates.filter);
+      }
+      if (updates.subcategoria !== undefined) {
+        if (!updates.subcategoria || updates.subcategoria === 'all') {
+          params.delete('subcategoria');
+        } else {
+          params.set('subcategoria', updates.subcategoria);
+        }
+      }
+      const q = params.toString();
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
 
   const productRows = useMemo(
     () =>
@@ -84,10 +108,47 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     }
   }, [categoriaParam, categoryOptions]);
 
+  const subcategoryOptions = useMemo(() => {
+    if (selectedFilter === 'all') return [];
+    const set = new Set<string>();
+    for (const p of productRows) {
+      if (p.adminCategory !== selectedFilter) continue;
+      const sub = parseSubcategorySlugFromDb(p.category_db);
+      if (sub) set.add(sub);
+    }
+    return Array.from(set)
+      .sort((a, b) => a.localeCompare(b))
+      .map((slug) => ({
+        value: slug,
+        label: displayCategoryLabel(slug),
+      }));
+  }, [productRows, selectedFilter]);
+
+  useEffect(() => {
+    setSelectedSubSlug('all');
+  }, [selectedFilter]);
+
+  useEffect(() => {
+    const raw = subcategoriaParam?.trim().toLowerCase() ?? '';
+    if (!raw) {
+      setSelectedSubSlug('all');
+      return;
+    }
+    if (selectedFilter === 'all') {
+      setSelectedSubSlug('all');
+      return;
+    }
+    const valid = subcategoryOptions.some((x) => x.value === raw);
+    setSelectedSubSlug(valid ? raw : 'all');
+  }, [subcategoriaParam, selectedFilter, subcategoryOptions]);
+
   const filteredProducts = productRows.filter((product) => {
     const categoryMatch = selectedFilter === 'all' || product.adminCategory === selectedFilter;
     const adminMatch =
       !adminCategorySlug || product.adminCategory === adminCategorySlug;
+    const subMatch =
+      selectedSubSlug === 'all' ||
+      parseSubcategorySlugFromDb(product.category_db) === selectedSubSlug;
 
     let priceMatch = true;
     if (priceRange === 'low') {
@@ -98,7 +159,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
       priceMatch = product.price >= 300;
     }
     
-    return categoryMatch && adminMatch && priceMatch;
+    return categoryMatch && adminMatch && subMatch && priceMatch;
   });
 
   const productsWithMedia = useMemo(
@@ -122,70 +183,120 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     setSelectedProductId(null);
   }
 
-  const FilterSection = () => (
-    <div className="space-y-8">
-      <div>
-        <h3 
-          className="text-[#1a1410] mb-6 pb-3 border-b-2 border-[#b8956a]/30"
-          style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: 400 }}
-        >
-          Categorías
-        </h3>
-        <div className="space-y-2">
-          {[{ value: 'all', label: 'Todas' }, ...categoryOptions].map((filter) => (
-            <motion.button
-              key={filter.value}
-              whileHover={{ x: 5 }}
-              onClick={() => setSelectedFilter(filter.value)}
-              className={`w-full text-left px-6 py-3 border-l-2 transition-all duration-300 ${
-                selectedFilter === filter.value
-                  ? 'bg-[#b8956a]/10 border-[#b8956a] text-[#1a1410]'
-                  : 'bg-white border-transparent text-[#6b6156] hover:border-[#b8956a]/50 hover:bg-[#f5f2ed]'
-              }`}
-              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
-            >
-              {filter.label}
-            </motion.button>
-          ))}
-        </div>
-      </div>
+  const filterSidebarBtn = (active: boolean) =>
+    `w-full rounded-md border-l-2 px-3 py-2.5 text-left text-sm transition ${
+      active
+        ? 'border-[#b8956a] bg-[#b8956a]/12 text-[#1a1410]'
+        : 'border-transparent bg-white text-[#6b6156] hover:border-[#b8956a]/35 hover:bg-[#faf8f7]'
+    }`;
 
-      <div>
-        <h3 
-          className="text-[#1a1410] mb-6 pb-3 border-b-2 border-[#b8956a]/30"
-          style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: 400 }}
-        >
-          Precio
-        </h3>
-        <div className="space-y-2">
-          {[
-            { value: 'all', label: 'Todos los precios' },
-            { value: 'low', label: 'Menos de $200' },
-            { value: 'mid', label: '$200 - $300' },
-            { value: 'high', label: 'Más de $300' }
-          ].map((price) => (
-            <motion.button
-              key={price.value}
-              whileHover={{ x: 5 }}
-              onClick={() => setPriceRange(price.value)}
-              className={`w-full text-left px-6 py-3 border-l-2 transition-all duration-300 ${
-                priceRange === price.value
-                  ? 'bg-[#b8956a]/10 border-[#b8956a] text-[#1a1410]'
-                  : 'bg-white border-transparent text-[#6b6156] hover:border-[#b8956a]/50 hover:bg-[#f5f2ed]'
-              }`}
+  const FiltersSidebar = () => (
+    <aside
+      className="min-w-0 rounded-xl border-2 border-[#b8956a]/20 bg-white p-5 shadow-sm lg:sticky lg:top-40 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto"
+      aria-label="Filtros del catálogo"
+    >
+      <h2
+        className="mb-6 border-b border-[#b8956a]/20 pb-4 text-[#1a1410]"
+        style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.75rem', fontWeight: 400 }}
+      >
+        Filtros
+      </h2>
+      <div className="space-y-8">
+        <div>
+          <h3
+            className="mb-3 text-[#1a1410]"
+            style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: 400 }}
+          >
+            Categorías
+          </h3>
+          <div className="flex max-h-[min(40vh,22rem)] flex-col gap-1 overflow-y-auto pr-1 lg:max-h-none lg:overflow-visible">
+            {[{ value: 'all', label: 'Todas' }, ...categoryOptions].map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => {
+                  setSelectedFilter(filter.value);
+                  setSelectedSubSlug('all');
+                  replaceCatalogQuery({
+                    filter: filter.value === 'all' ? null : filter.value,
+                    subcategoria: null,
+                  });
+                }}
+                className={filterSidebarBtn(selectedFilter === filter.value)}
+                style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {selectedFilter !== 'all' && subcategoryOptions.length > 0 ? (
+          <div className="border-t border-[#b8956a]/15 pt-6">
+            <h3
+              className="mb-3 text-[#1a1410]"
+              style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: 400 }}
+            >
+              Tipo / subcategoría
+            </h3>
+            <p
+              className="mb-3 text-[0.7rem] leading-snug text-[#8a7a68]"
               style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
             >
-              {price.label}
-            </motion.button>
-          ))}
+              Según cómo estén cargados en el sistema (ej. remeras, pantalones).
+            </p>
+            <div className="flex max-h-[min(36vh,18rem)] flex-col gap-1 overflow-y-auto pr-1 lg:max-h-none lg:overflow-visible">
+              {[{ value: 'all', label: 'Todas' }, ...subcategoryOptions].map((sub) => (
+                <button
+                  key={sub.value}
+                  type="button"
+                  onClick={() => {
+                    setSelectedSubSlug(sub.value);
+                    replaceCatalogQuery({
+                      subcategoria: sub.value === 'all' ? null : sub.value,
+                    });
+                  }}
+                  className={filterSidebarBtn(selectedSubSlug === sub.value)}
+                  style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        <div className="border-t border-[#b8956a]/15 pt-6">
+          <h3
+            className="mb-3 text-[#1a1410]"
+            style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: 400 }}
+          >
+            Precio
+          </h3>
+          <div className="flex flex-col gap-1">
+            {[
+              { value: 'all', label: 'Todos los precios' },
+              { value: 'low', label: 'Menos de $200' },
+              { value: 'mid', label: '$200 – $300' },
+              { value: 'high', label: 'Más de $300' },
+            ].map((price) => (
+              <button
+                key={price.value}
+                type="button"
+                onClick={() => setPriceRange(price.value)}
+                className={filterSidebarBtn(priceRange === price.value)}
+                style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+              >
+                {price.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </aside>
   );
 
   return (
-    <div className="min-h-screen bg-[#f5f2ed] pt-40 pb-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen w-full min-w-0 bg-[#f5f2ed] pt-40 pb-20 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full min-w-0 max-w-7xl">
         {/* Header */}
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
@@ -247,74 +358,14 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
           ) : null}
         </motion.div>
 
-        {/* Mobile Filter Button */}
-        <motion.button
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setShowMobileFilter(!showMobileFilter)}
-          className="lg:hidden mb-8 flex items-center space-x-3 bg-[#1a1410] text-[#f5f2ed] px-8 py-4 hover:bg-[#b8956a] transition-all duration-500 border border-[#b8956a]/30 w-full justify-center"
-        >
-          <Filter className="w-5 h-5" strokeWidth={1.5} />
-          <span 
-            className="tracking-[0.2em] text-sm"
-            style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
-          >
-            FILTROS
-          </span>
-        </motion.button>
-
-        {/* Mobile Filter Modal */}
-        <AnimatePresence>
-          {showMobileFilter && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setShowMobileFilter(false)}
-                className="fixed inset-0 z-50 bg-[#1a1410]/90 lg:hidden"
-              />
-              <motion.div
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'tween', duration: 0.4 }}
-                className="lg:hidden fixed right-0 top-0 bottom-0 w-80 bg-[#e8e3db] p-8 overflow-y-auto z-50 border-l-4 border-[#b8956a]"
-              >
-                <div className="flex justify-between items-center mb-8">
-                  <h2 
-                    className="text-[#1a1410]"
-                    style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: 400 }}
-                  >
-                    Filtros
-                  </h2>
-                  <button onClick={() => setShowMobileFilter(false)}>
-                    <X className="w-6 h-6 text-[#1a1410]" />
-                  </button>
-                </div>
-                <FilterSection />
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-
-        <div className="grid lg:grid-cols-4 gap-12">
-          {/* Desktop Filters */}
-          <div className="hidden lg:block">
-            <div className="sticky top-40 bg-white p-8 border-2 border-[#b8956a]/20">
-              <h2 
-                className="text-[#1a1410] mb-8"
-                style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: 400 }}
-              >
-                Filtros
-              </h2>
-              <FilterSection />
-            </div>
+        <div className="grid min-w-0 gap-8 lg:grid-cols-4 lg:items-start lg:gap-10">
+          <div className="min-w-0 lg:col-span-1">
+            <FiltersSidebar />
           </div>
 
-          {/* Products Grid */}
-          <div className="lg:col-span-3">
-            <div className="mb-8 flex justify-between items-center">
-              <p 
+          <div className="min-w-0 lg:col-span-3">
+            <div className="mb-8 flex items-center justify-between">
+              <p
                 className="text-[#6b6156]"
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
@@ -323,20 +374,16 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
               </p>
             </div>
 
-            <motion.div 
-              layout
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
-            >
+            <div className="grid min-w-0 grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3 lg:gap-8">
               <AnimatePresence mode="popLayout">
                 {productsWithMedia.map((product, index) => (
                   <motion.div
                     key={product.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ duration: 0.4, delay: index * 0.05 }}
-                    className="group block w-full cursor-pointer bg-white border-2 border-transparent text-left hover:border-[#b8956a]/30 transition-all duration-500"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    transition={{ duration: 0.25, delay: Math.min(index * 0.04, 0.35) }}
+                    className="group flex min-w-0 w-full cursor-pointer flex-col bg-white border-2 border-transparent text-left hover:border-[#b8956a]/30 transition-all duration-500"
                     role="button"
                     tabIndex={0}
                     onClick={() => setSelectedProductId(product.id)}
@@ -347,8 +394,13 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                       }
                     }}
                   >
-                    <div className="relative overflow-hidden">
-                      <ProductMediaCarousel media={product.media} productName={product.name} />
+                    <div className="relative aspect-[3/4] w-full min-w-0 overflow-hidden bg-[#ebe6df]">
+                      <ProductMediaCarousel
+                        media={product.media}
+                        productName={product.name}
+                        className="absolute inset-0 h-full w-full max-h-none"
+                        autoPlay={false}
+                      />
                       
                       <div className="absolute top-3 left-3 w-10 h-10 border-t-2 border-l-2 border-[#b8956a] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20" />
                       <div className="absolute bottom-3 right-3 w-10 h-10 border-b-2 border-r-2 border-[#b8956a] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20" />
@@ -389,7 +441,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                           className="text-[#b8956a] mx-4"
                           style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: 400 }}
                         >
-                          ${product.price.toFixed(2)}
+                          {formatPrecioListaAr(product.price)}
                         </div>
                         <div className="h-px w-8 bg-[#b8956a]/30" />
                       </div>
@@ -397,7 +449,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                   </motion.div>
                 ))}
               </AnimatePresence>
-            </motion.div>
+            </div>
 
             {filteredProducts.length === 0 && (
               <motion.div

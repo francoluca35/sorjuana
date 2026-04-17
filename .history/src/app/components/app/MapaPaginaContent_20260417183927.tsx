@@ -35,23 +35,6 @@ export function MapaPaginaContent() {
 				>
 					Hero
 				</button>
-		
-				<button
-					type="button"
-					role="tab"
-					aria-selected={seccion === 'recien'}
-					onClick={() => setSeccion('recien')}
-					className={cn(
-						'rounded-lg px-4 py-2.5 text-sm transition',
-						seccion === 'recien'
-							? 'bg-[#1a1410] text-[#f5f2ed] shadow-sm'
-							: 'text-[#6b6156] hover:bg-white/70',
-					)}
-					style={{ fontFamily: sans, fontWeight: 500 }}
-				>
-					Recién llegados
-				</button>
-
 				<button
 					type="button"
 					role="tab"
@@ -66,6 +49,21 @@ export function MapaPaginaContent() {
 					style={{ fontFamily: sans, fontWeight: 500 }}
 				>
 					Más vendidos
+				</button>
+				<button
+					type="button"
+					role="tab"
+					aria-selected={seccion === 'recien'}
+					onClick={() => setSeccion('recien')}
+					className={cn(
+						'rounded-lg px-4 py-2.5 text-sm transition',
+						seccion === 'recien'
+							? 'bg-[#1a1410] text-[#f5f2ed] shadow-sm'
+							: 'text-[#6b6156] hover:bg-white/70',
+					)}
+					style={{ fontFamily: sans, fontWeight: 500 }}
+				>
+					Recién llegados
 				</button>
 			</div>
 

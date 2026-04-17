@@ -148,9 +148,10 @@ export function HeroCarousel() {
 
   const onAddHotspotToCart = useCallback(() => {
     if (!activeHotspot) return;
+    const lineId = activeHotspot.catalogProductId ?? activeHotspot.id;
     addItem({
-      id: activeHotspot.id,
-      productId: activeHotspot.id,
+      id: lineId,
+      productId: lineId,
       name: activeHotspot.productName,
       price: activeHotspot.price,
       image: activeHotspot.thumbnailSrc,

@@ -2,9 +2,10 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Plus, Save, RotateCcw, ExternalLink, Crosshair, Trash2, Upload } from 'lucide-react';
+import { Plus, Save, RotateCcw, ExternalLink, Crosshair, Trash2, Upload, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { fetchAllProductsForPanelAction } from '@/app/actions/products';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
@@ -15,6 +16,8 @@ import {
 	readHeroSlidesFromStorage,
 	writeHeroSlidesToStorage,
 } from '@/lib/heroSlidesConfig';
+import { productRowToCatalogProduct, type ProductRow } from '@/lib/data/productCatalog';
+import { formatPrecioListaAr } from '@/lib/formatPrice';
 import { cn } from '@/app/components/ui/utils';
 
 const sans = 'Montserrat, sans-serif';
@@ -89,6 +92,17 @@ function hotspotPosForPreview(h: HeroHotspot, mode: PreviewMode): { top: string;
 	return { top: h.top, left: h.left };
 }
 
+function filterProductsForHero(rows: ProductRow[] | null, q: string): ProductRow[] {
+	if (!rows?.length) return [];
+	const t = q.trim().toLowerCase();
+	if (!t) return rows;
+	return rows.filter((p) => {
+		const name = (p.name ?? '').toLowerCase();
+		const code = (p.product_code ?? '').trim().toLowerCase();
+		return name.includes(t) || code.includes(t);
+	});
+}
+
 export function MapaPaginaHeroEditor() {
 	const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
 	const [slideIndex, setSlideIndex] = useState(0);
@@ -96,6 +110,28 @@ export function MapaPaginaHeroEditor() {
 	const [placementHotspotId, setPlacementHotspotId] = useState<string | null>(null);
 	const fileMainRef = useRef<HTMLInputElement>(null);
 	const fileMobileRef = useRef<HTMLInputElement>(null);
+	const [catalogRows, setCatalogRows] = useState<ProductRow[] | null>(null);
+	const [catalogLoading, setCatalogLoading] = useState(false);
+	const [catalogErr, setCatalogErr] = useState<string | null>(null);
+	const [catalogSearchByHotspot, setCatalogSearchByHotspot] = useState<Record<string, string>>({});
+
+	const loadCatalog = useCallback(async () => {
+		setCatalogLoading(true);
+		setCatalogErr(null);
+		try {
+			const data = await fetchAllProductsForPanelAction();
+			setCatalogRows(data);
+		} catch {
+			setCatalogErr('No se pudo cargar el catálogo.');
+			setCatalogRows([]);
+		} finally {
+			setCatalogLoading(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		void loadCatalog();
+	}, [loadCatalog]);
 
 	useEffect(() => {
 		const fromStore = readHeroSlidesFromStorage();
@@ -128,6 +164,28 @@ export function MapaPaginaHeroEditor() {
 			);
 		},
 		[slideIndex],
+	);
+
+	const applyCatalogProduct = useCallback(
+		(hotspotId: string, p: ProductRow) => {
+			const primary = productRowToCatalogProduct(p).image;
+			updateHotspot(hotspotId, {
+				catalogProductId: p.id,
+				productName: p.name,
+				price: p.price,
+				thumbnailSrc: primary,
+			});
+			toast.success('Producto aplicado a este punto +');
+		},
+		[updateHotspot],
+	);
+
+	const clearCatalogProduct = useCallback(
+		(hotspotId: string) => {
+			updateHotspot(hotspotId, { catalogProductId: undefined });
+			toast.message('Vínculo con el catálogo quitado (podés seguir editando nombre y miniatura).');
+		},
+		[updateHotspot],
 	);
 
 	useEffect(() => {
@@ -423,7 +481,15 @@ export function MapaPaginaHeroEditor() {
 							móvil cargada, en Vista celular editás las posiciones que verá el visitante en el teléfono.
 						</p>
 						<ul className="space-y-4">
-							{slide.hotspots.map((h) => (
+							{slide.hotspots.map((h) => {
+								const linkedCatalogRow = h.catalogProductId
+									? catalogRows?.find((r) => r.id === h.catalogProductId)
+									: undefined;
+								const filteredCatalogForH = filterProductsForHero(
+									catalogRows,
+									catalogSearchByHotspot[h.id] ?? '',
+								);
+								return (
 								<li
 									key={h.id}
 									className="rounded-lg border border-[#b8956a]/20 bg-[#faf8f7]/80 p-3"
@@ -453,6 +519,92 @@ export function MapaPaginaHeroEditor() {
 											<Trash2 className="h-4 w-4" />
 										</Button>
 									</div>
+									<div className="space-y-2">
+										<Label className="text-xs">Producto del catálogo (miniatura y datos)</Label>
+										{catalogLoading ? (
+											<p className="text-xs text-[#6b6156]" style={{ fontFamily: sans }}>
+												Cargando productos…
+											</p>
+										) : catalogErr ? (
+											<p className="text-xs text-red-700">{catalogErr}</p>
+										) : (
+											<>
+												<div className="relative">
+													<Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8a7a68]" />
+													<Input
+														className="h-9 bg-white pl-8 text-sm"
+														placeholder="Buscar por nombre o código…"
+														value={catalogSearchByHotspot[h.id] ?? ''}
+														onChange={(e) =>
+															setCatalogSearchByHotspot((prev) => ({
+																...prev,
+																[h.id]: e.target.value,
+															}))
+														}
+													/>
+												</div>
+												{h.catalogProductId ? (
+													<div className="flex flex-wrap items-center gap-2">
+														<span className="text-xs text-[#6b6156]" style={{ fontFamily: sans }}>
+															Vinculado
+															{linkedCatalogRow?.name ? ` · ${linkedCatalogRow.name}` : ''}
+														</span>
+														<Button
+															type="button"
+															variant="ghost"
+															size="sm"
+															className="h-7 text-xs"
+															onClick={() => clearCatalogProduct(h.id)}
+														>
+															Quitar vínculo
+														</Button>
+													</div>
+												) : null}
+												<ul className="max-h-36 space-y-1 overflow-y-auto rounded-md border border-[#b8956a]/20 bg-white/80 p-1.5">
+													{filteredCatalogForH.slice(0, 40).map((p) => {
+															const cat = productRowToCatalogProduct(p);
+															return (
+																<li key={p.id}>
+																	<button
+																		type="button"
+																		className={cn(
+																			'flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs transition hover:bg-[#b8956a]/15',
+																			h.catalogProductId === p.id && 'bg-[#b8956a]/20',
+																		)}
+																		onClick={() => applyCatalogProduct(h.id, p)}
+																	>
+																		<div className="relative h-10 w-10 shrink-0 overflow-hidden rounded border border-[#b8956a]/25">
+																			<Image
+																				src={cat.image}
+																				alt=""
+																				fill
+																				className="object-cover"
+																				unoptimized
+																				sizes="40px"
+																			/>
+																		</div>
+																		<span className="min-w-0 flex-1 font-medium text-[#1a1410]">
+																			{p.name}
+																		</span>
+																		<span className="shrink-0 text-[#6b6156]">
+																			{formatPrecioListaAr(p.price)}
+																		</span>
+																	</button>
+																</li>
+															);
+														})}
+												</ul>
+												{filteredCatalogForH.length > 40 ? (
+													<p
+														className="text-[0.65rem] text-[#6b6156]"
+														style={{ fontFamily: sans, fontWeight: 300 }}
+													>
+														Refiná la búsqueda para ver más resultados (mostramos hasta 40).
+													</p>
+												) : null}
+											</>
+										)}
+									</div>
 									<div className="grid gap-2 sm:grid-cols-2">
 										<div className="space-y-1 sm:col-span-2">
 											<Label className="text-xs">Nombre</Label>
@@ -477,6 +629,12 @@ export function MapaPaginaHeroEditor() {
 										</div>
 										<div className="space-y-1">
 											<Label className="text-xs">Miniatura (URL)</Label>
+											<p
+												className="text-[0.65rem] text-[#6b6156]"
+												style={{ fontFamily: sans, fontWeight: 300 }}
+											>
+												Si elegís un producto arriba, se rellena sola; podés pegar otra URL si hace falta.
+											</p>
 											<Input
 												value={h.thumbnailSrc}
 												onChange={(e) => updateHotspot(h.id, { thumbnailSrc: e.target.value })}
@@ -503,7 +661,8 @@ export function MapaPaginaHeroEditor() {
 										) : null}
 									</div>
 								</li>
-							))}
+							);
+							})}
 						</ul>
 					</div>
 

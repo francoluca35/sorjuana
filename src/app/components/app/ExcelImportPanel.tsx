@@ -53,9 +53,9 @@ export default function ExcelImportPanel() {
 					Carga de excel
 				</h1>
 				<p className="mt-2 max-w-2xl text-sm font-light leading-relaxed text-[#6b6156]">
-					Encabezados esperados: CODIGO, CATEGORIA, SUBCATEGORIA (opcional), NOMBREPRODUCTO, COLOR, TALLE,
-					PRECIO, ESTADO, CANTIDAD. El nombre del producto sale de NOMBREPRODUCTO (si falta, se usa el código).
-					Categoría y subcategoría se crean en el panel si no existen. No se importan imágenes.
+					Columnas: CATEGORIA, SUBCATEGORIA, COLOR, TALLE, PRECIO (ej. $ 59.900), ESTADO, CANTIDAD, NOMBRE.
+					CODIGO es opcional (si falta se genera AUTO-0001, etc.). La columna NAC/IMP no se importa.
+					Categoría y subcategoría se resuelven en el árbol de tienda. No se importan imágenes.
 				</p>
 			</header>
 
@@ -73,7 +73,8 @@ export default function ExcelImportPanel() {
 					/>
 				</div>
 				<p className="text-xs text-[#6b6156]">
-					Si una fila no tiene codigo o categoria, se omite automáticamente.
+					Se omiten filas sin categoría. El precio en Excel puede llevar $ y puntos de miles; en la tienda se
+					muestra como $ 59.900.
 				</p>
 				<Button
 					type="submit"

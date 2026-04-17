@@ -9,7 +9,9 @@ import { motion } from 'motion/react';
 import { ProductDetailModal, productRowToDetailModalProduct } from './ProductDetailModal';
 import { cn } from './ui/utils';
 import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog';
+import { formatPrecioListaAr } from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
+import { fetchProductsByIdsAction } from '@/app/actions/products';
 import {
 	RECENT_ARRIVALS_IDS_STORAGE_KEY,
 	RECENT_ARRIVALS_UPDATED_EVENT,
@@ -48,7 +50,7 @@ function dedupeUrls(urls: string[]): string[] {
 	return out;
 }
 
-function mapRowToNewArrivalProduct(p: ProductRow): NewArrivalProduct {
+export function mapRowToNewArrivalProduct(p: ProductRow): NewArrivalProduct {
 	const price = Number(p.price);
 	const compare = p.compare_at_price != null ? Number(p.compare_at_price) : null;
 	const oldPrice =
@@ -105,7 +107,7 @@ function usePrefersReducedMotion() {
 	return reduced;
 }
 
-function CardImageCarousel({
+export function CardImageCarousel({
 	images,
 	alt,
 	reducedMotion,
@@ -159,9 +161,38 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 		getRecentArrivalsStorageServerSnapshot,
 	);
 	const orderedIds = React.useMemo(() => parseStoredProductIds(storedRaw), [storedRaw]);
+
+	const productIdSet = React.useMemo(() => new Set(products.map((p) => p.id)), [products]);
+	const missingIdsForSelection = React.useMemo(() => {
+		if (orderedIds.length === 0) return [];
+		return orderedIds.filter((id) => !productIdSet.has(id));
+	}, [orderedIds, productIdSet]);
+
+	const [supplementalRows, setSupplementalRows] = React.useState<ProductRow[]>([]);
+	React.useEffect(() => {
+		if (missingIdsForSelection.length === 0) {
+			setSupplementalRows([]);
+			return;
+		}
+		let cancelled = false;
+		void fetchProductsByIdsAction(missingIdsForSelection).then((rows) => {
+			if (!cancelled) setSupplementalRows(rows);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [missingIdsForSelection]);
+
+	const selectionPool = React.useMemo(() => {
+		if (supplementalRows.length === 0) return products;
+		const byId = new Map(products.map((p) => [p.id, p]));
+		for (const p of supplementalRows) byId.set(p.id, p);
+		return [...byId.values()];
+	}, [products, supplementalRows]);
+
 	const displayRows = React.useMemo(
-		() => resolveRecentArrivalsForDisplay(products, orderedIds),
-		[products, orderedIds],
+		() => resolveRecentArrivalsForDisplay(selectionPool, orderedIds, products),
+		[selectionPool, orderedIds, products],
 	);
 	const newProducts = React.useMemo(() => displayRows.map(mapRowToNewArrivalProduct), [displayRows]);
 
@@ -354,22 +385,14 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 											className="text-[#b8956a]"
 											style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem' }}
 										>
-											$
-											{product.price.toLocaleString('es-AR', {
-												minimumFractionDigits: 0,
-												maximumFractionDigits: 0,
-											})}
+											{formatPrecioListaAr(product.price)}
 										</span>
 										{product.oldPrice != null ? (
 											<span
 												className="text-xs text-[#6b6156]/50 line-through"
 												style={{ fontFamily: 'Montserrat, sans-serif' }}
 											>
-												$
-												{product.oldPrice.toLocaleString('es-AR', {
-													minimumFractionDigits: 0,
-													maximumFractionDigits: 0,
-												})}
+												{formatPrecioListaAr(product.oldPrice)}
 											</span>
 										) : null}
 									</div>

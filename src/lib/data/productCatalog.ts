@@ -94,6 +94,24 @@ export function displayCategoryLabel(raw: string | null | undefined): string {
 	return CATEGORY_LABELS[key] ?? raw.trim();
 }
 
+/** Partes de `products.category`: `linea`, `linea/sub`, etc. (minúsculas). */
+export function parseCategoryPathSegments(raw: string | null | undefined): string[] {
+	if (!raw?.trim()) return [];
+	return raw
+		.trim()
+		.toLowerCase()
+		.split('/')
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
+/** Primera subcarpeta bajo la línea: `frances/pantalones` → `pantalones`. */
+export function parseSubcategorySlugFromDb(raw: string | null | undefined): string | null {
+	const parts = parseCategoryPathSegments(raw);
+	if (parts.length < 2) return null;
+	return parts[1] ?? null;
+}
+
 function toStr(v: unknown): string | null {
 	if (v == null) return null;
 	const s = String(v).trim();

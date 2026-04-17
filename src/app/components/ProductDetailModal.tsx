@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useCart } from '@/app/context/CartContext';
 import { displayCategoryLabel, PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
+import { formatPrecioListaAr } from '@/lib/formatPrice';
 import type { ProductRow } from '@/lib/data/productCatalog';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 
@@ -108,8 +109,8 @@ export function ProductMediaCarousel({
 	const showThumbnails = showThumbRail && media.length > 1;
 
 	return (
-		<div className={`relative w-full overflow-hidden ${className ?? 'h-[450px]'}`}>
-			<div className={`flex h-full ${showThumbnails ? 'gap-3 px-3 py-3 md:gap-4 md:px-4' : ''}`}>
+		<div className={`relative w-full min-h-0 overflow-hidden ${className ?? 'h-[450px]'}`}>
+			<div className={`flex h-full min-h-0 ${showThumbnails ? 'gap-3 px-3 py-3 md:gap-4 md:px-4' : ''}`}>
 				{showThumbnails ? (
 					<div className="hidden h-full w-16 flex-col items-center justify-center gap-2 md:flex">
 						{media.map((m, i) => (
@@ -144,7 +145,7 @@ export function ProductMediaCarousel({
 					</div>
 				) : null}
 
-				<div className="relative min-w-0 flex-1">
+				<div className="relative h-full min-h-0 min-w-0 flex-1">
 					<AnimatePresence mode="wait">
 						{media[idx]?.type === 'video' ? (
 							<motion.video
@@ -287,7 +288,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 				<>
 					<motion.button
 						type="button"
-						className="fixed inset-0 z-[120] bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.45),rgba(0,0,0,0.78))] md:bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.35),rgba(0,0,0,0.72))] md:backdrop-blur-[3px]"
+						className="fixed inset-0 z-[10000] bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.45),rgba(0,0,0,0.78))] md:bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.35),rgba(0,0,0,0.72))] md:backdrop-blur-[3px]"
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
@@ -295,7 +296,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 						aria-label="Cerrar detalle de producto"
 					/>
 					<motion.div
-						className="fixed inset-0 z-[121] mx-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden border-0 bg-white shadow-[0_20px_80px_rgba(0,0,0,0.35)] sm:inset-x-4 sm:top-[3vh] sm:h-auto sm:max-h-[94vh] sm:rounded-sm sm:border sm:border-black/10 md:inset-x-6 lg:max-w-6xl"
+						className="fixed inset-0 z-[10001] mx-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden border-0 bg-white shadow-[0_20px_80px_rgba(0,0,0,0.35)] sm:inset-x-6 sm:top-[5vh] sm:h-auto sm:max-h-[88vh] sm:rounded-sm sm:border sm:border-black/10 md:inset-x-10 lg:max-w-5xl"
 						initial={{ opacity: 0, y: 24, scale: 0.98 }}
 						animate={{ opacity: 1, y: 0, scale: 1 }}
 						exit={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -309,12 +310,12 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 						>
 							<X className="h-6 w-6 md:h-5 md:w-5" strokeWidth={2} />
 						</button>
-						<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:max-h-[94vh] lg:grid-cols-[minmax(0,1fr)_420px]">
-							<div className="relative shrink-0 bg-[#111] lg:min-h-0 lg:max-h-[94vh]">
+						<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:max-h-[88vh] lg:grid-cols-[minmax(0,1fr)_380px]">
+							<div className="relative shrink-0 bg-[#111] lg:min-h-0 lg:max-h-[88vh]">
 								<ProductMediaCarousel
 									media={product.media}
 									productName={product.name}
-									className="h-[min(40vh,360px)] min-h-[240px] max-h-[480px] sm:h-[min(48vh,420px)] sm:min-h-[280px] lg:h-[min(94vh,900px)] lg:max-h-[94vh]"
+									className="h-[min(38vh,340px)] min-h-[220px] max-h-[440px] sm:h-[min(44vh,400px)] sm:min-h-[260px] lg:h-[min(88vh,820px)] lg:max-h-[88vh]"
 									fit="contain"
 									autoPlay={false}
 									showThumbRail
@@ -347,14 +348,14 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 										letterSpacing: '-0.02em',
 									}}
 								>
-									${product.price.toFixed(2)}
+									{formatPrecioListaAr(product.price)}
 								</p>
 								{getCardPrice(product) != null ? (
 									<p
 										className="mt-1 text-[#9f3b3b]"
 										style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '0.95rem', fontWeight: 500 }}
 									>
-										${getCardPrice(product)!.toFixed(2)} con tarjetas
+										{formatPrecioListaAr(getCardPrice(product)!)} con tarjetas
 									</p>
 								) : null}
 								<div className="mt-5 rounded-xl border border-[#e4dfd6] bg-[#f5f2ed] p-4">
