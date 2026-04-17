@@ -37,7 +37,7 @@ const navLinkFont = { fontFamily: 'Montserrat, sans-serif', fontWeight: 300 } as
 
 export function Navbar() {
   const pathname = usePathname();
-  const { totalCount } = useCart();
+  const { totalCount, toggleCart, isOpen: isCartOpen } = useCart();
   const isCatalog = pathname.startsWith('/catalogo');
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -170,6 +170,8 @@ export function Navbar() {
                 type="button"
                 className={cartClass}
                 aria-label="Carrito"
+                aria-expanded={isCartOpen}
+                onClick={toggleCart}
               >
                 <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>
@@ -226,6 +228,8 @@ export function Navbar() {
                 type="button"
                 className={cartClass}
                 aria-label="Carrito"
+                aria-expanded={isCartOpen}
+                onClick={toggleCart}
               >
                 <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
                 <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>
@@ -245,6 +249,8 @@ export function Navbar() {
               type="button"
               className={cartClass}
               aria-label="Carrito"
+              aria-expanded={isCartOpen}
+              onClick={toggleCart}
             >
               <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
               <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>

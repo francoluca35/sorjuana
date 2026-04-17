@@ -27,7 +27,7 @@ function catalogHref(filter: HeroSlide['filter']) {
 }
 
 export function HeroCarousel() {
-  const { addItem } = useCart();
+  const { addItem, openCart } = useCart();
   const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: true,
@@ -133,12 +133,15 @@ export function HeroCarousel() {
     if (!activeHotspot) return;
     addItem({
       id: activeHotspot.id,
+      productId: activeHotspot.id,
       name: activeHotspot.productName,
       price: activeHotspot.price,
+      image: activeHotspot.thumbnailSrc,
     });
     toast.success('Prenda añadida al carrito');
     closeHotspotModal();
-  }, [activeHotspot, addItem, closeHotspotModal]);
+    openCart();
+  }, [activeHotspot, addItem, closeHotspotModal, openCart]);
 
   const scrollTo = useCallback(
     (i: number) => emblaApi?.scrollTo(i),

@@ -1,41 +1,94 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Heart, ShoppingCart, Filter, X } from 'lucide-react';
+import { ShoppingCart, Filter, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  ProductDetailModal,
+  ProductMediaCarousel,
+  buildProductForDetailModal,
+} from '@/app/components/ProductDetailModal';
+import { displayCategoryLabel } from '@/lib/data/productCatalog';
+import type { SizeInventoryRow } from '@/lib/data/productSizes';
 
-const allProducts = [
-  { id: 1, name: 'Vestido de Seda Milano', category: 'italiana', price: 249.99, image: 'https://images.unsplash.com/photo-1557161622-5f50ca344787?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGVnYW50JTIwZHJlc3MlMjBmYXNoaW9ufGVufDF8fHx8MTc3NTQxNjY1OHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 2, name: 'Conjunto Parisino Elegante', category: 'francesa', price: 189.99, image: 'https://images.unsplash.com/photo-1588025014019-d0f99ee89043?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZXNpZ25lciUyMGNsb3RoaW5nJTIwYWNjZXNzb3JpZXN8ZW58MXx8fHwxNzc1NTA5MDI5fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 3, name: 'Blazer Italiano Premium', category: 'italiana', price: 299.99, image: 'https://images.unsplash.com/photo-1762343292182-b0cb71a19111?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYXNoaW9uJTIwdHJlbmQlMjBtb2Rlcm4lMjBzdHlsZXxlbnwxfHx8fDE3NzU1MDkwMjl8MA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 4, name: 'Vestido Couture París', category: 'francesa', price: 329.99, image: 'https://images.unsplash.com/photo-1637690048998-1e41c61c254d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx3b21lbiUyMGZhc2hpb24lMjBzb3BoaXN0aWNhdGVkfGVufDF8fHx8MTc3NTUwOTAzMHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 5, name: 'Trench Coat Parisino', category: 'francesa', price: 349.99, image: 'https://images.unsplash.com/photo-1763914766563-d15bef819106?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBib3V0aXF1ZSUyMHNob3BwaW5nfGVufDF8fHx8MTc3NTUwOTAzMHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 6, name: 'Conjunto de Lino Milano', category: 'italiana', price: 199.99, image: 'https://images.unsplash.com/photo-1568251188392-ae32f898cb3b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoYXV0ZSUyMGNvdXR1cmUlMjBlbGVnYW50fGVufDF8fHx8MTc3NTUwOTAzMHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 7, name: 'Blusa de Seda Francesa', category: 'francesa', price: 159.99, image: 'https://images.unsplash.com/photo-1602918222760-fa82314869d7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpdGFsaWFuJTIwZmFzaGlvbiUyMGx1eHVyeSUyMGNsb3RoaW5nfGVufDF8fHx8MTc3NTUwOTAyN3ww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 8, name: 'Pantalón Palazzo Italiano', category: 'italiana', price: 179.99, image: 'https://images.unsplash.com/photo-1694659224329-54c712ec64d7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmVuY2glMjBmYXNoaW9uJTIwZWxlZ2FudCUyMGNsb3RoaW5nfGVufDF8fHx8MTc3NTUwOTAyN3ww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 9, name: 'Vestido Cóctel París', category: 'francesa', price: 279.99, image: 'https://images.unsplash.com/photo-1766959501737-5625ec13a0f3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYXNoaW9uJTIwc2FsZSUyMGRpc2NvdW50JTIwb2ZmZXJ8ZW58MXx8fHwxNzc1NTA5MDI4fDA&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 10, name: 'Chaqueta Boucle Milano', category: 'italiana', price: 319.99, image: 'https://images.unsplash.com/photo-1765009433753-c7462637d21f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBjbG90aGluZyUyMGJvdXRpcXVlfGVufDF8fHx8MTc3NTUwOTAyOHww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 11, name: 'Abrigo Italiano Cashmere', category: 'italiana', price: 449.99, image: 'https://images.unsplash.com/photo-1602918222760-fa82314869d7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpdGFsaWFuJTIwZmFzaGlvbiUyMGx1eHVyeSUyMGNsb3RoaW5nfGVufDF8fHx8MTc3NTUwOTAyN3ww&ixlib=rb-4.1.0&q=80&w=1080' },
-  { id: 12, name: 'Vestido Midi Francés', category: 'francesa', price: 219.99, image: 'https://images.unsplash.com/photo-1694659224329-54c712ec64d7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmVuY2glMjBmYXNoaW9uJTIwZWxlZ2FudCUyMGNsb3RoaW5nfGVufDF8fHx8MTc3NTUwOTAyN3ww&ixlib=rb-4.1.0&q=80&w=1080' },
-];
+type CatalogProduct = {
+  id: string;
+  name: string;
+  price: number;
+  transfer_price: number;
+  final_transfer_price: number;
+  image: string;
+  /** Valor crudo en DB: `slug` o `slug/subslug` */
+  category_db: string | null;
+  gallery_image_urls: string[];
+  video_url: string | null;
+  description: string;
+  size_inventory: SizeInventoryRow[];
+  stock: number;
+};
 
-export function CatalogoPage() {
+function parseCategoryRoot(raw: string | null): string | null {
+  if (!raw?.trim()) return null;
+  const root = raw.trim().toLowerCase().split('/')[0];
+  return root || null;
+}
+
+export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   const searchParams = useSearchParams();
   const filterParam = searchParams.get('filter');
+  const categoriaParam = searchParams.get('categoria');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+  const [adminCategorySlug, setAdminCategorySlug] = useState<string | null>(null);
   const [showMobileFilter, setShowMobileFilter] = useState(false);
   const [priceRange, setPriceRange] = useState<string>('all');
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+  const productRows = useMemo(
+    () =>
+      products.map((p) => ({
+        ...p,
+        adminCategory: parseCategoryRoot(p.category_db),
+      })),
+    [products],
+  );
+
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of productRows) {
+      if (p.adminCategory) set.add(p.adminCategory);
+    }
+    return Array.from(set).map((slug) => ({
+      value: slug,
+      label: displayCategoryLabel(slug),
+    }));
+  }, [productRows]);
 
   useEffect(() => {
-    if (filterParam) {
-      setSelectedFilter(filterParam);
+    const raw = filterParam?.trim().toLowerCase() ?? '';
+    const valid = raw && categoryOptions.some((x) => x.value === raw);
+    if (valid) {
+      setSelectedFilter(raw);
+    } else {
+      setSelectedFilter('all');
     }
-  }, [filterParam]);
+  }, [filterParam, categoryOptions]);
 
-  const filteredProducts = allProducts.filter(product => {
-    const categoryMatch = selectedFilter === 'all' || product.category === selectedFilter;
-    
+  useEffect(() => {
+    const raw = categoriaParam?.trim().toLowerCase() ?? '';
+    const valid = raw && categoryOptions.some((x) => x.value === raw);
+    if (valid) {
+      setAdminCategorySlug(raw);
+    } else {
+      setAdminCategorySlug(null);
+    }
+  }, [categoriaParam, categoryOptions]);
+
+  const filteredProducts = productRows.filter((product) => {
+    const categoryMatch = selectedFilter === 'all' || product.adminCategory === selectedFilter;
+    const adminMatch =
+      !adminCategorySlug || product.adminCategory === adminCategorySlug;
+
     let priceMatch = true;
     if (priceRange === 'low') {
       priceMatch = product.price < 200;
@@ -45,8 +98,29 @@ export function CatalogoPage() {
       priceMatch = product.price >= 300;
     }
     
-    return categoryMatch && priceMatch;
+    return categoryMatch && adminMatch && priceMatch;
   });
+
+  const productsWithMedia = useMemo(
+    () =>
+      filteredProducts.map((p) => {
+        const { adminCategory: _a, ...base } = p;
+        return buildProductForDetailModal(base);
+      }),
+    [filteredProducts],
+  );
+
+  const productById = useMemo(() => {
+    const m = new Map<string, (typeof productsWithMedia)[number]>();
+    for (const p of productsWithMedia) m.set(p.id, p);
+    return m;
+  }, [productsWithMedia]);
+
+  const selectedProduct = selectedProductId ? productById.get(selectedProductId) ?? null : null;
+
+  function closeProductModal() {
+    setSelectedProductId(null);
+  }
 
   const FilterSection = () => (
     <div className="space-y-8">
@@ -58,11 +132,7 @@ export function CatalogoPage() {
           Categorías
         </h3>
         <div className="space-y-2">
-          {[
-            { value: 'all', label: 'Todas' },
-            { value: 'italiana', label: 'Italiana' },
-            { value: 'francesa', label: 'Francesa' }
-          ].map((filter) => (
+          {[{ value: 'all', label: 'Todas' }, ...categoryOptions].map((filter) => (
             <motion.button
               key={filter.value}
               whileHover={{ x: 5 }}
@@ -154,8 +224,7 @@ export function CatalogoPage() {
             }}
           >
             {selectedFilter === 'all' && 'Colección completa'}
-            {selectedFilter === 'italiana' && 'Elegancia italiana'}
-            {selectedFilter === 'francesa' && 'Chic parisino'}
+            {selectedFilter !== 'all' && displayCategoryLabel(selectedFilter)}
           </h1>
           
           <p 
@@ -164,11 +233,18 @@ export function CatalogoPage() {
           >
             {selectedFilter === 'all' &&
               'Explora nuestra colección de moda europea'}
-            {selectedFilter === 'italiana' &&
-              'La sofisticación italiana en cada pieza'}
-            {selectedFilter === 'francesa' &&
-              'El arte francés de la alta costura'}
+            {selectedFilter !== 'all' &&
+              `Selección de ${displayCategoryLabel(selectedFilter)} disponible en tienda`}
           </p>
+          {adminCategorySlug ? (
+            <p
+              className="mt-4 text-[#1a1410]"
+              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: '0.9rem' }}
+            >
+              Categoría:{' '}
+              <span className="text-[#b8956a]">{displayCategoryLabel(adminCategorySlug)}</span>
+            </p>
+          ) : null}
         </motion.div>
 
         {/* Mobile Filter Button */}
@@ -252,7 +328,7 @@ export function CatalogoPage() {
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
             >
               <AnimatePresence mode="popLayout">
-                {filteredProducts.map((product, index) => (
+                {productsWithMedia.map((product, index) => (
                   <motion.div
                     key={product.id}
                     layout
@@ -260,45 +336,38 @@ export function CatalogoPage() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     transition={{ duration: 0.4, delay: index * 0.05 }}
-                    className="group cursor-pointer bg-white border-2 border-transparent hover:border-[#b8956a]/30 transition-all duration-500"
+                    className="group block w-full cursor-pointer bg-white border-2 border-transparent text-left hover:border-[#b8956a]/30 transition-all duration-500"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedProductId(product.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedProductId(product.id);
+                      }
+                    }}
                   >
                     <div className="relative overflow-hidden">
-                      <motion.img
-                        whileHover={{ scale: 1.05 }}
-                        transition={{ duration: 0.6 }}
-                        src={product.image}
-                        alt={product.name}
-                        className="w-full h-[450px] object-cover"
-                        style={{ filter: 'sepia(0.08) contrast(1.05)' }}
-                      />
+                      <ProductMediaCarousel media={product.media} productName={product.name} />
                       
                       <div className="absolute top-3 left-3 w-10 h-10 border-t-2 border-l-2 border-[#b8956a] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20" />
                       <div className="absolute bottom-3 right-3 w-10 h-10 border-b-2 border-r-2 border-[#b8956a] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20" />
                       
-                      <div className="absolute inset-0 bg-[#1a1410]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center space-x-3 z-10">
-                        <motion.button 
-                          whileHover={{ scale: 1.1, rotate: 5 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="bg-white/90 backdrop-blur-sm p-3 hover:bg-[#b8956a] hover:text-white transition-colors duration-300"
+                      <div className="pointer-events-none absolute inset-x-4 bottom-4 z-20 translate-y-3 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedProductId(product.id);
+                          }}
+                          className="pointer-events-auto flex w-full items-center justify-center gap-2 border border-[#b8956a]/60 bg-[#1a1410] px-4 py-3 text-[#f5f2ed] transition-all duration-300 hover:bg-[#b8956a]"
+                          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
                         >
-                          <Heart className="w-5 h-5" strokeWidth={1.5} />
-                        </motion.button>
-                      </div>
-                      
-                      <motion.div 
-                        initial={{ y: 100 }}
-                        className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-500 z-20"
-                      >
-                        <button className="w-full bg-[#1a1410] text-[#f5f2ed] py-4 flex items-center justify-center space-x-3 hover:bg-[#b8956a] transition-all duration-500 border-t-2 border-[#b8956a]/50">
-                          <ShoppingCart className="w-4 h-4" strokeWidth={1.5} />
-                          <span 
-                            className="tracking-[0.2em] text-xs"
-                            style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
-                          >
-                            AÑADIR
-                          </span>
+                          <ShoppingCart className="h-4 w-4" strokeWidth={1.6} />
+                          <span className="text-xs uppercase tracking-[0.18em]">Agregar al carrito</span>
                         </button>
-                      </motion.div>
+                      </div>
                     </div>
                     
                     <div className="p-6 text-center">
@@ -306,7 +375,7 @@ export function CatalogoPage() {
                         className="text-[#8b6f47] text-xs mb-2 tracking-[0.2em]"
                         style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
                       >
-                        {product.category === 'italiana' ? 'Italiana' : 'Francesa'}
+                        {product.category_db ? displayCategoryLabel(product.category_db) : 'Sin categoría'}
                       </div>
                       <h3 
                         className="text-[#1a1410] mb-3 group-hover:text-[#b8956a] transition-colors duration-300"
@@ -347,6 +416,8 @@ export function CatalogoPage() {
           </div>
         </div>
       </div>
+
+      <ProductDetailModal product={selectedProduct} onClose={closeProductModal} />
     </div>
   );
 }

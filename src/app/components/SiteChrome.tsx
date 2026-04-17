@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { Navbar } from '@/app/components/Navbar';
 import { Footer } from '@/app/components/Footer';
 import { FloatingWhatsApp } from '@/app/components/FloatingWhatsApp';
+import { CartSheet } from '@/app/components/CartSheet';
 
 export function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -19,6 +20,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       {!hideNavbar && <Navbar />}
+      {!hideNavbar && <CartSheet />}
       {children}
       {!hideSiteFooter && <Footer />}
       {!hideSiteFooter && <FloatingWhatsApp />}

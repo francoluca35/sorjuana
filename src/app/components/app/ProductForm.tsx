@@ -5,7 +5,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { insertProductAction } from '@/app/actions/products';
+import { fetchRecentProductsAction, insertProductAction } from '@/app/actions/products';
+import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
+import type { ShopCategoryTree } from '@/lib/data/shopCategories';
 import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { SizeInventoryEditor } from '@/app/components/app/SizeInventoryEditor';
 import {
@@ -50,6 +52,19 @@ const innerCard = 'rounded-md border border-[#b8956a]/22 bg-white/40 p-4 backdro
 
 const MAX_IMAGES = 3;
 
+type ComboSourceProduct = {
+	id: string;
+	name: string;
+	price: number;
+};
+
+type ComboSelectedItem = {
+	productId: string;
+	name: string;
+	unitPrice: number;
+	qty: number;
+};
+
 function parseOptionalNonNegInt(raw: string): number | null {
 	const t = raw.trim();
 	if (!t) return null;
@@ -67,16 +82,25 @@ export default function ProductForm() {
 	const [stock, setStock] = useState('');
 	const [sizeRows, setSizeRows] = useState<SizeInventoryRow[]>([]);
 	const [costoInicial, setCostoInicial] = useState('');
-	const [precioBase, setPrecioBase] = useState('');
+	const [precioEfectivo, setPrecioEfectivo] = useState('');
+	const [precioTransferencia, setPrecioTransferencia] = useState('');
 	const [impuestoAplica, setImpuestoAplica] = useState<'no' | 'si'>('no');
 	const [impuestoPorcentaje, setImpuestoPorcentaje] = useState('21');
 	const [descripcion, setDescripcion] = useState('');
+	const [color, setColor] = useState('');
 
 	const initCode = useMemo(() => String(2000 + Math.floor(Math.random() * 7000)), []);
 	const [codigo, setCodigo] = useState(initCode);
-	const [categoria, setCategoria] = useState('');
+	const [categoryTree, setCategoryTree] = useState<ShopCategoryTree[]>([]);
+	const [categoriesLoading, setCategoriesLoading] = useState(true);
+	const [categoryId, setCategoryId] = useState('');
+	const [subcategoryId, setSubcategoryId] = useState('');
 	const [compraMinima, setCompraMinima] = useState('');
 	const [compraMaxima, setCompraMaxima] = useState('');
+	const [comboProducts, setComboProducts] = useState<ComboSourceProduct[]>([]);
+	const [comboProductsLoading, setComboProductsLoading] = useState(false);
+	const [comboSearch, setComboSearch] = useState('');
+	const [comboItems, setComboItems] = useState<ComboSelectedItem[]>([]);
 
 	const [imageFiles, setImageFiles] = useState<File[]>([]);
 	const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
@@ -106,12 +130,100 @@ export default function ProductForm() {
 		return () => URL.revokeObjectURL(url);
 	}, [videoFile]);
 
-	const precioTotal = useMemo(() => {
-		const base = parseMoneyInput(precioBase);
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			setCategoriesLoading(true);
+			try {
+				const data = await listShopCategoryTreeAction();
+				if (!cancelled) {
+					setCategoryTree(data);
+				}
+			} catch {
+				if (!cancelled) {
+					setCategoryTree([]);
+				}
+			} finally {
+				if (!cancelled) {
+					setCategoriesLoading(false);
+				}
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			setComboProductsLoading(true);
+			try {
+				const rows = await fetchRecentProductsAction(500);
+				if (cancelled) return;
+				setComboProducts(
+					rows
+						.filter((r) => r.kind !== 'combo')
+						.map((r) => ({
+							id: r.id,
+							name: r.name,
+							price: Number(r.price) || 0,
+						})),
+				);
+			} catch {
+				if (!cancelled) {
+					setComboProducts([]);
+				}
+			} finally {
+				if (!cancelled) {
+					setComboProductsLoading(false);
+				}
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	const selectedCategory = useMemo(
+		() => categoryTree.find((c) => c.id === categoryId) ?? null,
+		[categoryTree, categoryId],
+	);
+
+	const categoryValueForDb = useMemo(() => {
+		if (productKind === 'combo') return 'combo';
+		if (!selectedCategory) return null;
+		const sub = selectedCategory.subcategories.find((s) => s.id === subcategoryId);
+		if (sub) {
+			return `${selectedCategory.slug}/${sub.slug}`;
+		}
+		return selectedCategory.slug;
+	}, [productKind, selectedCategory, subcategoryId]);
+
+	const precioTotalEfectivo = useMemo(() => {
+		const base = parseMoneyInput(precioEfectivo);
 		if (impuestoAplica !== 'si') return Math.round(base);
 		const pct = parseFloat(impuestoPorcentaje.replace(',', '.')) || 0;
 		return Math.round(base * (1 + Math.max(0, pct) / 100));
-	}, [precioBase, impuestoAplica, impuestoPorcentaje]);
+	}, [precioEfectivo, impuestoAplica, impuestoPorcentaje]);
+
+	const precioFinalTransferencia = useMemo(() => {
+		const base = parseMoneyInput(precioTransferencia);
+		if (impuestoAplica !== 'si') return Math.round(base);
+		const pct = parseFloat(impuestoPorcentaje.replace(',', '.')) || 0;
+		return Math.round(base * (1 + Math.max(0, pct) / 100));
+	}, [precioTransferencia, impuestoAplica, impuestoPorcentaje]);
+
+	const comboTotal = useMemo(
+		() => comboItems.reduce((acc, item) => acc + item.unitPrice * item.qty, 0),
+		[comboItems],
+	);
+
+	const comboFilteredProducts = useMemo(() => {
+		const q = comboSearch.trim().toLowerCase();
+		if (!q) return comboProducts.slice(0, 24);
+		return comboProducts.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 24);
+	}, [comboProducts, comboSearch]);
 
 	const sizesNormalized = useMemo(() => normalizeSizeInventoryForDb(sizeRows), [sizeRows]);
 	const stockTotalComputed =
@@ -157,6 +269,16 @@ export default function ProductForm() {
 		setRemoteVideoUrl(null);
 	}
 
+	function addComboItem(product: ComboSourceProduct) {
+		setComboItems((prev) => {
+			const idx = prev.findIndex((x) => x.productId === product.id);
+			if (idx >= 0) {
+				return prev.map((x, i) => (i === idx ? { ...x, qty: x.qty + 1 } : x));
+			}
+			return [...prev, { productId: product.id, name: product.name, unitPrice: product.price, qty: 1 }];
+		});
+	}
+
 	async function onSubmit(e: FormEvent<HTMLFormElement>) {
 		e.preventDefault();
 		if (isSubmitting) return;
@@ -164,6 +286,21 @@ export default function ProductForm() {
 		const nameTrim = nombre.trim();
 		if (!nameTrim) {
 			toast.error('Completá el nombre del producto.');
+			return;
+		}
+
+		if (productKind !== 'combo') {
+			if (!categoryId || !selectedCategory) {
+				toast.error('Elegí una categoría.');
+				return;
+			}
+			if (selectedCategory.subcategories.length > 0 && !subcategoryId) {
+				toast.error('Elegí una subcategoría.');
+				return;
+			}
+		}
+		if (productKind === 'combo' && comboItems.length === 0) {
+			toast.error('Agregá al menos un producto para armar el combo.');
 			return;
 		}
 
@@ -197,7 +334,8 @@ export default function ProductForm() {
 				setRemoteVideoUrl(res.publicUrl);
 			}
 
-			const basePrice = parseMoneyInput(precioBase);
+			const basePrice = parseMoneyInput(precioEfectivo);
+			const transferPrice = parseMoneyInput(precioTransferencia);
 			const cost = parseMoneyInput(costoInicial);
 			const sizesNorm = normalizeSizeInventoryForDb(sizeRows);
 			const stockN =
@@ -211,18 +349,22 @@ export default function ProductForm() {
 				stock: stockN,
 				cost,
 				basePrice,
-				price: precioTotal,
+				transferPrice,
+				price: precioTotalEfectivo,
+				finalTransferPrice: precioFinalTransferencia,
 				taxApplies: impuestoAplica === 'si',
 				taxPercent: taxPct,
 				description: descripcion.trim() || null,
+				color: color.trim() || null,
 				productCode: codigo.trim() || null,
-				category: categoria.trim() || null,
+				category: categoryValueForDb,
 				minOrderQty: parseOptionalNonNegInt(compraMinima),
 				maxOrderQty: parseOptionalNonNegInt(compraMaxima),
 				imageUrls: uploadedImages,
 				videoUrl: finalVideoUrl,
 				compareAtPrice: null,
 				sizeInventory: sizeRows,
+				comboItems,
 			});
 
 			if (!ins.ok) {
@@ -312,6 +454,18 @@ export default function ProductForm() {
 									<Input id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} className={cn(inputClass)} />
 								</div>
 								<div className="sm:col-span-2">
+									<Label htmlFor="color" className={labelClass} style={{ fontFamily: sans }}>
+										Color
+									</Label>
+									<Input
+										id="color"
+										value={color}
+										onChange={(e) => setColor(e.target.value)}
+										className={inputClass}
+										placeholder="Ej. beige, negro"
+									/>
+								</div>
+								<div className="sm:col-span-2">
 									<div className={cn(innerCard, 'mt-0')}>
 										<SizeInventoryEditor
 											rows={sizeRows}
@@ -360,16 +514,118 @@ export default function ProductForm() {
 								</div>
 							</div>
 
+							{productKind === 'combo' ? (
+								<div className={cn('mt-8', innerCard)}>
+									<div className="space-y-4">
+										<div>
+											<Label htmlFor="combo-search" className={labelClass} style={{ fontFamily: sans }}>
+												Buscador de productos para combo
+											</Label>
+											<Input
+												id="combo-search"
+												value={comboSearch}
+												onChange={(e) => setComboSearch(e.target.value)}
+												className={inputClass}
+												placeholder={comboProductsLoading ? 'Cargando productos…' : 'Buscar producto por nombre'}
+											/>
+										</div>
+										<div className="max-h-44 space-y-2 overflow-y-auto rounded-md border border-[#b8956a]/22 bg-white/30 p-2">
+											{comboFilteredProducts.map((p) => (
+												<button
+													key={p.id}
+													type="button"
+													onClick={() => addComboItem(p)}
+													className="flex w-full items-center justify-between rounded border border-[#b8956a]/18 bg-white/55 px-3 py-2 text-left text-sm hover:bg-white/70"
+												>
+													<span className="truncate pr-3">{p.name}</span>
+													<span className="shrink-0 text-xs text-[#6b6156]">{formatMoneyAR(p.price)}</span>
+												</button>
+											))}
+											{comboFilteredProducts.length === 0 ? (
+												<p className="px-2 py-4 text-xs text-[#6b6156]">No hay productos para ese filtro.</p>
+											) : null}
+										</div>
+										<div className="space-y-2">
+											<p className="text-xs font-medium uppercase tracking-[0.18em] text-[#6b6156]">Items del combo</p>
+											{comboItems.length === 0 ? (
+												<p className="text-xs text-[#6b6156]">Todavía no agregaste productos al combo.</p>
+											) : (
+												comboItems.map((item) => (
+													<div key={item.productId} className="grid grid-cols-[1fr_90px_90px_auto] items-center gap-2">
+														<p className="truncate text-sm">{item.name}</p>
+														<Input
+															type="number"
+															min={1}
+															step={1}
+															value={item.qty}
+															onChange={(e) => {
+																const qty = Math.max(1, Math.floor(parseInt(e.target.value, 10) || 1));
+																setComboItems((prev) =>
+																	prev.map((x) => (x.productId === item.productId ? { ...x, qty } : x)),
+																);
+															}}
+															className={inputClass}
+														/>
+														<p className="text-right text-xs text-[#6b6156]">{formatMoneyAR(item.unitPrice * item.qty)}</p>
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															className="border-[#b8956a]/35 bg-white/40 px-3 text-[#2a2520] hover:bg-[#f5f2ed]"
+															onClick={() =>
+																setComboItems((prev) => prev.filter((x) => x.productId !== item.productId))
+															}
+														>
+															Quitar
+														</Button>
+													</div>
+												))
+											)}
+										</div>
+										<div className="rounded-md border border-[#b8956a]/22 bg-[#fffdfb]/70 p-3">
+											<p className="text-xs uppercase tracking-[0.18em] text-[#6b6156]">Valor total calculado</p>
+											<p className="mt-1 text-lg text-[#1a1410]" style={{ fontFamily: serif }}>
+												{formatMoneyAR(comboTotal)}
+											</p>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="mt-3 border-[#b8956a]/35 bg-white/50 text-[#2a2520] hover:bg-[#f5f2ed]"
+												onClick={() => {
+													setPrecioEfectivo(String(Math.round(comboTotal)));
+													setPrecioTransferencia(String(Math.round(comboTotal)));
+												}}
+											>
+												Usar este valor en precios
+											</Button>
+										</div>
+									</div>
+								</div>
+							) : null}
+
 							<div className={cn('mt-8', innerCard)}>
 								<div className="flex flex-col gap-4">
 									<div className="min-w-0 flex-1">
 										<Label className={labelClass} style={{ fontFamily: sans }}>
-											Precio base
+											Precio efectivo
 										</Label>
 										<Input
 											inputMode="decimal"
-											value={precioBase}
-											onChange={(e) => setPrecioBase(e.target.value)}
+											value={precioEfectivo}
+											onChange={(e) => setPrecioEfectivo(e.target.value)}
+											className={cn(inputClass, 'mt-0 bg-white/70')}
+											placeholder="0"
+										/>
+									</div>
+									<div className="min-w-0 flex-1">
+										<Label className={labelClass} style={{ fontFamily: sans }}>
+											Precio tarjetas
+										</Label>
+										<Input
+											inputMode="decimal"
+											value={precioTransferencia}
+											onChange={(e) => setPrecioTransferencia(e.target.value)}
 											className={cn(inputClass, 'mt-0 bg-white/70')}
 											placeholder="0"
 										/>
@@ -414,20 +670,38 @@ export default function ProductForm() {
 											</div>
 											<div>
 												<Label className={labelClass} style={{ fontFamily: sans }}>
-													Precio total (calculado)
+													Precio total efectivo
 												</Label>
 												<div className="flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
-													{formatMoneyAR(precioTotal)}
+													{formatMoneyAR(precioTotalEfectivo)}
+												</div>
+											</div>
+											<div>
+												<Label className={labelClass} style={{ fontFamily: sans }}>
+													Precio final tarjetas
+												</Label>
+												<div className="flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
+													{formatMoneyAR(precioFinalTransferencia)}
 												</div>
 											</div>
 										</div>
 									) : (
-										<div>
-											<Label className={labelClass} style={{ fontFamily: sans }}>
-												Precio total
-											</Label>
-											<div className="mt-1.5 flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
-												{formatMoneyAR(precioTotal)}
+										<div className="grid gap-4 sm:grid-cols-2">
+											<div>
+												<Label className={labelClass} style={{ fontFamily: sans }}>
+													Precio total efectivo
+												</Label>
+												<div className="mt-1.5 flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
+													{formatMoneyAR(precioTotalEfectivo)}
+												</div>
+											</div>
+											<div>
+												<Label className={labelClass} style={{ fontFamily: sans }}>
+													Precio final tarjetas
+												</Label>
+												<div className="mt-1.5 flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
+													{formatMoneyAR(precioFinalTransferencia)}
+												</div>
 											</div>
 										</div>
 									)}
@@ -453,25 +727,90 @@ export default function ProductForm() {
 							</div>
 
 							<div className="mt-8 grid gap-5 sm:grid-cols-2">
+								<div className="sm:col-span-2">
+									{productKind === 'combo' ? (
+										<div className="rounded-md border border-[#b8956a]/22 bg-white/35 p-3">
+											<p className="text-xs uppercase tracking-[0.18em] text-[#6b6156]">Categoría fija</p>
+											<p className="mt-1 text-sm text-[#1a1410]">Combo (sin subcategoría)</p>
+										</div>
+									) : (
+										<>
+											<p className="mb-3 text-xs font-light text-[#6b6156]" style={{ fontFamily: sans }}>
+												Las opciones salen de{' '}
+												<Link href="/app/categorias" className="text-[#8b6f47] underline underline-offset-2">
+													Categorías
+												</Link>
+												{categoriesLoading ? ' (cargando…)' : null}.
+											</p>
+											<div className="grid gap-5 sm:grid-cols-2">
+												<div>
+													<Label htmlFor="cat" className={labelClass} style={{ fontFamily: sans }}>
+														Categoría
+													</Label>
+													<select
+														id="cat"
+														value={categoryId}
+														onChange={(e) => {
+															setCategoryId(e.target.value);
+															setSubcategoryId('');
+														}}
+														disabled={categoriesLoading || categoryTree.length === 0}
+														className={selectClass}
+													>
+														<option value="">
+															{categoriesLoading
+																? 'Cargando…'
+																: categoryTree.length === 0
+																	? 'Sin categorías en la base'
+																	: 'Seleccioná'}
+														</option>
+														{categoryTree.map((c) => (
+															<option key={c.id} value={c.id}>
+																{c.name}
+															</option>
+														))}
+													</select>
+												</div>
+												<div>
+													<Label htmlFor="subcat" className={labelClass} style={{ fontFamily: sans }}>
+														Subcategoría
+													</Label>
+													<select
+														id="subcat"
+														value={subcategoryId}
+														onChange={(e) => setSubcategoryId(e.target.value)}
+														disabled={
+															!categoryId ||
+															!selectedCategory ||
+															selectedCategory.subcategories.length === 0
+														}
+														className={selectClass}
+													>
+														<option value="">
+															{!categoryId
+																? 'Elegí primero una categoría'
+																: !selectedCategory?.subcategories.length
+																	? 'Sin subcategorías (opcional)'
+																	: 'Seleccioná'}
+														</option>
+														{(selectedCategory?.subcategories ?? []).map((s) => (
+															<option key={s.id} value={s.id}>
+																{s.name}
+															</option>
+														))}
+													</select>
+												</div>
+											</div>
+										</>
+									)}
+								</div>
 								<div>
 									<Label htmlFor="codigo" className={labelClass} style={{ fontFamily: sans }}>
 										Código de producto
 									</Label>
 									<Input id="codigo" value={codigo} onChange={(e) => setCodigo(e.target.value)} className={inputClass} />
 								</div>
-								<div>
-									<Label htmlFor="cat" className={labelClass} style={{ fontFamily: sans }}>
-										Categoría
-									</Label>
-									<select id="cat" value={categoria} onChange={(e) => setCategoria(e.target.value)} className={selectClass}>
-										<option value="">Seleccioná</option>
-										<option value="remeras">Remeras</option>
-										<option value="pantalones">Pantalones</option>
-										<option value="vestidos">Vestidos</option>
-										<option value="abrigos">Abrigos</option>
-										<option value="accesorios">Accesorios</option>
-									</select>
-								</div>
+								<div className="hidden sm:block" aria-hidden />
 								<div>
 									<Label htmlFor="compra-min" className={labelClass} style={{ fontFamily: sans }}>
 										Compra mínima
@@ -547,7 +886,7 @@ export default function ProductForm() {
 									{nombre.trim() || 'Sin nombre'}
 								</p>
 								<p className="mt-2 text-base font-light text-[#8b6f47]" style={{ fontFamily: serif }}>
-									{formatMoneyAR(precioTotal)}
+									{formatMoneyAR(precioTotalEfectivo)}
 								</p>
 							</div>
 							<div className="space-y-3 border-t border-[#b8956a]/15 p-4">

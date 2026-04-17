@@ -1,72 +1,211 @@
 'use client';
 
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useState,
+	type ReactNode,
 } from 'react';
 
+const STORAGE_KEY = 'sj-cart-lines-v1';
+
+export function parseProductIdFromLineId(lineId: string): string {
+	const sep = lineId.indexOf('__s_');
+	return sep === -1 ? lineId : lineId.slice(0, sep);
+}
+
 export type CartLine = {
-  id: string;
-  name: string;
-  price: number;
-  qty: number;
+	/** Clave de línea (puede ser `productId` o `productId__s_Talle`). */
+	id: string;
+	/** UUID del producto en `products.id`. */
+	productId: string;
+	name: string;
+	price: number;
+	qty: number;
+	image?: string;
+	size?: string;
+};
+
+export type CartAddPayload = {
+	id: string;
+	productId?: string;
+	name: string;
+	price: number;
+	qty?: number;
+	image?: string;
+	size?: string;
 };
 
 export type CartContextValue = {
-  items: CartLine[];
-  totalCount: number;
-  addItem: (item: {
-    id: string;
-    name: string;
-    price: number;
-    qty?: number;
-  }) => void;
+	items: CartLine[];
+	totalCount: number;
+	isOpen: boolean;
+	openCart: () => void;
+	closeCart: () => void;
+	toggleCart: () => void;
+	addItem: (item: CartAddPayload) => void;
+	setLineQty: (lineId: string, qty: number) => void;
+	removeLine: (lineId: string) => void;
+	clearCart: () => void;
 };
+
+function isCartLine(x: unknown): x is CartLine {
+	if (!x || typeof x !== 'object') return false;
+	const o = x as Record<string, unknown>;
+	return (
+		typeof o.id === 'string' &&
+		typeof o.name === 'string' &&
+		typeof o.price === 'number' &&
+		Number.isFinite(o.price) &&
+		typeof o.qty === 'number' &&
+		Number.isFinite(o.qty) &&
+		o.qty >= 1
+	);
+}
+
+function parseStoredLines(raw: string | null): CartLine[] {
+	if (!raw?.trim()) return [];
+	try {
+		const data = JSON.parse(raw) as unknown;
+		if (!Array.isArray(data)) return [];
+		const out: CartLine[] = [];
+		for (const row of data) {
+			if (!isCartLine(row)) continue;
+			const line = row as CartLine;
+			out.push({
+				...line,
+				qty: Math.floor(line.qty),
+				productId: line.productId ?? parseProductIdFromLineId(line.id),
+			});
+		}
+		return out;
+	} catch {
+		return [];
+	}
+}
 
 const CartContext = createContext<CartContextValue | null>(null);
 
+function lineIdFor(item: CartAddPayload) {
+	const s = item.size?.trim();
+	return s ? `${item.id}__s_${s}` : item.id;
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartLine[]>([]);
+	const [items, setItems] = useState<CartLine[]>([]);
+	const [isOpen, setIsOpen] = useState(false);
+	const [hasHydrated, setHasHydrated] = useState(false);
 
-  const addItem = useCallback(
-    (item: { id: string; name: string; price: number; qty?: number }) => {
-      const qty = item.qty ?? 1;
-      setItems((prev) => {
-        const i = prev.findIndex((l) => l.id === item.id);
-        if (i === -1) {
-          return [...prev, { id: item.id, name: item.name, price: item.price, qty }];
-        }
-        return prev.map((l, j) =>
-          j === i ? { ...l, qty: l.qty + qty } : l,
-        );
-      });
-    },
-    [],
-  );
+	useEffect(() => {
+		try {
+			if (typeof window === 'undefined') return;
+			setItems(parseStoredLines(localStorage.getItem(STORAGE_KEY)));
+		} catch {
+			/* ignore */
+		}
+		setHasHydrated(true);
+	}, []);
 
-  const totalCount = useMemo(
-    () => items.reduce((s, l) => s + l.qty, 0),
-    [items],
-  );
+	useEffect(() => {
+		if (!hasHydrated) return;
+		try {
+			if (typeof window === 'undefined') return;
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+		} catch {
+			/* ignore quota / private mode */
+		}
+	}, [items, hasHydrated]);
 
-  const value = useMemo(
-    () => ({ items, totalCount, addItem }),
-    [items, totalCount, addItem],
-  );
+	const openCart = useCallback(() => setIsOpen(true), []);
+	const closeCart = useCallback(() => setIsOpen(false), []);
+	const toggleCart = useCallback(() => setIsOpen((o) => !o), []);
 
-  return (
-    <CartContext.Provider value={value}>{children}</CartContext.Provider>
-  );
+	const addItem = useCallback((item: CartAddPayload) => {
+		const qty = item.qty ?? 1;
+		const id = lineIdFor(item);
+		const productId = item.productId ?? parseProductIdFromLineId(item.id);
+		setItems((prev) => {
+			const i = prev.findIndex((l) => l.id === id);
+			if (i === -1) {
+				return [
+					...prev,
+					{
+						id,
+						productId,
+						name: item.name,
+						price: item.price,
+						qty,
+						image: item.image,
+						size: item.size?.trim() || undefined,
+					},
+				];
+			}
+			return prev.map((l, j) =>
+				j === i ? { ...l, qty: l.qty + qty } : l,
+			);
+		});
+	}, []);
+
+	const setLineQty = useCallback((lineId: string, qty: number) => {
+		if (qty < 1) {
+			setItems((prev) => prev.filter((l) => l.id !== lineId));
+			return;
+		}
+		setItems((prev) =>
+			prev.map((l) => (l.id === lineId ? { ...l, qty } : l)),
+		);
+	}, []);
+
+	const removeLine = useCallback((lineId: string) => {
+		setItems((prev) => prev.filter((l) => l.id !== lineId));
+	}, []);
+
+	const clearCart = useCallback(() => setItems([]), []);
+
+	const totalCount = useMemo(
+		() => items.reduce((s, l) => s + l.qty, 0),
+		[items],
+	);
+
+	const value = useMemo(
+		() => ({
+			items,
+			totalCount,
+			isOpen,
+			openCart,
+			closeCart,
+			toggleCart,
+			addItem,
+			setLineQty,
+			removeLine,
+			clearCart,
+		}),
+		[
+			items,
+			totalCount,
+			isOpen,
+			openCart,
+			closeCart,
+			toggleCart,
+			addItem,
+			setLineQty,
+			removeLine,
+			clearCart,
+		],
+	);
+
+	return (
+		<CartContext.Provider value={value}>{children}</CartContext.Provider>
+	);
 }
 
 export function useCart(): CartContextValue {
-  const ctx = useContext(CartContext);
-  if (!ctx) {
-    throw new Error('useCart debe usarse dentro de CartProvider');
-  }
-  return ctx;
+	const ctx = useContext(CartContext);
+	if (!ctx) {
+		throw new Error('useCart debe usarse dentro de CartProvider');
+	}
+	return ctx;
 }
