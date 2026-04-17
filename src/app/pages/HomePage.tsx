@@ -11,7 +11,7 @@ import { fetchCategorySpotlights } from '@/lib/data/categorySpotlights';
 
 export async function HomePage() {
   const [recienLlegados, categorySpotlights] = await Promise.all([
-    fetchRecentProducts(80),
+    fetchRecentProducts(24),
     fetchCategorySpotlights(),
   ]);
 

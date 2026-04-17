@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           className="object-cover object-center"
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-[#faf8f7]/42 backdrop-blur-[2px]" aria-hidden />
+        <div className="absolute inset-0 bg-[#faf8f7]/55 md:bg-[#faf8f7]/42 md:backdrop-blur-[2px]" aria-hidden />
       </div>
 
       <div className="relative z-10 flex min-h-dvh">

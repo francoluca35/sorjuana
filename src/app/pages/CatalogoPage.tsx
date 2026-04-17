@@ -271,7 +271,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setShowMobileFilter(false)}
-                className="lg:hidden fixed inset-0 bg-[#1a1410]/80 backdrop-blur-sm z-50"
+                className="fixed inset-0 z-50 bg-[#1a1410]/90 lg:hidden"
               />
               <motion.div
                 initial={{ x: '100%' }}

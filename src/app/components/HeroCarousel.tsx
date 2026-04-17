@@ -20,7 +20,8 @@ import {
   readHeroSlidesFromStorage,
 } from '@/lib/heroSlidesConfig';
 
-const HERO_AUTOPLAY_MS = 8000;
+const HERO_AUTOPLAY_MS_DESKTOP = 8000;
+const HERO_AUTOPLAY_MS_MOBILE = 12000;
 
 function catalogHref(filter: HeroSlide['filter']) {
   return filter === 'all' ? '/catalogo' : `/catalogo?filter=${filter}`;
@@ -29,15 +30,30 @@ function catalogHref(filter: HeroSlide['filter']) {
 export function HeroCarousel() {
   const { addItem, openCart } = useCart();
   const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
+  const [isCompact, setIsCompact] = useState(false);
+
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: true,
     align: 'start',
-    duration: 26,
+    duration: 22,
     dragFree: false,
   });
 
   const [selected, setSelected] = useState(0);
   const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => setIsCompact(mq.matches);
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, []);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.reInit({ duration: isCompact ? 14 : 26 });
+  }, [emblaApi, isCompact]);
 
   useEffect(() => {
     const load = () => {
@@ -91,11 +107,12 @@ export function HeroCarousel() {
 
   useEffect(() => {
     if (!emblaApi || paused) return;
+    const ms = isCompact ? HERO_AUTOPLAY_MS_MOBILE : HERO_AUTOPLAY_MS_DESKTOP;
     const id = window.setInterval(() => {
       emblaApi.scrollNext();
-    }, HERO_AUTOPLAY_MS);
+    }, ms);
     return () => window.clearInterval(id);
-  }, [emblaApi, paused]);
+  }, [emblaApi, paused, isCompact]);
 
   useEffect(() => {
     if (!activeHotspot) return;
@@ -176,9 +193,8 @@ export function HeroCarousel() {
                     src={slide.imageMobile ?? slide.image}
                     alt={slide.title}
                     fill
-                    unoptimized
                     priority={index === 0}
-                    quality={88}
+                    quality={82}
                     sizes="100vw"
                     className="object-cover md:hidden"
                     style={{
@@ -190,9 +206,8 @@ export function HeroCarousel() {
                     src={slide.image}
                     alt={slide.title}
                     fill
-                    unoptimized
                     priority={index === 0}
-                    quality={90}
+                    quality={85}
                     sizes="100vw"
                     className="hidden object-cover md:block"
                     style={{
@@ -213,7 +228,7 @@ export function HeroCarousel() {
                       key={`${h.id}-sm`}
                       type="button"
                       onClick={(e) => openHotspot(h, e.currentTarget)}
-                      className="absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur-sm transition hover:scale-105 hover:bg-black/65 active:scale-95"
+                      className="absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
                       style={{
                         top: h.topMobile ?? h.top,
                         left: h.leftMobile ?? h.left,
@@ -230,7 +245,7 @@ export function HeroCarousel() {
                       key={`${h.id}-md`}
                       type="button"
                       onClick={(e) => openHotspot(h, e.currentTarget)}
-                      className="absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white shadow-lg backdrop-blur-sm transition hover:scale-105 hover:bg-black/65 active:scale-95"
+                      className="absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
                       style={{ top: h.top, left: h.left }}
                       aria-label={`Ver ${h.productName}`}
                     >
@@ -318,12 +333,12 @@ export function HeroCarousel() {
         <>
           <button
             type="button"
-            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[100] bg-black/50 lg:bg-black/40 lg:backdrop-blur-[2px]"
             aria-label="Cerrar"
             onClick={closeHotspotModal}
           />
           <div
-            className="fixed z-[101] w-[min(calc(100vw-1.5rem),20rem)] rounded-xl border border-white/15 bg-[#1a1410]/96 p-4 text-[#f5f2ed] shadow-2xl backdrop-blur-md sm:p-5"
+            className="fixed z-[101] w-[min(calc(100vw-1.5rem),20rem)] rounded-xl border border-white/15 bg-[#1a1410] p-4 text-[#f5f2ed] shadow-2xl sm:bg-[#1a1410]/96 sm:p-5 sm:backdrop-blur-md"
             style={{
               left: modalPos.left,
               top: modalPos.top,

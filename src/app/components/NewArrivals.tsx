@@ -143,10 +143,8 @@ function CardImageCarousel({
 						src={src}
 						alt={i === idx ? alt : ''}
 						fill
-						unoptimized
-						className="object-cover"
-						style={{ filter: 'sepia(0.08) contrast(1.05)' }}
-						sizes="(max-width: 768px) 50vw, 16vw"
+						className="object-cover contrast-[1.03] saturate-[0.98] md:sepia-[0.06]"
+						sizes="(max-width: 768px) 45vw, 16vw"
 					/>
 				</div>
 			))}
@@ -181,23 +179,25 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 	}, []);
 
 	return (
-		<section className="relative bg-white px-4 py-32 sm:px-6 lg:px-8">
+		<section
+			className="relative bg-white px-4 py-32 sm:px-6 lg:px-8 [content-visibility:auto] [contain-intrinsic-size:720px]"
+		>
 			<div className="absolute top-0 left-0 h-2 w-full bg-[#b8956a]/20" />
 			<div className="absolute bottom-0 left-0 h-2 w-full bg-[#b8956a]/20" />
 
 			<div className="mx-auto max-w-7xl">
 				<motion.div
-					initial={{ opacity: 0, y: 50 }}
+					initial={{ opacity: 0, y: 24 }}
 					whileInView={{ opacity: 1, y: 0 }}
-					viewport={{ once: true }}
-					transition={{ duration: 0.8 }}
+					viewport={{ once: true, amount: 0.2 }}
+					transition={{ duration: 0.45 }}
 					className="mb-20 text-center"
 				>
 					<motion.div
-						initial={{ scale: 0 }}
+						initial={{ scale: 0.96 }}
 						whileInView={{ scale: 1 }}
-						viewport={{ once: true }}
-						transition={{ delay: 0.2, duration: 0.6 }}
+						viewport={{ once: true, amount: 0.2 }}
+						transition={{ delay: 0.08, duration: 0.35 }}
 						className="mb-6 inline-flex items-center justify-center"
 					>
 						<Sparkles className="mr-3 h-5 w-5 text-[#b8956a]" strokeWidth={1.5} />
@@ -225,8 +225,8 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 					<motion.p
 						initial={{ opacity: 0 }}
 						whileInView={{ opacity: 1 }}
-						viewport={{ once: true }}
-						transition={{ delay: 0.5, duration: 0.8 }}
+						viewport={{ once: true, amount: 0.2 }}
+						transition={{ delay: 0.12, duration: 0.4 }}
 						className="mx-auto mt-4 max-w-2xl italic text-[#6b6156]"
 						style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.15rem' }}
 					>
@@ -234,10 +234,10 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 					</motion.p>
 
 					<motion.div
-						initial={{ opacity: 0, scale: 0 }}
+						initial={{ opacity: 0, scale: 0.9 }}
 						whileInView={{ opacity: 0.3, scale: 1 }}
-						viewport={{ once: true }}
-						transition={{ delay: 0.7, duration: 1 }}
+						viewport={{ once: true, amount: 0.2 }}
+						transition={{ delay: 0.18, duration: 0.4 }}
 						className="mt-4 text-4xl text-[#b8956a]"
 						style={{ fontFamily: 'Cormorant Garamond, serif' }}
 					>
@@ -260,10 +260,10 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 								key={product.id}
 								role="button"
 								tabIndex={0}
-								initial={{ opacity: 0, y: 50 }}
+								initial={{ opacity: 0, y: 20 }}
 								whileInView={{ opacity: 1, y: 0 }}
-								viewport={{ once: true }}
-								transition={{ delay: index * 0.1, duration: 0.6 }}
+								viewport={{ once: true, amount: 0.15, margin: '0px 0px -8% 0px' }}
+								transition={{ delay: Math.min(index * 0.04, 0.35), duration: 0.35 }}
 								onClick={() => openProduct(product)}
 								onKeyDown={(e) => {
 									if (e.key === 'Enter' || e.key === ' ') {
@@ -275,8 +275,8 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 							>
 								<div className="relative mb-4 overflow-hidden border-2 border-transparent bg-[#f5f2ed] transition-all duration-500 group-hover:border-[#b8956a]/30">
 									<motion.div
-										whileHover={{ scale: 1.08 }}
-										transition={{ duration: 0.6 }}
+										whileHover={{ scale: 1.04 }}
+										transition={{ duration: 0.25 }}
 										className="relative w-full"
 									>
 										<CardImageCarousel
@@ -315,7 +315,7 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 											whileHover={{ scale: 1.1, rotate: 5 }}
 											whileTap={{ scale: 0.95 }}
 											onClick={(e) => e.stopPropagation()}
-											className="bg-white/90 p-2.5 backdrop-blur-sm transition-colors duration-300 hover:bg-[#b8956a] hover:text-white"
+											className="bg-white p-2.5 transition-colors duration-200 hover:bg-[#b8956a] hover:text-white md:bg-white/90 md:backdrop-blur-sm"
 											aria-label="Favoritos"
 										>
 											<Heart className="h-4 w-4" strokeWidth={1.5} />
@@ -328,7 +328,7 @@ export function NewArrivals({ products }: { products: ProductRow[] }) {
 												e.stopPropagation();
 												openProduct(product);
 											}}
-											className="bg-white/90 p-2.5 backdrop-blur-sm transition-colors duration-300 hover:bg-[#b8956a] hover:text-white"
+											className="bg-white p-2.5 transition-colors duration-200 hover:bg-[#b8956a] hover:text-white md:bg-white/90 md:backdrop-blur-sm"
 											aria-label="Ver fotos y video"
 										>
 											<Eye className="h-4 w-4" strokeWidth={1.5} />

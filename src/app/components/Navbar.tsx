@@ -92,7 +92,7 @@ export function Navbar() {
       className={cn(
         'fixed top-0 right-0 left-0 z-50 transition-all duration-500',
         barSolid
-          ? 'border-b border-[#b8956a]/20 bg-[#1a1410]/95 shadow-2xl backdrop-blur-md'
+          ? 'border-b border-[#b8956a]/20 bg-[#1a1410] shadow-2xl lg:bg-[#1a1410]/95 lg:backdrop-blur-md'
           : 'bg-transparent shadow-none',
       )}
     >
@@ -285,7 +285,7 @@ export function Navbar() {
               transition={{ duration: 0.4, ease: [0.43, 0.13, 0.23, 0.96] }}
               className="overflow-hidden border-t border-[#b8956a]/20 lg:hidden"
             >
-              <div className="space-y-1 bg-[#1a1410]/95 py-6 backdrop-blur-md">
+              <div className="space-y-1 bg-[#1a1410] py-6 lg:bg-[#1a1410]/95 lg:backdrop-blur-md">
                 {!isCatalog && (
                   <>
                     <MobileLink href="/" onNavigate={() => setIsOpen(false)}>

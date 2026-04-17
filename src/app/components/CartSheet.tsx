@@ -141,7 +141,7 @@ export function CartSheet() {
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
 						transition={{ duration: 0.22, ease: [0.2, 0, 0, 1] }}
-						className="fixed inset-0 z-0 bg-black/45 backdrop-blur-[2px]"
+						className="fixed inset-0 z-0 bg-black/50 md:bg-black/45 md:backdrop-blur-[2px]"
 						aria-label="Cerrar carrito"
 						onClick={closeCart}
 					/>
