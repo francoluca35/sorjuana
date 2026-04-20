@@ -11,6 +11,7 @@ import {
 	LineChart,
 	Sheet,
 	FileBarChart,
+	BadgePercent,
 } from 'lucide-react';
 import { cn } from '@/app/components/ui/utils';
 
@@ -21,6 +22,7 @@ const NAV_BEFORE_VENTAS = [
 	{ href: '/app/cargar-producto', label: 'Carga de producto', icon: PackagePlus },
 	{ href: '/app/carga-excel', label: 'Carga de excel', icon: Sheet },
 	{ href: '/app/productos', label: 'Lista de productos', icon: ListOrdered },
+	{ href: '/app/precios', label: 'Precios', icon: BadgePercent },
 	{ href: '/app/categorias', label: 'Categorías', icon: FolderTree },
 	{ href: '/app/mapa-pagina', label: 'Mapa de página', icon: Map },
 ] as const;

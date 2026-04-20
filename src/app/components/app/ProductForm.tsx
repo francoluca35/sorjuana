@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { fetchRecentProductsAction, insertProductAction } from '@/app/actions/products';
 import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
+import { getPriceSettingsAction } from '@/app/actions/priceSettings';
 import type { ShopCategoryTree } from '@/lib/data/shopCategories';
 import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { SizeInventoryEditor } from '@/app/components/app/SizeInventoryEditor';
@@ -19,7 +20,6 @@ import { Label } from '@/app/components/ui/label';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Textarea } from '@/app/components/ui/textarea';
-import { RadioGroup, RadioGroupItem } from '@/app/components/ui/radio-group';
 import { cn } from '@/app/components/ui/utils';
 
 const serif = "'Cormorant Garamond', serif";
@@ -82,10 +82,9 @@ export default function ProductForm() {
 	const [stock, setStock] = useState('');
 	const [sizeRows, setSizeRows] = useState<SizeInventoryRow[]>([]);
 	const [costoInicial, setCostoInicial] = useState('');
-	const [precioEfectivo, setPrecioEfectivo] = useState('');
-	const [precioTransferencia, setPrecioTransferencia] = useState('');
-	const [impuestoAplica, setImpuestoAplica] = useState<'no' | 'si'>('no');
-	const [impuestoPorcentaje, setImpuestoPorcentaje] = useState('21');
+	const [costoPrenda, setCostoPrenda] = useState('');
+	const [cashDiscountPercent, setCashDiscountPercent] = useState(0);
+	const [transferDiscountPercent, setTransferDiscountPercent] = useState(0);
 	const [descripcion, setDescripcion] = useState('');
 	const [color, setColor] = useState('');
 
@@ -185,6 +184,23 @@ export default function ProductForm() {
 		};
 	}, []);
 
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			try {
+				const settings = await getPriceSettingsAction();
+				if (cancelled) return;
+				setCashDiscountPercent(Number(settings.cashDiscountPercent) || 0);
+				setTransferDiscountPercent(Number(settings.transferDiscountPercent) || 0);
+			} catch {
+				/* ignore and keep defaults */
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
 	const selectedCategory = useMemo(
 		() => categoryTree.find((c) => c.id === categoryId) ?? null,
 		[categoryTree, categoryId],
@@ -200,24 +216,18 @@ export default function ProductForm() {
 		return selectedCategory.slug;
 	}, [productKind, selectedCategory, subcategoryId]);
 
-	const precioTotalEfectivo = useMemo(() => {
-		const base = parseMoneyInput(precioEfectivo);
-		if (impuestoAplica !== 'si') return Math.round(base);
-		const pct = parseFloat(impuestoPorcentaje.replace(',', '.')) || 0;
-		return Math.round(base * (1 + Math.max(0, pct) / 100));
-	}, [precioEfectivo, impuestoAplica, impuestoPorcentaje]);
-
-	const precioFinalTransferencia = useMemo(() => {
-		const base = parseMoneyInput(precioTransferencia);
-		if (impuestoAplica !== 'si') return Math.round(base);
-		const pct = parseFloat(impuestoPorcentaje.replace(',', '.')) || 0;
-		return Math.round(base * (1 + Math.max(0, pct) / 100));
-	}, [precioTransferencia, impuestoAplica, impuestoPorcentaje]);
-
 	const comboTotal = useMemo(
 		() => comboItems.reduce((acc, item) => acc + item.unitPrice * item.qty, 0),
 		[comboItems],
 	);
+	const costoPrendaNum = useMemo(() => parseMoneyInput(costoPrenda), [costoPrenda]);
+	const precioCalculadoEfectivo = useMemo(() => {
+		return Math.round(costoPrendaNum * (1 - Math.max(0, cashDiscountPercent) / 100));
+	}, [costoPrendaNum, cashDiscountPercent]);
+	const precioCalculadoTransferencia = useMemo(() => {
+		return Math.round(costoPrendaNum * (1 - Math.max(0, transferDiscountPercent) / 100));
+	}, [costoPrendaNum, transferDiscountPercent]);
+	const precioCalculadoTarjeta = useMemo(() => Math.round(costoPrendaNum), [costoPrendaNum]);
 
 	const comboFilteredProducts = useMemo(() => {
 		const q = comboSearch.trim().toLowerCase();
@@ -304,6 +314,12 @@ export default function ProductForm() {
 			return;
 		}
 
+		const garmentCost = parseMoneyInput(costoPrenda);
+		if (!(garmentCost > 0)) {
+			toast.error('Ingresá un costo de prenda mayor a 0.');
+			return;
+		}
+
 		setIsSubmitting(true);
 		try {
 			const uploadedImages: string[] = [];
@@ -334,26 +350,20 @@ export default function ProductForm() {
 				setRemoteVideoUrl(res.publicUrl);
 			}
 
-			const basePrice = parseMoneyInput(precioEfectivo);
-			const transferPrice = parseMoneyInput(precioTransferencia);
 			const cost = parseMoneyInput(costoInicial);
 			const sizesNorm = normalizeSizeInventoryForDb(sizeRows);
 			const stockN =
 				sizesNorm.length > 0 ? sumSizeInventoryQty(sizesNorm) : Math.max(0, Math.floor(parseInt(stock, 10) || 0));
-			const taxPct =
-				impuestoAplica === 'si' ? parseFloat(impuestoPorcentaje.replace(',', '.')) || 0 : null;
-
 			const ins = await insertProductAction({
 				kind: productKind,
 				name: nameTrim,
 				stock: stockN,
 				cost,
-				basePrice,
-				transferPrice,
-				price: precioTotalEfectivo,
-				finalTransferPrice: precioFinalTransferencia,
-				taxApplies: impuestoAplica === 'si',
-				taxPercent: taxPct,
+				garmentCost,
+				cashDiscountPercent,
+				transferDiscountPercent,
+				taxApplies: false,
+				taxPercent: null,
 				description: descripcion.trim() || null,
 				color: color.trim() || null,
 				productCode: codigo.trim() || null,
@@ -512,6 +522,55 @@ export default function ProductForm() {
 										placeholder="0"
 									/>
 								</div>
+								<div>
+									<Label htmlFor="costo-prenda" className={labelClass} style={{ fontFamily: sans }}>
+										Costo de prenda
+									</Label>
+									<Input
+										id="costo-prenda"
+										inputMode="decimal"
+										value={costoPrenda}
+										onChange={(e) => setCostoPrenda(e.target.value)}
+										className={inputClass}
+										placeholder="0"
+									/>
+								</div>
+								<div className="sm:col-span-2">
+									<div className={cn(innerCard, 'mt-0 space-y-3')}>
+										<p className="text-xs font-medium uppercase tracking-[0.18em] text-[#6b6156]">
+											Precios calculados desde costo de prenda
+										</p>
+										<div className="grid gap-3 sm:grid-cols-3">
+											<div className="rounded-md border border-[#b8956a]/22 bg-[#fffdfb]/80 p-3">
+												<p className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
+													Efectivo ({cashDiscountPercent}%)
+												</p>
+												<p className="mt-1 text-base text-[#1a1410]" style={{ fontFamily: serif }}>
+													{formatMoneyAR(precioCalculadoEfectivo)}
+												</p>
+											</div>
+											<div className="rounded-md border border-[#b8956a]/22 bg-[#fffdfb]/80 p-3">
+												<p className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
+													Transferencia ({transferDiscountPercent}%)
+												</p>
+												<p className="mt-1 text-base text-[#1a1410]" style={{ fontFamily: serif }}>
+													{formatMoneyAR(precioCalculadoTransferencia)}
+												</p>
+											</div>
+											<div className="rounded-md border border-[#b8956a]/22 bg-[#fffdfb]/80 p-3">
+												<p className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
+													Tarjeta crédito/débito
+												</p>
+												<p className="mt-1 text-base text-[#1a1410]" style={{ fontFamily: serif }}>
+													{formatMoneyAR(precioCalculadoTarjeta)}
+												</p>
+												<p className="mt-1 text-[11px] text-[#6b6156]">
+													Crédito: 3 cuotas sin interés. Débito: 1 pago.
+												</p>
+											</div>
+										</div>
+									</div>
+								</div>
 							</div>
 
 							{productKind === 'combo' ? (
@@ -593,120 +652,15 @@ export default function ProductForm() {
 												size="sm"
 												className="mt-3 border-[#b8956a]/35 bg-white/50 text-[#2a2520] hover:bg-[#f5f2ed]"
 												onClick={() => {
-													setPrecioEfectivo(String(Math.round(comboTotal)));
-													setPrecioTransferencia(String(Math.round(comboTotal)));
+													setCostoPrenda(String(Math.round(comboTotal)));
 												}}
 											>
-												Usar este valor en precios
+												Usar este valor como costo de prenda
 											</Button>
 										</div>
 									</div>
 								</div>
 							) : null}
-
-							<div className={cn('mt-8', innerCard)}>
-								<div className="flex flex-col gap-4">
-									<div className="min-w-0 flex-1">
-										<Label className={labelClass} style={{ fontFamily: sans }}>
-											Precio efectivo
-										</Label>
-										<Input
-											inputMode="decimal"
-											value={precioEfectivo}
-											onChange={(e) => setPrecioEfectivo(e.target.value)}
-											className={cn(inputClass, 'mt-0 bg-white/70')}
-											placeholder="0"
-										/>
-									</div>
-									<div className="min-w-0 flex-1">
-										<Label className={labelClass} style={{ fontFamily: sans }}>
-											Precio tarjetas
-										</Label>
-										<Input
-											inputMode="decimal"
-											value={precioTransferencia}
-											onChange={(e) => setPrecioTransferencia(e.target.value)}
-											className={cn(inputClass, 'mt-0 bg-white/70')}
-											placeholder="0"
-										/>
-									</div>
-									<div>
-										<p className={labelClass} style={{ fontFamily: sans }}>
-											Impuesto
-										</p>
-										<RadioGroup
-											value={impuestoAplica}
-											onValueChange={(v) => setImpuestoAplica(v as 'no' | 'si')}
-											className="mt-2 flex flex-wrap gap-6"
-										>
-											<div className="flex items-center gap-2.5">
-												<RadioGroupItem value="no" id="imp-no" className="border-[#8b6f47] text-[#b8956a]" />
-												<Label htmlFor="imp-no" className="cursor-pointer text-sm font-light text-[#3d3835]">
-													No
-												</Label>
-											</div>
-											<div className="flex items-center gap-2.5">
-												<RadioGroupItem value="si" id="imp-si" className="border-[#8b6f47] text-[#b8956a]" />
-												<Label htmlFor="imp-si" className="cursor-pointer text-sm font-light text-[#3d3835]">
-													Sí
-												</Label>
-											</div>
-										</RadioGroup>
-									</div>
-									{impuestoAplica === 'si' ? (
-										<div className="grid gap-4 sm:grid-cols-2 sm:items-end">
-											<div>
-												<Label htmlFor="imp-pct" className={labelClass} style={{ fontFamily: sans }}>
-													Porcentaje de impuesto (%)
-												</Label>
-												<Input
-													id="imp-pct"
-													inputMode="decimal"
-													value={impuestoPorcentaje}
-													onChange={(e) => setImpuestoPorcentaje(e.target.value)}
-													className={cn(inputClass, 'bg-white/70')}
-													placeholder="21"
-												/>
-											</div>
-											<div>
-												<Label className={labelClass} style={{ fontFamily: sans }}>
-													Precio total efectivo
-												</Label>
-												<div className="flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
-													{formatMoneyAR(precioTotalEfectivo)}
-												</div>
-											</div>
-											<div>
-												<Label className={labelClass} style={{ fontFamily: sans }}>
-													Precio final tarjetas
-												</Label>
-												<div className="flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
-													{formatMoneyAR(precioFinalTransferencia)}
-												</div>
-											</div>
-										</div>
-									) : (
-										<div className="grid gap-4 sm:grid-cols-2">
-											<div>
-												<Label className={labelClass} style={{ fontFamily: sans }}>
-													Precio total efectivo
-												</Label>
-												<div className="mt-1.5 flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
-													{formatMoneyAR(precioTotalEfectivo)}
-												</div>
-											</div>
-											<div>
-												<Label className={labelClass} style={{ fontFamily: sans }}>
-													Precio final tarjetas
-												</Label>
-												<div className="mt-1.5 flex h-10 items-center rounded-md border border-[#b8956a]/35 bg-[#fffdfb]/80 px-3 text-sm font-medium text-[#1a1410] backdrop-blur-sm">
-													{formatMoneyAR(precioFinalTransferencia)}
-												</div>
-											</div>
-										</div>
-									)}
-								</div>
-							</div>
 
 							<div className="mt-8">
 								<Label htmlFor="desc" className={labelClass} style={{ fontFamily: sans }}>
@@ -886,7 +840,7 @@ export default function ProductForm() {
 									{nombre.trim() || 'Sin nombre'}
 								</p>
 								<p className="mt-2 text-base font-light text-[#8b6f47]" style={{ fontFamily: serif }}>
-									{formatMoneyAR(precioTotalEfectivo)}
+									{formatMoneyAR(precioCalculadoEfectivo)}
 								</p>
 							</div>
 							<div className="space-y-3 border-t border-[#b8956a]/15 p-4">

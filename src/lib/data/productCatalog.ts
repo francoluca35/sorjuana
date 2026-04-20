@@ -15,9 +15,14 @@ export type ProductRow = {
 	kind: string;
 	stock: number;
 	cost: number | null;
+	/** Costo de prenda (precio base definido por el local), sin descuentos de medio de pago. */
 	base_price: number | null;
 	transfer_price: number | null;
 	final_transfer_price: number | null;
+	/** Snapshot del % de descuento efectivo vigente al guardar. */
+	cash_discount_percent: number | null;
+	/** Snapshot del % de descuento transferencia vigente al guardar. */
+	transfer_discount_percent: number | null;
 	tax_applies: boolean;
 	tax_percent: number | null;
 	description: string | null;
@@ -40,6 +45,7 @@ export type CatalogProduct = {
 	/** Valor persistido en `products.category` (slug o texto libre) */
 	category_db: string | null;
 	stock: number;
+	/** Precio efectivo (venta) persistido para la tienda / carrito. */
 	price: number;
 	cost: number;
 	image: string;
@@ -47,9 +53,12 @@ export type CatalogProduct = {
 	color: string;
 	promoPrice: number | null;
 	kind: string;
+	/** Costo de prenda (base comercial). */
 	base_price: number;
 	transfer_price: number;
 	final_transfer_price: number;
+	cash_discount_percent: number | null;
+	transfer_discount_percent: number | null;
 	tax_applies: boolean;
 	tax_percent: number | null;
 	gallery_image_urls: string[];
@@ -164,6 +173,8 @@ export function normalizeProductRow(raw: Record<string, unknown>): ProductRow {
 		base_price: toNumNull(raw.base_price),
 		transfer_price: toNumNull(raw.transfer_price),
 		final_transfer_price: toNumNull(raw.final_transfer_price),
+		cash_discount_percent: toNumNull(raw.cash_discount_percent),
+		transfer_discount_percent: toNumNull(raw.transfer_discount_percent),
 		tax_applies: toBool(raw.tax_applies, false),
 		tax_percent: toNumNull(raw.tax_percent),
 		description: toStr(raw.description),
@@ -187,6 +198,10 @@ export function productRowToCatalogProduct(row: ProductRow): CatalogProduct {
 	const urls = row.image_urls?.length ? row.image_urls : row.image_url ? [row.image_url] : [];
 	const primary = urls[0] || row.image_url?.trim() || PLACEHOLDER_IMG;
 	const dbCat = row.category;
+	const hasDiscountSnapshots =
+		row.cash_discount_percent != null || row.transfer_discount_percent != null;
+	const garmentCost =
+		row.base_price != null ? row.base_price : hasDiscountSnapshots ? row.price : row.price;
 	return {
 		id: row.id,
 		code: row.product_code?.trim() || '—',
@@ -201,9 +216,14 @@ export function productRowToCatalogProduct(row: ProductRow): CatalogProduct {
 		color: row.color?.trim() ?? '',
 		promoPrice: row.compare_at_price,
 		kind: row.kind || 'producto',
-		base_price: row.base_price != null ? row.base_price : 0,
+		base_price: garmentCost,
 		transfer_price: row.transfer_price != null ? row.transfer_price : 0,
-		final_transfer_price: row.final_transfer_price != null ? row.final_transfer_price : 0,
+		final_transfer_price:
+			row.final_transfer_price != null && row.final_transfer_price > 0
+				? row.final_transfer_price
+				: garmentCost,
+		cash_discount_percent: row.cash_discount_percent,
+		transfer_discount_percent: row.transfer_discount_percent,
 		tax_applies: row.tax_applies,
 		tax_percent: row.tax_percent != null ? row.tax_percent : null,
 		gallery_image_urls: urls,

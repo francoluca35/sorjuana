@@ -24,9 +24,12 @@ export default async function Page() {
 		return {
 			id: p.id,
 			name: p.name,
+			garment_cost: p.base_price,
 			price: p.price,
 			transfer_price: p.transfer_price,
 			final_transfer_price: p.final_transfer_price,
+			cash_discount_percent: p.cash_discount_percent,
+			transfer_discount_percent: p.transfer_discount_percent,
 			image: p.image || PLACEHOLDER_IMG,
 			category_db: p.category_db,
 			gallery_image_urls: p.gallery_image_urls,

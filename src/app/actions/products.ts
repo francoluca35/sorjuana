@@ -46,6 +46,35 @@ function hasMissingColorColumnError(message: string): boolean {
 	);
 }
 
+function hasMissingDiscountSnapshotColumnsError(message: string): boolean {
+	return (
+		message.includes('column products.cash_discount_percent does not exist') ||
+		message.includes('column "cash_discount_percent" does not exist') ||
+		message.includes("Could not find the 'cash_discount_percent' column of 'products' in the schema cache") ||
+		message.includes('column products.transfer_discount_percent does not exist') ||
+		message.includes('column "transfer_discount_percent" does not exist') ||
+		message.includes("Could not find the 'transfer_discount_percent' column of 'products' in the schema cache")
+	);
+}
+
+function clampPercent(n: number): number {
+	if (!Number.isFinite(n)) return 0;
+	return Math.max(0, Math.min(100, n));
+}
+
+function roundMoney(n: number): number {
+	if (!Number.isFinite(n)) return 0;
+	return Math.max(0, Math.round(n));
+}
+
+function computePricesFromGarmentCost(garmentCost: number, cashPct: number, transferPct: number) {
+	const base = Math.max(0, garmentCost);
+	const cash = roundMoney(base * (1 - clampPercent(cashPct) / 100));
+	const transfer = roundMoney(base * (1 - clampPercent(transferPct) / 100));
+	const card = roundMoney(base);
+	return { cash, transfer, card };
+}
+
 function normalizeHeader(value: unknown): string {
 	if (value == null) return '';
 	return String(value)
@@ -194,6 +223,18 @@ export async function importProductsFromExcelAction(
 		let skipped = 0;
 		const categoryPathCache = new Map<string, string>();
 
+		let cashDiscountPercent = 0;
+		let transferDiscountPercent = 0;
+		{
+			const { data: priceCfg } = await supabase
+				.from('price_settings')
+				.select('cash_discount_percent, transfer_discount_percent')
+				.eq('id', 1)
+				.maybeSingle();
+			cashDiscountPercent = clampPercent(Number(priceCfg?.cash_discount_percent) || 0);
+			transferDiscountPercent = clampPercent(Number(priceCfg?.transfer_discount_percent) || 0);
+		}
+
 		async function resolveCategoryPath(catLabel: string, subLabel: string): Promise<string | null> {
 			const key = `${catLabel.trim().toLowerCase()}\t${subLabel.trim().toLowerCase()}`;
 			const hit = categoryPathCache.get(key);
@@ -248,13 +289,19 @@ export async function importProductsFromExcelAction(
 							},
 						]
 					: [];
+			const garmentCost = precio;
+			const priced = computePricesFromGarmentCost(garmentCost, cashDiscountPercent, transferDiscountPercent);
 			payload.push({
 				kind: inferKindFromEstado(estado),
 				name: nombreFinal,
 				stock: cantidad,
 				cost: null,
-				base_price: precio,
-				price: precio,
+				base_price: garmentCost,
+				transfer_price: priced.transfer,
+				price: priced.cash,
+				final_transfer_price: priced.card,
+				cash_discount_percent: cashDiscountPercent,
+				transfer_discount_percent: transferDiscountPercent,
 				tax_applies: false,
 				tax_percent: null,
 				description: null,
@@ -282,6 +329,30 @@ export async function importProductsFromExcelAction(
 				return rest;
 			});
 			insertResult = await supabase.from('products').insert(withoutColor);
+		}
+		if (insertResult.error && hasMissingDiscountSnapshotColumnsError(insertResult.error.message)) {
+			const withoutSnapshots = payload.map((row) => {
+				const {
+					cash_discount_percent: _cashDisc,
+					transfer_discount_percent: _trDisc,
+					...rest
+				} = row;
+				return rest;
+			});
+			insertResult = await supabase.from('products').insert(withoutSnapshots);
+		}
+		if (insertResult.error && hasMissingPriceColumnsError(insertResult.error.message)) {
+			const legacyPayload = payload.map((row) => {
+				const {
+					transfer_price: _transfer,
+					final_transfer_price: _finalTransfer,
+					cash_discount_percent: _cashDisc,
+					transfer_discount_percent: _trDisc,
+					...rest
+				} = row;
+				return rest;
+			});
+			insertResult = await supabase.from('products').insert(legacyPayload);
 		}
 		if (insertResult.error) {
 			return { ok: false, message: insertResult.error.message };
@@ -317,10 +388,10 @@ export type InsertProductInput = {
 	name: string;
 	stock: number;
 	cost: number;
-	basePrice: number;
-	transferPrice: number;
-	price: number;
-	finalTransferPrice: number;
+	/** Costo de prenda (base comercial). */
+	garmentCost: number;
+	cashDiscountPercent: number;
+	transferDiscountPercent: number;
 	taxApplies: boolean;
 	taxPercent: number | null;
 	description: string | null;
@@ -355,7 +426,10 @@ export async function insertProductAction(
 		}
 
 		const imageUrls = input.imageUrls.filter(Boolean).slice(0, 3);
-		const price = Math.max(0, input.price);
+		const garmentCost = Math.max(0, input.garmentCost);
+		const cashDisc = clampPercent(input.cashDiscountPercent);
+		const transferDisc = clampPercent(input.transferDiscountPercent);
+		const priced = computePricesFromGarmentCost(garmentCost, cashDisc, transferDisc);
 		const sizesNorm = normalizeSizeInventoryForDb(input.sizeInventory ?? []);
 		const stock =
 			sizesNorm.length > 0
@@ -367,10 +441,12 @@ export async function insertProductAction(
 			name,
 			stock,
 			cost: input.cost >= 0 ? input.cost : null,
-			base_price: input.basePrice >= 0 ? input.basePrice : null,
-			transfer_price: input.transferPrice >= 0 ? input.transferPrice : null,
-			price,
-			final_transfer_price: input.finalTransferPrice >= 0 ? input.finalTransferPrice : null,
+			base_price: garmentCost,
+			transfer_price: priced.transfer,
+			price: priced.cash,
+			final_transfer_price: priced.card,
+			cash_discount_percent: cashDisc,
+			transfer_discount_percent: transferDisc,
 			tax_applies: input.taxApplies,
 			tax_percent: input.taxApplies && input.taxPercent != null ? Math.max(0, input.taxPercent) : null,
 			description: input.description?.trim() || null,
@@ -393,8 +469,18 @@ export async function insertProductAction(
 		};
 
 		let result = await supabase.from('products').insert(row);
+		if (result.error && hasMissingDiscountSnapshotColumnsError(result.error.message)) {
+			const { cash_discount_percent: _c, transfer_discount_percent: _t, ...withoutSnapshots } = row;
+			result = await supabase.from('products').insert(withoutSnapshots);
+		}
 		if (result.error && hasMissingPriceColumnsError(result.error.message)) {
-			const { transfer_price: _transfer, final_transfer_price: _finalTransfer, ...legacyRow } = row;
+			const {
+				transfer_price: _transfer,
+				final_transfer_price: _finalTransfer,
+				cash_discount_percent: _c,
+				transfer_discount_percent: _t,
+				...legacyRow
+			} = row;
 			result = await supabase.from('products').insert(legacyRow);
 		}
 		if (result.error && hasMissingComboItemsColumnError(result.error.message)) {
@@ -419,12 +505,10 @@ export async function insertProductAction(
 
 export type UpdateProductPatch = {
 	name: string;
-	price: number;
-	base_price: number;
-	transfer_price: number;
-	final_transfer_price: number;
-	tax_applies: boolean;
-	tax_percent: number | null;
+	/** Costo de prenda (base comercial). */
+	garment_cost: number;
+	cash_discount_percent: number;
+	transfer_discount_percent: number;
 	compare_at_price: number | null;
 	category: string | null;
 	description: string;
@@ -455,18 +539,25 @@ export async function updateProductAction(
 		sizesNorm.length > 0 ? sumSizeInventoryQty(sizesNorm) : Math.max(0, Math.floor(patch.stock));
 	const imageUrls = (patch.image_urls ?? []).filter(Boolean).slice(0, 3);
 
+	const garmentCost = Math.max(0, patch.garment_cost);
+	const cashDisc = clampPercent(patch.cash_discount_percent);
+	const transferDisc = clampPercent(patch.transfer_discount_percent);
+	const priced = computePricesFromGarmentCost(garmentCost, cashDisc, transferDisc);
+
 	/**
 	 * Las server actions pueden omitir claves `undefined` al serializar. Si `color` no viene en el patch,
 	 * no debemos mandar `color: null` o se borra el valor guardado.
 	 */
 	const fullUpdate: Record<string, unknown> = {
 		name: patch.name.trim(),
-		price: Math.max(0, patch.price),
-		base_price: patch.base_price >= 0 ? patch.base_price : null,
-		transfer_price: patch.transfer_price >= 0 ? patch.transfer_price : null,
-		final_transfer_price: patch.final_transfer_price >= 0 ? patch.final_transfer_price : null,
-		tax_applies: patch.tax_applies,
-		tax_percent: patch.tax_applies && patch.tax_percent != null ? Math.max(0, patch.tax_percent) : null,
+		base_price: garmentCost,
+		transfer_price: priced.transfer,
+		price: priced.cash,
+		final_transfer_price: priced.card,
+		cash_discount_percent: cashDisc,
+		transfer_discount_percent: transferDisc,
+		tax_applies: false,
+		tax_percent: null,
 		compare_at_price:
 			patch.compare_at_price != null && patch.compare_at_price >= 0 ? patch.compare_at_price : null,
 		category: patch.category?.trim() || null,
@@ -490,8 +581,18 @@ export async function updateProductAction(
 		.update(fullUpdate)
 		.eq('id', id);
 
+	if (updateResult.error && hasMissingDiscountSnapshotColumnsError(updateResult.error.message)) {
+		const { cash_discount_percent: _c, transfer_discount_percent: _t, ...withoutSnapshots } = fullUpdate;
+		updateResult = await supabase.from('products').update(withoutSnapshots).eq('id', id);
+	}
 	if (updateResult.error && hasMissingPriceColumnsError(updateResult.error.message)) {
-		const { transfer_price: _transfer, final_transfer_price: _finalTransfer, ...legacyUpdate } = fullUpdate;
+		const {
+			transfer_price: _transfer,
+			final_transfer_price: _finalTransfer,
+			cash_discount_percent: _c,
+			transfer_discount_percent: _t,
+			...legacyUpdate
+		} = fullUpdate;
 		updateResult = await supabase.from('products').update(legacyUpdate).eq('id', id);
 	}
 	if (updateResult.error && hasMissingColorColumnError(updateResult.error.message)) {

@@ -4,7 +4,7 @@ import { normalizeProductRow, type ProductRow } from '@/lib/data/productCatalog'
 export type { ProductRow } from '@/lib/data/productCatalog';
 
 const PANEL_SELECT =
-	'id,name,category,price,compare_at_price,image_url,created_at,kind,stock,cost,base_price,transfer_price,final_transfer_price,tax_applies,tax_percent,description,color,product_code,image_urls,video_url,min_order_qty,max_order_qty,size_inventory';
+	'id,name,category,price,compare_at_price,image_url,created_at,kind,stock,cost,base_price,transfer_price,final_transfer_price,cash_discount_percent,transfer_discount_percent,tax_applies,tax_percent,description,color,product_code,image_urls,video_url,min_order_qty,max_order_qty,size_inventory';
 
 const PANEL_SELECT_LEGACY =
 	'id,name,category,price,compare_at_price,image_url,created_at,kind,stock,cost,base_price,tax_applies,tax_percent,description,color,product_code,image_urls,video_url,min_order_qty,max_order_qty,size_inventory';
@@ -25,6 +25,17 @@ function missingNewPriceColumns(message: string): boolean {
 		message.includes('column products.final_transfer_price does not exist') ||
 		message.includes('column "final_transfer_price" does not exist') ||
 		message.includes("Could not find the 'final_transfer_price' column of 'products' in the schema cache")
+	);
+}
+
+function missingDiscountSnapshotColumns(message: string): boolean {
+	return (
+		message.includes('column products.cash_discount_percent does not exist') ||
+		message.includes('column "cash_discount_percent" does not exist') ||
+		message.includes("Could not find the 'cash_discount_percent' column of 'products' in the schema cache") ||
+		message.includes('column products.transfer_discount_percent does not exist') ||
+		message.includes('column "transfer_discount_percent" does not exist') ||
+		message.includes("Could not find the 'transfer_discount_percent' column of 'products' in the schema cache")
 	);
 }
 
@@ -55,6 +66,14 @@ async function resolvePanelSelectString(): Promise<string | null> {
 			return null;
 		}
 		console.error('[resolvePanelSelectString]', e3.message);
+		return null;
+	}
+
+	if (missingDiscountSnapshotColumns(error.message)) {
+		const withoutSnapshots = PANEL_SELECT.replace(',cash_discount_percent,transfer_discount_percent', '');
+		const { error: e5 } = await probe(withoutSnapshots);
+		if (!e5) return withoutSnapshots;
+		console.error('[resolvePanelSelectString]', e5.message);
 		return null;
 	}
 

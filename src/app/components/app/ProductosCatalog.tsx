@@ -35,6 +35,7 @@ import {
   insertProductAction,
   updateProductAction,
 } from '@/app/actions/products';
+import { getPriceSettingsAction } from '@/app/actions/priceSettings';
 import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { SizeInventoryEditor } from '@/app/components/app/SizeInventoryEditor';
 import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
@@ -65,10 +66,17 @@ function formatMoney(n: number) {
   return `$ ${n.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
 }
 
-function computeFinalPrice(base: number, taxApplies: boolean, taxPercent: number | null): number {
-  if (!taxApplies) return Math.round(Math.max(0, base));
-  const pct = Math.max(0, taxPercent ?? 0);
-  return Math.round(Math.max(0, base) * (1 + pct / 100));
+function clampPercent(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
+function computePricesFromGarmentCost(garmentCost: number, cashPct: number, transferPct: number) {
+  const base = Math.max(0, garmentCost);
+  const cash = Math.round(base * (1 - clampPercent(cashPct) / 100));
+  const transfer = Math.round(base * (1 - clampPercent(transferPct) / 100));
+  const card = Math.round(base);
+  return { cash, transfer, card };
 }
 
 function stockDotClass(stock: number) {
@@ -141,6 +149,28 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [panelCategoryId, setPanelCategoryId] = useState('');
   const [panelSubcategoryId, setPanelSubcategoryId] = useState('');
+  const [globalCashDiscountPercent, setGlobalCashDiscountPercent] = useState(0);
+  const [globalTransferDiscountPercent, setGlobalTransferDiscountPercent] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cfg = await getPriceSettingsAction();
+        if (cancelled) return;
+        setGlobalCashDiscountPercent(Number(cfg.cashDiscountPercent) || 0);
+        setGlobalTransferDiscountPercent(Number(cfg.transferDiscountPercent) || 0);
+      } catch {
+        if (!cancelled) {
+          setGlobalCashDiscountPercent(0);
+          setGlobalTransferDiscountPercent(0);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,6 +194,30 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     () => categoryTree.find((c) => c.id === panelCategoryId) ?? null,
     [categoryTree, panelCategoryId],
   );
+
+  function effectiveDiscountPercents(d: CatalogProduct): { cash: number; transfer: number } {
+    const cash =
+      d.cash_discount_percent != null ? clampPercent(d.cash_discount_percent) : clampPercent(globalCashDiscountPercent);
+    const transfer =
+      d.transfer_discount_percent != null
+        ? clampPercent(d.transfer_discount_percent)
+        : clampPercent(globalTransferDiscountPercent);
+    return { cash, transfer };
+  }
+
+  function applyGarmentCostToDraft(prev: CatalogProduct, garmentCost: number): CatalogProduct {
+    const { cash, transfer } = effectiveDiscountPercents(prev);
+    const priced = computePricesFromGarmentCost(garmentCost, cash, transfer);
+    return {
+      ...prev,
+      base_price: Math.max(0, garmentCost),
+      price: priced.cash,
+      transfer_price: priced.transfer,
+      final_transfer_price: priced.card,
+      tax_applies: false,
+      tax_percent: null,
+    };
+  }
 
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -226,7 +280,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
   }, [products]);
 
   function openProduct(p: CatalogProduct) {
-    setDraft({ ...p });
+    setDraft(applyGarmentCostToDraft({ ...p }, p.base_price));
     setDrawerTab('registro');
     if (categoryTree.length > 0) {
       const ids = idsFromCategoryDb(categoryTree, p.category_db);
@@ -256,14 +310,12 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
 
   async function saveDraft() {
     if (!draft) return;
+    const { cash, transfer } = effectiveDiscountPercents(draft);
     const res = await updateProductAction(draft.id, {
       name: draft.name,
-      price: draft.price,
-      base_price: draft.base_price,
-      transfer_price: draft.transfer_price,
-      final_transfer_price: draft.final_transfer_price,
-      tax_applies: draft.tax_applies,
-      tax_percent: draft.tax_percent,
+      garment_cost: draft.base_price,
+      cash_discount_percent: cash,
+      transfer_discount_percent: transfer,
       compare_at_price: draft.promoPrice,
       category: draft.category_db?.trim() || null,
       description: draft.description,
@@ -283,6 +335,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     const nextStock =
       sizesNorm.length > 0 ? sumSizeInventoryQty(sizesNorm) : Math.max(0, Math.floor(draft.stock));
     const gallery = galleryList(draft).slice(0, MAX_PRODUCT_IMAGES);
+    const priced = computePricesFromGarmentCost(draft.base_price, cash, transfer);
     const next: CatalogProduct = {
       ...draft,
       gallery_image_urls: gallery,
@@ -290,6 +343,13 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       size_inventory: sizesNorm.length > 0 ? sizesNorm : [],
       stock: nextStock,
       category: displayCategoryLabel(draft.category_db?.trim() || null),
+      price: priced.cash,
+      transfer_price: priced.transfer,
+      final_transfer_price: priced.card,
+      cash_discount_percent: cash,
+      transfer_discount_percent: transfer,
+      tax_applies: false,
+      tax_percent: null,
     };
     setProducts((prev) => prev.map((x) => (x.id === draft.id ? next : x)));
     setSheetOpen(false);
@@ -369,18 +429,18 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     const copiedSizes = normalizeSizeInventoryForDb(draft.size_inventory);
     const copyStock =
       copiedSizes.length > 0 ? sumSizeInventoryQty(copiedSizes) : Math.max(0, Math.floor(draft.stock));
+    const { cash, transfer } = effectiveDiscountPercents(draft);
     const res = await insertProductAction({
       kind,
       name: `${draft.name} (copia)`,
       stock: copyStock,
       sizeInventory: draft.size_inventory.map((r) => ({ ...r })),
       cost: draft.cost,
-      basePrice: draft.base_price,
-      transferPrice: draft.transfer_price,
-      price: draft.price,
-      finalTransferPrice: draft.final_transfer_price,
-      taxApplies: draft.tax_applies,
-      taxPercent: draft.tax_percent,
+      garmentCost: draft.base_price,
+      cashDiscountPercent: cash,
+      transferDiscountPercent: transfer,
+      taxApplies: false,
+      taxPercent: null,
       description: draft.description.trim() || null,
       color: draft.color?.trim() || null,
       productCode: copyCode,
@@ -879,105 +939,55 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                       />
                     </div>
                     <div>
-                      <Label htmlFor="d-base-price">Precio efectivo</Label>
+                      <Label htmlFor="d-garment-cost">Costo de prenda</Label>
                       <Input
-                        id="d-base-price"
+                        id="d-garment-cost"
                         type="number"
                         min={0}
                         value={draft.base_price}
                         onChange={(e) => {
-                          const basePrice = Number(e.target.value) || 0;
-                          setDraft({
-                            ...draft,
-                            base_price: basePrice,
-                            price: computeFinalPrice(basePrice, draft.tax_applies, draft.tax_percent),
-                          });
+                          const garmentCost = Number(e.target.value) || 0;
+                          setDraft((prev) => (prev ? applyGarmentCostToDraft(prev, garmentCost) : prev));
                         }}
                         className="mt-1.5"
                       />
+                      <p className="mt-2 text-xs text-slate-500">
+                        Los descuentos se toman de <span className="font-medium">Precios</span>
+                        {draft.cash_discount_percent != null || draft.transfer_discount_percent != null
+                          ? ' (congelados en este producto al guardarlo).'
+                          : ' (vigentes ahora; al guardar quedan fijos en el producto).'}
+                      </p>
                     </div>
-                    <div>
-                      <Label htmlFor="d-transfer-price">Precio tarjetas</Label>
-                      <Input
-                        id="d-transfer-price"
-                        type="number"
-                        min={0}
-                        value={draft.transfer_price}
-                        onChange={(e) => {
-                          const transferPrice = Number(e.target.value) || 0;
-                          setDraft({
-                            ...draft,
-                            transfer_price: transferPrice,
-                            final_transfer_price: computeFinalPrice(transferPrice, draft.tax_applies, draft.tax_percent),
-                          });
-                        }}
-                        className="mt-1.5"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="d-tax-applies">Impuesto</Label>
-                        <select
-                          id="d-tax-applies"
-                          value={draft.tax_applies ? 'si' : 'no'}
-                          onChange={(e) => {
-                            const taxApplies = e.target.value === 'si';
-                            setDraft({
-                              ...draft,
-                              tax_applies: taxApplies,
-                              price: computeFinalPrice(draft.base_price, taxApplies, draft.tax_percent),
-                              final_transfer_price: computeFinalPrice(draft.transfer_price, taxApplies, draft.tax_percent),
-                            });
-                          }}
-                          className="mt-1.5 flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
-                        >
-                          <option value="no">No</option>
-                          <option value="si">Sí</option>
-                        </select>
-                      </div>
-                      <div>
-                        <Label htmlFor="d-tax-pct">Impuesto (%)</Label>
-                        <Input
-                          id="d-tax-pct"
-                          type="number"
-                          min={0}
-                          value={draft.tax_percent ?? 0}
-                          onChange={(e) => {
-                            const taxPercent = Number(e.target.value) || 0;
-                            setDraft({
-                              ...draft,
-                              tax_percent: taxPercent,
-                              price: computeFinalPrice(draft.base_price, draft.tax_applies, taxPercent),
-                              final_transfer_price: computeFinalPrice(draft.transfer_price, draft.tax_applies, taxPercent),
-                            });
-                          }}
-                          className="mt-1.5"
-                          disabled={!draft.tax_applies}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <Label htmlFor="d-price">Precio total efectivo</Label>
-                        <Input
-                          id="d-price"
-                          type="number"
-                          min={0}
-                          value={draft.price}
-                          onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) || 0 })}
-                          className="mt-1.5"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="d-final-transfer">Precio final transferencia</Label>
-                        <Input
-                          id="d-final-transfer"
-                          type="number"
-                          min={0}
-                          value={draft.final_transfer_price}
-                          onChange={(e) => setDraft({ ...draft, final_transfer_price: Number(e.target.value) || 0 })}
-                          className="mt-1.5"
-                        />
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Precios calculados</p>
+                      <div className="mt-3 space-y-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-slate-600">
+                            Efectivo ({effectiveDiscountPercents(draft).cash}%)
+                          </span>
+                          <span className="font-semibold tabular-nums text-slate-900">
+                            {formatMoney(draft.price)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-slate-600">
+                            Transferencia ({effectiveDiscountPercents(draft).transfer}%)
+                          </span>
+                          <span className="font-semibold tabular-nums text-slate-900">
+                            {formatMoney(draft.transfer_price)}
+                          </span>
+                        </div>
+                        <div className="border-t border-slate-200 pt-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-600">Tarjeta (crédito/débito)</span>
+                            <span className="font-semibold tabular-nums text-slate-900">
+                              {formatMoney(draft.final_transfer_price)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[11px] leading-snug text-slate-500">
+                            Débito: un solo pago. Crédito: 3 cuotas sin interés.
+                          </p>
+                        </div>
                       </div>
                     </div>
                     <Collapsible open={optOpen} onOpenChange={setOptOpen}>

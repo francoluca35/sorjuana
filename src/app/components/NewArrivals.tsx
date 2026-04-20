@@ -26,7 +26,13 @@ type NewArrivalProduct = {
 	id: string;
 	name: string;
 	category: string;
+	/** Costo de prenda (referencia publicada). */
+	garmentCost: number;
 	price: number;
+	transferPrice: number;
+	cardPrice: number;
+	cashDiscountPercent: number | null;
+	transferDiscountPercent: number | null;
 	oldPrice: number | null;
 	/** Imágenes para carrusel en tarjeta (siempre al menos una URL válida) */
 	cardImages: string[];
@@ -52,6 +58,17 @@ function dedupeUrls(urls: string[]): string[] {
 
 export function mapRowToNewArrivalProduct(p: ProductRow): NewArrivalProduct {
 	const price = Number(p.price);
+	const transferPrice = Number(p.transfer_price);
+	const cardPrice = Number(p.final_transfer_price);
+	const baseRaw = p.base_price != null ? Number(p.base_price) : NaN;
+	const garmentCost =
+		Number.isFinite(baseRaw) && baseRaw > 0
+			? baseRaw
+			: Number.isFinite(cardPrice) && cardPrice > 0
+				? cardPrice
+				: Number.isFinite(price)
+					? price
+					: 0;
 	const compare = p.compare_at_price != null ? Number(p.compare_at_price) : null;
 	const oldPrice =
 		compare != null && Number.isFinite(compare) && Number.isFinite(price) && compare > price
@@ -64,7 +81,12 @@ export function mapRowToNewArrivalProduct(p: ProductRow): NewArrivalProduct {
 		id: p.id,
 		name: p.name,
 		category: displayCategoryLabel(p.category),
+		garmentCost,
 		price: Number.isFinite(price) ? price : 0,
+		transferPrice: Number.isFinite(transferPrice) ? transferPrice : 0,
+		cardPrice: Number.isFinite(cardPrice) ? cardPrice : garmentCost,
+		cashDiscountPercent: p.cash_discount_percent != null ? Number(p.cash_discount_percent) : null,
+		transferDiscountPercent: p.transfer_discount_percent != null ? Number(p.transfer_discount_percent) : null,
 		oldPrice,
 		cardImages,
 		videoUrl,
@@ -379,20 +401,46 @@ export function NewArrivals({
 									>
 										{product.name}
 									</h3>
-									<div className="flex items-center justify-center space-x-2">
-										<span
-											className="text-[#b8956a]"
-											style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem' }}
+									<div className="space-y-1.5 text-center">
+										<p
+											className="text-[0.6rem] uppercase tracking-[0.16em] text-[#6b6156]"
+											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
 										>
-											{formatPrecioListaAr(product.price)}
+											Costo de prenda
+										</p>
+										<span
+											className="block text-[#b8956a]"
+											style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.15rem', fontWeight: 500 }}
+										>
+											{formatPrecioListaAr(product.garmentCost)}
 										</span>
+										<div
+											className="space-y-0.5 text-[10px] leading-snug text-[#5c5349]"
+											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+										>
+											<p>
+												Efectivo
+												{product.cashDiscountPercent != null && product.cashDiscountPercent > 0
+													? ` · ${product.cashDiscountPercent}% dto.`
+													: ''}
+												: {formatPrecioListaAr(product.price)}
+											</p>
+											<p>
+												Transferencia
+												{product.transferDiscountPercent != null && product.transferDiscountPercent > 0
+													? ` · ${product.transferDiscountPercent}% dto.`
+													: ''}
+												: {formatPrecioListaAr(product.transferPrice)}
+											</p>
+											<p>Tarjeta: {formatPrecioListaAr(product.cardPrice)}</p>
+										</div>
 										{product.oldPrice != null ? (
-											<span
-												className="text-xs text-[#6b6156]/50 line-through"
+											<p
+												className="text-[10px] text-[#6b6156]/60 line-through"
 												style={{ fontFamily: 'Montserrat, sans-serif' }}
 											>
-												{formatPrecioListaAr(product.oldPrice)}
-											</span>
+												Promo {formatPrecioListaAr(product.oldPrice)}
+											</p>
 										) : null}
 									</div>
 								</div>

@@ -16,9 +16,12 @@ import type { SizeInventoryRow } from '@/lib/data/productSizes';
 type CatalogProduct = {
   id: string;
   name: string;
+  garment_cost: number;
   price: number;
   transfer_price: number;
   final_transfer_price: number;
+  cash_discount_percent: number | null;
+  transfer_discount_percent: number | null;
   image: string;
   /** Valor crudo en DB: `slug` o `slug/subslug` */
   category_db: string | null;
@@ -150,13 +153,14 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
       selectedSubSlug === 'all' ||
       parseSubcategorySlugFromDb(product.category_db) === selectedSubSlug;
 
+    const refPrice = product.garment_cost > 0 ? product.garment_cost : product.price;
     let priceMatch = true;
     if (priceRange === 'low') {
-      priceMatch = product.price < 200;
+      priceMatch = refPrice < 200;
     } else if (priceRange === 'mid') {
-      priceMatch = product.price >= 200 && product.price < 300;
+      priceMatch = refPrice >= 200 && refPrice < 300;
     } else if (priceRange === 'high') {
-      priceMatch = product.price >= 300;
+      priceMatch = refPrice >= 300;
     }
     
     return categoryMatch && adminMatch && subMatch && priceMatch;
@@ -435,15 +439,45 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                       >
                         {product.name}
                       </h3>
-                      <div className="flex items-center justify-center">
-                        <div className="h-px w-8 bg-[#b8956a]/30" />
-                        <div 
-                          className="text-[#b8956a] mx-4"
-                          style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: 400 }}
+                      <div className="mx-auto max-w-sm">
+                        <p
+                          className="mb-1 text-[0.65rem] uppercase tracking-[0.18em] text-[#6b6156]"
+                          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
                         >
-                          {formatPrecioListaAr(product.price)}
+                          Costo de prenda
+                        </p>
+                        <div className="flex items-center justify-center">
+                          <div className="h-px w-8 bg-[#b8956a]/30" />
+                          <div
+                            className="mx-4 text-[#b8956a]"
+                            style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: 400 }}
+                          >
+                            {formatPrecioListaAr(product.garment_cost)}
+                          </div>
+                          <div className="h-px w-8 bg-[#b8956a]/30" />
                         </div>
-                        <div className="h-px w-8 bg-[#b8956a]/30" />
+                        <div
+                          className="mt-3 space-y-1 text-left text-[11px] leading-snug text-[#5c5349]"
+                          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+                        >
+                          <p>
+                            <span className="text-[#8b6f47]">Efectivo</span>
+                            {product.cash_discount_percent != null && product.cash_discount_percent > 0
+                              ? ` · ${product.cash_discount_percent}% dto.`
+                              : ''}
+                            : {formatPrecioListaAr(product.price)}
+                          </p>
+                          <p>
+                            <span className="text-[#8b6f47]">Transferencia</span>
+                            {product.transfer_discount_percent != null && product.transfer_discount_percent > 0
+                              ? ` · ${product.transfer_discount_percent}% dto.`
+                              : ''}
+                            : {formatPrecioListaAr(product.transfer_price)}
+                          </p>
+                          <p>
+                            <span className="text-[#8b6f47]">Tarjeta</span> · {formatPrecioListaAr(product.final_transfer_price)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </motion.div>

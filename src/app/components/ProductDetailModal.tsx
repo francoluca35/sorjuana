@@ -17,9 +17,13 @@ export type MediaItem =
 export type CatalogProductBase = {
 	id: string;
 	name: string;
+	/** Costo de prenda (precio base publicado). */
+	garment_cost: number;
 	price: number;
 	transfer_price: number;
 	final_transfer_price: number;
+	cash_discount_percent: number | null;
+	transfer_discount_percent: number | null;
 	image: string;
 	category_db: string | null;
 	gallery_image_urls: string[];
@@ -54,9 +58,12 @@ export function productRowToDetailModalProduct(row: ProductRow): ProductForDetai
 	const base: CatalogProductBase = {
 		id: cp.id,
 		name: cp.name,
+		garment_cost: cp.base_price,
 		price: cp.price,
 		transfer_price: cp.transfer_price,
 		final_transfer_price: cp.final_transfer_price,
+		cash_discount_percent: cp.cash_discount_percent,
+		transfer_discount_percent: cp.transfer_discount_percent,
 		image: cp.image || PLACEHOLDER_IMG,
 		category_db: cp.category_db,
 		gallery_image_urls: cp.gallery_image_urls,
@@ -221,12 +228,6 @@ export function ProductMediaCarousel({
 	);
 }
 
-function getCardPrice(product: CatalogProductBase): number | null {
-	if (product.final_transfer_price > 0) return product.final_transfer_price;
-	if (product.transfer_price > 0) return product.transfer_price;
-	return null;
-}
-
 type ProductDetailModalProps = {
 	product: ProductForDetailModal | null;
 	onClose: () => void;
@@ -340,7 +341,13 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 									{product.name}
 								</h2>
 								<p
-									className="mt-4 text-[#2a2a2a]"
+									className="mt-5 pl-0.5 text-[0.7rem] uppercase tracking-[0.22em] text-[#6b6156]"
+									style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+								>
+									Costo de prenda
+								</p>
+								<p
+									className="mt-1 text-[#1f1f1f]"
 									style={{
 										fontFamily: 'Montserrat, sans-serif',
 										fontSize: 'clamp(1.65rem, 5vw, 2.6rem)',
@@ -348,16 +355,47 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 										letterSpacing: '-0.02em',
 									}}
 								>
-									{formatPrecioListaAr(product.price)}
+									{formatPrecioListaAr(product.garment_cost)}
 								</p>
-								{getCardPrice(product) != null ? (
-									<p
-										className="mt-1 text-[#9f3b3b]"
-										style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '0.95rem', fontWeight: 500 }}
-									>
-										{formatPrecioListaAr(getCardPrice(product)!)} con tarjetas
-									</p>
-								) : null}
+								<div
+									className="mt-4 space-y-3 rounded-xl border border-[#e4dfd6] bg-[#faf8f6] px-4 py-4"
+									style={{ fontFamily: 'Montserrat, sans-serif' }}
+								>
+									<div>
+										<p className="text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]" style={{ fontWeight: 600 }}>
+											Efectivo
+										</p>
+										<p className="mt-1 text-sm font-medium text-[#1f1f1f]">
+											{product.cash_discount_percent != null && product.cash_discount_percent > 0 ? (
+												<span className="text-[#5c5349]">{product.cash_discount_percent}% de descuento · </span>
+											) : null}
+											{formatPrecioListaAr(product.price)}
+										</p>
+									</div>
+									<div className="border-t border-[#e4dfd6] pt-3">
+										<p className="text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]" style={{ fontWeight: 600 }}>
+											Transferencia
+										</p>
+										<p className="mt-1 text-sm font-medium text-[#1f1f1f]">
+											{product.transfer_discount_percent != null && product.transfer_discount_percent > 0 ? (
+												<span className="text-[#5c5349]">{product.transfer_discount_percent}% de descuento · </span>
+											) : null}
+											{formatPrecioListaAr(product.transfer_price)}
+										</p>
+									</div>
+									<div className="border-t border-[#e4dfd6] pt-3">
+										<p className="text-[0.68rem] uppercase tracking-[0.22em] text-[#6b6156]" style={{ fontWeight: 600 }}>
+											Tarjeta débito / crédito
+										</p>
+										<p className="mt-1 text-sm font-semibold text-[#1f1f1f]">
+											<span className="font-medium text-[#5c5349]">Sin descuento · </span>
+											{formatPrecioListaAr(product.final_transfer_price)}
+										</p>
+										<p className="mt-1.5 text-xs leading-relaxed text-[#5c5349]" style={{ fontWeight: 500 }}>
+											Débito: un solo pago. Crédito: 3 cuotas sin interés.
+										</p>
+									</div>
+								</div>
 								<div className="mt-5 rounded-xl border border-[#e4dfd6] bg-[#f5f2ed] p-4">
 									<p
 										className="text-sm leading-relaxed text-[#3d3830]"
