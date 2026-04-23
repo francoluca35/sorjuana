@@ -8,6 +8,7 @@ import {
   ProductDetailModal,
   ProductMediaCarousel,
   buildProductForDetailModal,
+  type ProductVariantForDetailModal,
 } from '@/app/components/ProductDetailModal';
 import { displayCategoryLabel, parseSubcategorySlugFromDb } from '@/lib/data/productCatalog';
 import { formatPrecioListaAr } from '@/lib/formatPrice';
@@ -16,6 +17,9 @@ import type { SizeInventoryRow } from '@/lib/data/productSizes';
 type CatalogProduct = {
   id: string;
   name: string;
+  /** Código visible (mismo criterio que el panel). */
+  product_code: string;
+  color: string;
   garment_cost: number;
   price: number;
   transfer_price: number;
@@ -166,13 +170,69 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     return categoryMatch && adminMatch && subMatch && priceMatch;
   });
 
+  const groupedPublications = useMemo(() => {
+    type RowWithAdmin = (typeof filteredProducts)[number];
+    const byName = new Map<string, RowWithAdmin[]>();
+    for (const row of filteredProducts) {
+      const key = row.name.trim().toLowerCase();
+      const bucket = byName.get(key);
+      if (bucket) bucket.push(row);
+      else byName.set(key, [row]);
+    }
+
+    const out: Array<
+      Omit<RowWithAdmin, 'adminCategory'> & {
+        variants: ProductVariantForDetailModal[];
+      }
+    > = [];
+
+    for (const rows of byName.values()) {
+      if (rows.length === 0) continue;
+      const base = rows[0]!;
+      const variants: ProductVariantForDetailModal[] = rows.map((row) => ({
+        id: row.id,
+        color: row.color?.trim() || null,
+        size_inventory: row.size_inventory,
+        stock: row.stock,
+        price: row.price,
+        image: row.image,
+      }));
+      const stock = rows.reduce((sum, row) => sum + Math.max(0, row.stock), 0);
+      const withMedia = rows.find((row) => row.gallery_image_urls.length > 0 || row.video_url?.trim());
+      const withPrice = rows.find((row) => row.garment_cost > 0) ?? base;
+      const withCategory = rows.find((row) => row.category_db?.trim()) ?? base;
+      const withDescription = rows.find((row) => row.description.trim().length > 0) ?? base;
+      const withCode = rows.find((row) => row.product_code?.trim()) ?? base;
+      out.push({
+        id: base.id,
+        name: base.name,
+        product_code: withCode.product_code?.trim() || base.product_code || '',
+        color: base.color,
+        garment_cost: withPrice.garment_cost,
+        price: withPrice.price,
+        transfer_price: withPrice.transfer_price,
+        final_transfer_price: withPrice.final_transfer_price,
+        cash_discount_percent: withPrice.cash_discount_percent,
+        transfer_discount_percent: withPrice.transfer_discount_percent,
+        image: (withMedia ?? base).image,
+        category_db: withCategory.category_db,
+        gallery_image_urls: (withMedia ?? base).gallery_image_urls,
+        video_url: (withMedia ?? base).video_url,
+        description: withDescription.description,
+        size_inventory: [],
+        stock,
+        variants,
+      });
+    }
+    return out;
+  }, [filteredProducts]);
+
   const productsWithMedia = useMemo(
     () =>
-      filteredProducts.map((p) => {
-        const { adminCategory: _a, ...base } = p;
-        return buildProductForDetailModal(base);
+      groupedPublications.map((p) => {
+        return buildProductForDetailModal(p);
       }),
-    [filteredProducts],
+    [groupedPublications],
   );
 
   const productById = useMemo(() => {
@@ -374,7 +434,8 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
                 {filteredProducts.length}{' '}
-                {filteredProducts.length === 1 ? 'pieza' : 'piezas'}
+                {filteredProducts.length === 1 ? 'variante' : 'variantes'} · {groupedPublications.length}{' '}
+                {groupedPublications.length === 1 ? 'publicación' : 'publicaciones'}
               </p>
             </div>
 
@@ -485,7 +546,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
               </AnimatePresence>
             </div>
 
-            {filteredProducts.length === 0 && (
+            {groupedPublications.length === 0 && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}

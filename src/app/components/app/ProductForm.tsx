@@ -21,6 +21,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Textarea } from '@/app/components/ui/textarea';
 import { cn } from '@/app/components/ui/utils';
+import { Trash2 } from 'lucide-react';
 
 const serif = "'Cormorant Garamond', serif";
 const sans = 'Montserrat, sans-serif';
@@ -72,6 +73,39 @@ function parseOptionalNonNegInt(raw: string): number | null {
 	return Number.isFinite(n) ? Math.max(0, n) : null;
 }
 
+type ColorBlockDraft = {
+	id: string;
+	color: string;
+	stock: number;
+	size_inventory: SizeInventoryRow[];
+};
+
+function buildInventoryFromColorBlocks(blocks: ColorBlockDraft[]): {
+	mergedRows: SizeInventoryRow[];
+	mergedStock: number;
+	mergedColors: string;
+} {
+	const mergedSizes: SizeInventoryRow[] = [];
+	for (const v of blocks) {
+		const color = v.color.trim() || null;
+		const sizesNorm = normalizeSizeInventoryForDb(v.size_inventory);
+		if (sizesNorm.length > 0) {
+			for (const s of sizesNorm) {
+				mergedSizes.push({ color, size: s.size, qty: s.qty });
+			}
+		} else if (v.stock > 0) {
+			mergedSizes.push({ color, size: 'Unico', qty: Math.max(0, Math.floor(v.stock)) });
+		}
+	}
+	const mergedRows = normalizeSizeInventoryForDb(mergedSizes);
+	const mergedStock =
+		mergedRows.length > 0
+			? sumSizeInventoryQty(mergedRows)
+			: blocks.reduce((sum, v) => sum + Math.max(0, Math.floor(v.stock)), 0);
+	const mergedColors = Array.from(new Set(blocks.map((b) => b.color.trim()).filter(Boolean))).join(', ');
+	return { mergedRows, mergedStock, mergedColors };
+}
+
 export default function ProductForm() {
 	const router = useRouter();
 	const imagesInputRef = useRef<HTMLInputElement>(null);
@@ -79,14 +113,15 @@ export default function ProductForm() {
 
 	const [productKind, setProductKind] = useState<'producto' | 'combo' | 'ofertas'>('producto');
 	const [nombre, setNombre] = useState('');
+	/** Stock numérico solo para tipo combo (publicación sin talles por color). */
 	const [stock, setStock] = useState('');
-	const [sizeRows, setSizeRows] = useState<SizeInventoryRow[]>([]);
 	const [costoInicial, setCostoInicial] = useState('');
 	const [costoPrenda, setCostoPrenda] = useState('');
 	const [cashDiscountPercent, setCashDiscountPercent] = useState(0);
 	const [transferDiscountPercent, setTransferDiscountPercent] = useState(0);
 	const [descripcion, setDescripcion] = useState('');
-	const [color, setColor] = useState('');
+	const [newColorInput, setNewColorInput] = useState('');
+	const [colorBlocks, setColorBlocks] = useState<ColorBlockDraft[]>([]);
 
 	const initCode = useMemo(() => String(2000 + Math.floor(Math.random() * 7000)), []);
 	const [codigo, setCodigo] = useState(initCode);
@@ -201,6 +236,13 @@ export default function ProductForm() {
 		};
 	}, []);
 
+	useEffect(() => {
+		if (productKind === 'combo') {
+			setColorBlocks([]);
+			setNewColorInput('');
+		}
+	}, [productKind]);
+
 	const selectedCategory = useMemo(
 		() => categoryTree.find((c) => c.id === categoryId) ?? null,
 		[categoryTree, categoryId],
@@ -235,11 +277,13 @@ export default function ProductForm() {
 		return comboProducts.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 24);
 	}, [comboProducts, comboSearch]);
 
-	const sizesNormalized = useMemo(() => normalizeSizeInventoryForDb(sizeRows), [sizeRows]);
-	const stockTotalComputed =
-		sizesNormalized.length > 0
-			? sumSizeInventoryQty(sizesNormalized)
-			: Math.max(0, Math.floor(parseInt(stock, 10) || 0));
+	const stockTotalComputed = useMemo(() => {
+		if (productKind === 'combo') {
+			return Math.max(0, Math.floor(parseInt(stock, 10) || 0));
+		}
+		const { mergedStock } = buildInventoryFromColorBlocks(colorBlocks);
+		return mergedStock;
+	}, [productKind, colorBlocks, stock]);
 
 	const primaryPreview =
 		imagePreviewUrls[previewImageIndex] ??
@@ -289,6 +333,47 @@ export default function ProductForm() {
 		});
 	}
 
+	function addColorBlock() {
+		const c = newColorInput.trim();
+		if (!c) {
+			toast.error('Escribí un color antes de agregar.');
+			return;
+		}
+		if (colorBlocks.some((b) => b.color.trim().toLowerCase() === c.toLowerCase())) {
+			toast.error('Ese color ya está en la lista.');
+			return;
+		}
+		setColorBlocks((prev) => [
+			...prev,
+			{
+				id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+				color: c,
+				stock: 0,
+				size_inventory: [],
+			},
+		]);
+		setNewColorInput('');
+	}
+
+	function updateColorBlockColor(id: string, nextColor: string) {
+		const trimmed = nextColor.trim();
+		const colorForRows = trimmed || null;
+		setColorBlocks((prev) =>
+			prev.map((b) => {
+				if (b.id !== id) return b;
+				return {
+					...b,
+					color: nextColor,
+					size_inventory: b.size_inventory.map((r) => ({ ...r, color: colorForRows })),
+				};
+			}),
+		);
+	}
+
+	function removeColorBlock(id: string) {
+		setColorBlocks((prev) => prev.filter((b) => b.id !== id));
+	}
+
 	async function onSubmit(e: FormEvent<HTMLFormElement>) {
 		e.preventDefault();
 		if (isSubmitting) return;
@@ -312,6 +397,16 @@ export default function ProductForm() {
 		if (productKind === 'combo' && comboItems.length === 0) {
 			toast.error('Agregá al menos un producto para armar el combo.');
 			return;
+		}
+		if (productKind !== 'combo') {
+			if (colorBlocks.length === 0) {
+				toast.error('Agregá al menos un color.');
+				return;
+			}
+			if (colorBlocks.some((b) => !b.color.trim())) {
+				toast.error('Completá el nombre de cada color.');
+				return;
+			}
 		}
 
 		const garmentCost = parseMoneyInput(costoPrenda);
@@ -351,9 +446,19 @@ export default function ProductForm() {
 			}
 
 			const cost = parseMoneyInput(costoInicial);
-			const sizesNorm = normalizeSizeInventoryForDb(sizeRows);
-			const stockN =
-				sizesNorm.length > 0 ? sumSizeInventoryQty(sizesNorm) : Math.max(0, Math.floor(parseInt(stock, 10) || 0));
+			let stockN: number;
+			let colorPayload: string | null;
+			let sizeInventoryPayload: SizeInventoryRow[];
+			if (productKind === 'combo') {
+				stockN = Math.max(0, Math.floor(parseInt(stock, 10) || 0));
+				colorPayload = null;
+				sizeInventoryPayload = [];
+			} else {
+				const { mergedRows, mergedStock, mergedColors } = buildInventoryFromColorBlocks(colorBlocks);
+				stockN = mergedStock;
+				colorPayload = mergedColors.trim() ? mergedColors : null;
+				sizeInventoryPayload = mergedRows;
+			}
 			const ins = await insertProductAction({
 				kind: productKind,
 				name: nameTrim,
@@ -365,7 +470,7 @@ export default function ProductForm() {
 				taxApplies: false,
 				taxPercent: null,
 				description: descripcion.trim() || null,
-				color: color.trim() || null,
+				color: colorPayload,
 				productCode: codigo.trim() || null,
 				category: categoryValueForDb,
 				minOrderQty: parseOptionalNonNegInt(compraMinima),
@@ -373,7 +478,7 @@ export default function ProductForm() {
 				imageUrls: uploadedImages,
 				videoUrl: finalVideoUrl,
 				compareAtPrice: null,
-				sizeInventory: sizeRows,
+				sizeInventory: sizeInventoryPayload,
 				comboItems,
 			});
 
@@ -463,52 +568,151 @@ export default function ProductForm() {
 									</Label>
 									<Input id="nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} className={cn(inputClass)} />
 								</div>
-								<div className="sm:col-span-2">
-									<Label htmlFor="color" className={labelClass} style={{ fontFamily: sans }}>
-										Color
-									</Label>
-									<Input
-										id="color"
-										value={color}
-										onChange={(e) => setColor(e.target.value)}
-										className={inputClass}
-										placeholder="Ej. beige, negro"
-									/>
-								</div>
-								<div className="sm:col-span-2">
-									<div className={cn(innerCard, 'mt-0')}>
-										<SizeInventoryEditor
-											rows={sizeRows}
-											onChange={setSizeRows}
-											disabled={isSubmitting}
-											idPrefix="carga"
-											totalAccentClassName="text-[#b8956a]"
-										/>
-										{sizesNormalized.length === 0 ? (
-											<div className="mt-5">
-												<Label htmlFor="stock" className={labelClass} style={{ fontFamily: sans }}>
-													Stock total (solo si no usás talles arriba)
+								{productKind === 'combo' ? (
+									<div className="sm:col-span-2">
+										<div className={cn(innerCard, 'mt-0')}>
+											<p className="mb-3 text-xs font-light text-[#6b6156]" style={{ fontFamily: sans }}>
+												Los combos publican un solo stock (sin colores ni talles en esta pantalla).
+											</p>
+											<Label htmlFor="stock-combo" className={labelClass} style={{ fontFamily: sans }}>
+												Stock del combo
+											</Label>
+											<Input
+												id="stock-combo"
+												type="number"
+												min={0}
+												step={1}
+												inputMode="numeric"
+												value={stock}
+												onChange={(e) => setStock(e.target.value)}
+												className={inputClass}
+												placeholder="0"
+											/>
+										</div>
+									</div>
+								) : (
+									<div className="sm:col-span-2 space-y-4">
+										<p className="text-xs font-light leading-relaxed text-[#6b6156]" style={{ fontFamily: sans }}>
+											Escribí un color, tocá <span className="font-medium text-[#3d3835]">Agregar</span> y debajo cargá
+											stock y talles para ese color. Repetí para más colores.
+										</p>
+										<div className={cn(innerCard, 'flex flex-col gap-3 sm:flex-row sm:items-end')}>
+											<div className="min-w-0 flex-1">
+												<Label htmlFor="nuevo-color" className={labelClass} style={{ fontFamily: sans }}>
+													Nuevo color
 												</Label>
 												<Input
-													id="stock"
-													type="number"
-													min={0}
-													step={1}
-													inputMode="numeric"
-													value={stock}
-													onChange={(e) => setStock(e.target.value)}
+													id="nuevo-color"
+													value={newColorInput}
+													onChange={(e) => setNewColorInput(e.target.value)}
 													className={inputClass}
-													placeholder="0"
+													placeholder="Ej. negro, beige"
 												/>
 											</div>
-										) : (
-											<p className="mt-4 text-xs font-light text-[#6b6156]" style={{ fontFamily: sans }}>
-												El stock guardado será la suma de los talles ({stockTotalComputed} unidades). Para usar un
-												solo número sin talles, quitá todas las filas del listado.
-											</p>
-										)}
+											<Button
+												type="button"
+												variant="outline"
+												className="h-10 shrink-0 border-[#b8956a]/45 bg-white/50 text-[#2a2520] hover:bg-[#f5f2ed]"
+												style={{ fontFamily: sans }}
+												onClick={addColorBlock}
+												disabled={isSubmitting}
+											>
+												Agregar
+											</Button>
+										</div>
+										<div className="space-y-4">
+											{colorBlocks.length === 0 ? (
+												<p
+													className="rounded-md border border-dashed border-[#b8956a]/35 bg-white/30 px-3 py-4 text-xs text-[#6b6156]"
+													style={{ fontFamily: sans }}
+												>
+													Todavía no agregaste ningún color.
+												</p>
+											) : (
+												colorBlocks.map((block) => (
+													<div key={block.id} className={cn(innerCard, 'space-y-4')}>
+														<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+															<div className="min-w-0 flex-1">
+																<Label htmlFor={`color-name-${block.id}`} className={labelClass} style={{ fontFamily: sans }}>
+																	Color
+																</Label>
+																<Input
+																	id={`color-name-${block.id}`}
+																	value={block.color}
+																	onChange={(e) => updateColorBlockColor(block.id, e.target.value)}
+																	className={inputClass}
+																	placeholder="Nombre del color"
+																/>
+															</div>
+															<Button
+																type="button"
+																variant="ghost"
+																size="icon"
+																className="h-10 w-10 shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+																aria-label="Quitar este color"
+																onClick={() => removeColorBlock(block.id)}
+															>
+																<Trash2 className="h-4 w-4" />
+															</Button>
+														</div>
+														<div>
+															<Label htmlFor={`stock-block-${block.id}`} className={labelClass} style={{ fontFamily: sans }}>
+																Stock (sin talles o ajuste rápido)
+															</Label>
+															<Input
+																id={`stock-block-${block.id}`}
+																type="number"
+																min={0}
+																step={1}
+																inputMode="numeric"
+																value={block.stock}
+																onChange={(e) =>
+																	setColorBlocks((prev) =>
+																		prev.map((b) =>
+																			b.id === block.id
+																				? {
+																						...b,
+																						stock: Math.max(0, Math.floor(Number(e.target.value) || 0)),
+																					}
+																				: b,
+																		),
+																	)
+																}
+																className={cn(inputClass, 'max-w-[14rem]')}
+															/>
+														</div>
+														<SizeInventoryEditor
+															rows={block.size_inventory}
+															onChange={(rows) =>
+																setColorBlocks((prev) =>
+																	prev.map((b) => {
+																		if (b.id !== block.id) return b;
+																		const norm = normalizeSizeInventoryForDb(rows);
+																		return {
+																			...b,
+																			size_inventory: rows,
+																			stock: norm.length > 0 ? sumSizeInventoryQty(norm) : b.stock,
+																		};
+																	}),
+																)
+															}
+															disabled={isSubmitting}
+															idPrefix={`carga-${block.id}`}
+															implicitColor={block.color?.trim() || null}
+															totalAccentClassName="text-[#b8956a]"
+														/>
+														{normalizeSizeInventoryForDb(block.size_inventory).length > 0 ? (
+															<p className="text-xs font-light text-[#6b6156]" style={{ fontFamily: sans }}>
+																Con talles, el total de este color es la suma de las cantidades (
+																{sumSizeInventoryQty(normalizeSizeInventoryForDb(block.size_inventory))} u.).
+															</p>
+														) : null}
+													</div>
+												))
+											)}
+										</div>
 									</div>
-								</div>
+								)}
 								<div>
 									<Label htmlFor="costo" className={labelClass} style={{ fontFamily: sans }}>
 										Costo inicial

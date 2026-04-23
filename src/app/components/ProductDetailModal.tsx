@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ShoppingCart, X, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useCart } from '@/app/context/CartContext';
 import { displayCategoryLabel, PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
 import { formatPrecioListaAr } from '@/lib/formatPrice';
+import { whatsAppLinkWithMessage } from '@/app/config/contact';
 import type { ProductRow } from '@/lib/data/productCatalog';
-import type { SizeInventoryRow } from '@/lib/data/productSizes';
+import { sumSizeInventoryQty, type SizeInventoryRow } from '@/lib/data/productSizes';
 
 export type MediaItem =
 	| { type: 'image'; src: string }
@@ -17,6 +18,9 @@ export type MediaItem =
 export type CatalogProductBase = {
 	id: string;
 	name: string;
+	/** Código publicado (SKU / referencia). */
+	product_code?: string | null;
+	color?: string | null;
 	/** Costo de prenda (precio base publicado). */
 	garment_cost: number;
 	price: number;
@@ -33,7 +37,19 @@ export type CatalogProductBase = {
 	stock: number;
 };
 
-export type ProductForDetailModal = CatalogProductBase & { media: MediaItem[] };
+export type ProductVariantForDetailModal = {
+	id: string;
+	color: string | null;
+	size_inventory: SizeInventoryRow[];
+	stock: number;
+	price: number;
+	image: string;
+};
+
+export type ProductForDetailModal = CatalogProductBase & {
+	media: MediaItem[];
+	variants?: ProductVariantForDetailModal[];
+};
 
 export function buildProductForDetailModal(p: CatalogProductBase): ProductForDetailModal {
 	const media: MediaItem[] = [];
@@ -58,6 +74,8 @@ export function productRowToDetailModalProduct(row: ProductRow): ProductForDetai
 	const base: CatalogProductBase = {
 		id: cp.id,
 		name: cp.name,
+		product_code: cp.code && cp.code !== '—' ? cp.code.trim() : null,
+		color: cp.color || null,
 		garment_cost: cp.base_price,
 		price: cp.price,
 		transfer_price: cp.transfer_price,
@@ -73,6 +91,42 @@ export function productRowToDetailModalProduct(row: ProductRow): ProductForDetai
 		stock: cp.stock,
 	};
 	return buildProductForDetailModal(base);
+}
+
+function normalizeColorValue(raw: string | null | undefined): string {
+	const color = (raw ?? '').trim();
+	return color.length > 0 ? color : 'Sin color';
+}
+
+function WhatsAppGlyph({ className }: { className?: string }) {
+	return (
+		<svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+			<path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+		</svg>
+	);
+}
+
+/**
+ * Clave de agrupación para inventario con color por fila.
+ * Si la fila no trae `color`, usa el color de la publicación solo cuando es un único color (no lista con comas).
+ */
+function bucketKeyForSizeRow(row: SizeInventoryRow, publicationColor: string | null): string {
+	const explicit = row.color?.trim();
+	if (explicit) return explicit;
+	const parent = (publicationColor ?? '').trim();
+	if (parent.length > 0 && !parent.includes(',')) return parent;
+	return 'Sin color';
+}
+
+/** ¿Esta fila cuenta para el color elegido en el modal? */
+function sizeRowMatchesSelectedColor(
+	row: SizeInventoryRow,
+	variantDisplayColor: string | null,
+	selectedNorm: string,
+): boolean {
+	const rowCol = row.color?.trim();
+	if (rowCol) return normalizeColorValue(rowCol) === selectedNorm;
+	return normalizeColorValue(variantDisplayColor) === selectedNorm;
 }
 
 export function ProductMediaCarousel({
@@ -233,29 +287,211 @@ type ProductDetailModalProps = {
 	onClose: () => void;
 };
 
+/** Una fila en BD con varias variantes por color en `size_inventory` → una entrada por color en el modal. */
+function splitVariantByRowColors(v: ProductVariantForDetailModal): ProductVariantForDetailModal[] {
+	const inv = v.size_inventory ?? [];
+	if (inv.length === 0) return [v];
+	const hasRowColor = inv.some((s) => (s.color?.trim()?.length ?? 0) > 0);
+	if (!hasRowColor) return [v];
+	const byColor = new Map<string, SizeInventoryRow[]>();
+	for (const row of inv) {
+		const colorKey = bucketKeyForSizeRow(row, v.color);
+		const list = byColor.get(colorKey);
+		const explicit = row.color?.trim();
+		const merged = {
+			...row,
+			color: explicit || (colorKey !== 'Sin color' ? colorKey : null),
+		};
+		if (list) list.push(merged);
+		else byColor.set(colorKey, [merged]);
+	}
+	return Array.from(byColor.entries()).map(([color, rows]) => ({
+		...v,
+		color,
+		size_inventory: rows,
+		stock: sumSizeInventoryQty(rows),
+	}));
+}
+
 export function ProductDetailModal({ product, onClose }: ProductDetailModalProps) {
 	const { addItem, openCart } = useCart();
+	const [selectedColor, setSelectedColor] = useState<string>('');
 	const [selectedSize, setSelectedSize] = useState<string>('');
 	const [selectedQty, setSelectedQty] = useState(1);
+	const lastResetProductIdRef = useRef<string | undefined>(undefined);
+
+	const variants = (product?.variants?.length
+		? product.variants.flatMap((v) => splitVariantByRowColors(v))
+		: null) ?? (() => {
+		if (!product) return [];
+		const hasColorInsideSizes = product.size_inventory.some((s) => (s.color?.trim()?.length ?? 0) > 0);
+		if (hasColorInsideSizes) {
+			const byColor = new Map<string, SizeInventoryRow[]>();
+			for (const row of product.size_inventory) {
+				const colorKey = bucketKeyForSizeRow(row, product.color ?? null);
+				const arr = byColor.get(colorKey);
+				const explicit = row.color?.trim();
+				const merged = {
+					...row,
+					color: explicit || (colorKey !== 'Sin color' ? colorKey : null),
+				};
+				if (arr) arr.push(merged);
+				else byColor.set(colorKey, [merged]);
+			}
+			return Array.from(byColor.entries()).map(([color, rows]) => ({
+				id: product.id,
+				color,
+				size_inventory: rows,
+				stock: rows.reduce((sum, r) => sum + Math.max(0, r.qty), 0),
+				price: product.price,
+				image: product.image,
+			}));
+		}
+		return [
+			{
+				id: product.id,
+				color: product.color ?? null,
+				size_inventory: product.size_inventory,
+				stock: product.stock,
+				price: product.price,
+				image: product.image,
+			},
+		];
+	})();
+
+	const availableColors = Array.from(
+		new Set(
+			variants
+				.filter((v) => {
+					const withSizes = v.size_inventory.some((s) => s.qty > 0);
+					return withSizes || v.stock > 0;
+				})
+				.map((v) => normalizeColorValue(v.color)),
+		),
+	);
+	const hasSizes = variants.some((v) => v.size_inventory.length > 0);
+	/** Si hay colores en la ficha, el usuario tiene que elegir uno antes de ver talles. */
+	const requiresColorBeforeSize = availableColors.length > 0;
+
+	const sizesForSelectedColor = useMemo(() => {
+		if (!hasSizes) return [];
+		if (requiresColorBeforeSize) {
+			if (!selectedColor || !availableColors.includes(selectedColor)) return [];
+			const cNorm = normalizeColorValue(selectedColor);
+			const set = new Set<string>();
+			for (const v of variants) {
+				if (normalizeColorValue(v.color) !== cNorm) continue;
+				for (const s of v.size_inventory) {
+					if (s.qty <= 0) continue;
+					if (!sizeRowMatchesSelectedColor(s, v.color, cNorm)) continue;
+					const sz = s.size.trim();
+					if (sz) set.add(sz);
+				}
+			}
+			return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+		}
+		const set = new Set<string>();
+		for (const v of variants) {
+			for (const s of v.size_inventory) {
+				if (s.qty <= 0) continue;
+				const sz = s.size.trim();
+				if (sz) set.add(sz);
+			}
+		}
+		return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+	}, [hasSizes, requiresColorBeforeSize, selectedColor, availableColors, variants]);
+
+	const colorChosen =
+		!requiresColorBeforeSize ||
+		(Boolean(selectedColor) && availableColors.includes(selectedColor));
 
 	useEffect(() => {
 		if (!product) {
+			lastResetProductIdRef.current = undefined;
+			setSelectedColor('');
 			setSelectedSize('');
 			return;
 		}
-		const availableSizes = product.size_inventory.filter((s) => s.qty > 0);
-		if (availableSizes.length === 0) {
+		if (lastResetProductIdRef.current !== product.id) {
+			lastResetProductIdRef.current = product.id;
+			setSelectedColor('');
+			setSelectedSize('');
+		}
+	}, [product]);
+
+	useEffect(() => {
+		if (!product || !hasSizes) {
+			if (!product || !hasSizes) setSelectedSize('');
+			return;
+		}
+		const sizes = sizesForSelectedColor;
+		if (sizes.length === 0) {
 			setSelectedSize('');
 			return;
 		}
-		if (!availableSizes.some((s) => s.size === selectedSize)) {
-			setSelectedSize(availableSizes[0].size);
-		}
-	}, [product, selectedSize]);
+		setSelectedSize((prev) => (prev && sizes.includes(prev) ? prev : ''));
+	}, [product, hasSizes, sizesForSelectedColor]);
 
 	useEffect(() => {
 		setSelectedQty(1);
 	}, [product?.id]);
+
+	const effectiveColorNorm =
+		requiresColorBeforeSize && colorChosen && selectedColor
+			? normalizeColorValue(selectedColor)
+			: '';
+
+	const selectedVariant = useMemo(() => {
+		if (!hasSizes) {
+			return variants[0];
+		}
+		if (!selectedSize) return undefined;
+		if (requiresColorBeforeSize && !colorChosen) return undefined;
+		const cNorm = requiresColorBeforeSize ? effectiveColorNorm : null;
+		return variants.find((v) => {
+			if (cNorm && normalizeColorValue(v.color) !== cNorm) return false;
+			return v.size_inventory.some((s) => {
+				if (!(s.qty > 0 && s.size.trim() === selectedSize)) return false;
+				if (cNorm) return sizeRowMatchesSelectedColor(s, v.color, cNorm);
+				return true;
+			});
+		});
+	}, [
+		variants,
+		hasSizes,
+		selectedSize,
+		requiresColorBeforeSize,
+		colorChosen,
+		effectiveColorNorm,
+	]);
+
+	const selectedVariantStock = useMemo(() => {
+		if (!selectedVariant) return 0;
+		if (!hasSizes || !selectedSize) return selectedVariant.stock;
+		const cNorm = requiresColorBeforeSize ? effectiveColorNorm : null;
+		const row = selectedVariant.size_inventory.find((s) => {
+			if (s.size.trim() !== selectedSize) return false;
+			if (cNorm) return sizeRowMatchesSelectedColor(s, selectedVariant.color, cNorm);
+			return true;
+		});
+		return Math.max(0, row?.qty ?? 0);
+	}, [selectedVariant, hasSizes, selectedSize, requiresColorBeforeSize, effectiveColorNorm]);
+
+	useEffect(() => {
+		if (selectedVariantStock <= 0) return;
+		setSelectedQty((q) => Math.min(q, Math.max(1, selectedVariantStock)));
+	}, [selectedVariantStock, product?.id]);
+
+	const whatsAppConsultHref = useMemo(() => {
+		if (!product) return '';
+		const name = product.name.trim();
+		const codeRaw = (product.product_code ?? '').trim();
+		const code = codeRaw.length > 0 ? codeRaw : 'sin código';
+		const talle = selectedSize?.trim() || '…';
+		const color = selectedColor?.trim() || '…';
+		const text = `Hola, quería saber si va a ingresar el «${name}», código «${code}», en talle «${talle}», color «${color}».`;
+		return whatsAppLinkWithMessage(text);
+	}, [product, selectedColor, selectedSize]);
 
 	function closeProductModal() {
 		onClose();
@@ -264,17 +500,29 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 
 	function onAddSelectedToCart() {
 		if (!product) return;
-		const availableSizes = product.size_inventory.filter((s) => s.qty > 0);
-		if (availableSizes.length > 0 && !selectedSize) {
+		if (hasSizes && requiresColorBeforeSize && !colorChosen) {
+			toast.error('Elegí un color primero.');
+			return;
+		}
+		if (hasSizes && !selectedSize) {
 			toast.error('Seleccioná un talle.');
 			return;
 		}
+		if (!selectedVariant) {
+			toast.error('Seleccioná una variante disponible.');
+			return;
+		}
+		if (selectedVariantStock <= 0) {
+			toast.error('La variante seleccionada no tiene stock.');
+			return;
+		}
 		addItem({
-			id: product.id,
-			productId: product.id,
+			id: selectedVariant.id,
+			productId: selectedVariant.id,
 			name: product.name,
-			price: product.price,
-			image: product.image,
+			price: selectedVariant.price,
+			image: selectedVariant.image || product.image,
+			color: normalizeColorValue(selectedVariant.color),
 			size: selectedSize || undefined,
 			qty: selectedQty,
 		});
@@ -405,7 +653,46 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 									</p>
 								</div>
 
-								{product.size_inventory.length > 0 ? (
+								{availableColors.length > 0 ? (
+									<div className="mt-7">
+										<p
+											className="mb-3 text-[0.7rem] uppercase tracking-[0.2em] text-[#5c5349]"
+											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+										>
+											Elegí color
+										</p>
+										{hasSizes ? (
+											<p className="mb-3 text-xs leading-relaxed text-[#6b6156]" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+												Después de elegir el color vas a ver solo los talles con stock para ese color.
+											</p>
+										) : null}
+										<div className="flex flex-wrap gap-2.5">
+											{availableColors.map((color) => {
+												const active = selectedColor === color;
+												return (
+													<button
+														key={color}
+														type="button"
+														onClick={() => {
+															setSelectedColor(color);
+															setSelectedSize('');
+														}}
+														className={`min-h-[44px] touch-manipulation rounded-lg border px-4 py-2.5 text-sm transition active:scale-[0.98] ${
+															active
+																? 'border-[#202020] bg-[#202020] text-white shadow-sm'
+																: 'border-[#d7d7d7] bg-white text-[#1a1410] hover:border-[#202020]'
+														}`}
+														style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+													>
+														{color}
+													</button>
+												);
+											})}
+										</div>
+									</div>
+								) : null}
+
+								{hasSizes ? (
 									<div className="mt-7">
 										<p
 											className="mb-3 text-[0.7rem] uppercase tracking-[0.2em] text-[#5c5349]"
@@ -413,39 +700,60 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 										>
 											Elegí talle
 										</p>
-										<div className="flex flex-wrap gap-2.5">
-											{product.size_inventory.map((s) => {
-												const disabled = s.qty <= 0;
-												const active = selectedSize === s.size;
-												return (
-													<button
-														key={s.size}
-														type="button"
-														disabled={disabled}
-														onClick={() => setSelectedSize(s.size)}
-														className={`min-h-[44px] min-w-[44px] touch-manipulation rounded-lg border px-4 py-2.5 text-sm transition active:scale-[0.98] ${
-															active
-																? 'border-[#202020] bg-[#202020] text-white shadow-sm'
-																: disabled
-																	? 'cursor-not-allowed border-slate-200 bg-white/50 text-slate-400'
+										{requiresColorBeforeSize && !colorChosen ? (
+											<p className="text-sm leading-relaxed text-[#6b6156]" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+												Primero elegí un color arriba.
+											</p>
+										) : sizesForSelectedColor.length === 0 ? (
+											<p className="text-sm leading-relaxed text-amber-800" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+												No hay stock en este color.
+											</p>
+										) : (
+											<div className="flex flex-wrap gap-2.5">
+												{sizesForSelectedColor.map((size) => {
+													const active = selectedSize === size;
+													return (
+														<button
+															key={size}
+															type="button"
+															onClick={() => setSelectedSize(size)}
+															className={`min-h-[44px] min-w-[44px] touch-manipulation rounded-lg border px-4 py-2.5 text-sm transition active:scale-[0.98] ${
+																active
+																	? 'border-[#202020] bg-[#202020] text-white shadow-sm'
 																	: 'border-[#d7d7d7] bg-white text-[#1a1410] hover:border-[#202020]'
-														}`}
-														style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-													>
-														{s.size} {disabled ? '(sin stock)' : ''}
-													</button>
-												);
-											})}
-										</div>
+															}`}
+															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+														>
+															{size}
+														</button>
+													);
+												})}
+											</div>
+										)}
 									</div>
 								) : (
 									<p
 										className="mt-7 text-xs uppercase tracking-[0.18em] text-[#666]"
 										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
 									>
-										Stock disponible: {product.stock}
+										Stock disponible: {selectedVariantStock}
 									</p>
 								)}
+
+								{product && (hasSizes || availableColors.length > 0) && whatsAppConsultHref ? (
+									<div className="mt-5 flex flex-wrap items-center gap-2">
+										<a
+											href={whatsAppConsultHref}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[#128C7E]/35 bg-[#25D366]/10 px-2 py-1.5 text-left text-[10px] font-medium leading-snug text-[#0d3b2c] transition hover:border-[#128C7E]/55 hover:bg-[#25D366]/18"
+											style={{ fontFamily: 'Montserrat, sans-serif' }}
+										>
+											<WhatsAppGlyph className="h-3.5 w-3.5 shrink-0 text-[#128C7E]" />
+											<span>Consultar por talle y colores sin stock</span>
+										</a>
+									</div>
+								) : null}
 
 								<div className="mt-8 grid grid-cols-1 gap-3 min-[400px]:grid-cols-[7.5rem_1fr]">
 									<div className="flex h-12 items-center rounded-md border border-[#d7d7d7] bg-white">
@@ -463,7 +771,11 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 										<button
 											type="button"
 											className="flex h-full min-w-[44px] touch-manipulation items-center justify-center text-xl text-[#666] transition hover:bg-[#f6f6f6] active:bg-[#ececec]"
-											onClick={() => setSelectedQty((q) => q + 1)}
+											onClick={() =>
+												setSelectedQty((q) =>
+													selectedVariantStock > 0 ? Math.min(q + 1, selectedVariantStock) : q + 1,
+												)
+											}
 											aria-label="Sumar cantidad"
 										>
 											+
