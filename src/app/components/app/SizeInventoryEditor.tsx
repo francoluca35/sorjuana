@@ -22,6 +22,11 @@ type Props = {
 	idPrefix?: string;
 	/** Clase del número de total (ej. acento de la carga de producto) */
 	totalAccentClassName?: string;
+	/**
+	 * Color fijo para cada fila (variante por color en un solo producto).
+	 * Si está definido, cada talle guarda `color` en JSON al agregar/editar.
+	 */
+	implicitColor?: string | null;
 };
 
 export function SizeInventoryEditor({
@@ -31,12 +36,19 @@ export function SizeInventoryEditor({
 	className,
 	idPrefix = 'sizes',
 	totalAccentClassName = 'text-teal-700',
+	implicitColor,
 }: Props) {
 	const normalized = normalizeSizeInventoryForDb(rows);
 	const total = sumSizeInventoryQty(normalized);
+	const colorForRow = implicitColor?.trim() || null;
 
 	function updateRow(index: number, patch: Partial<SizeInventoryRow>) {
-		const next = rows.map((r, i) => (i === index ? { ...r, ...patch } : r));
+		const next = rows.map((r, i) => {
+			if (i !== index) return r;
+			const merged = { ...r, ...patch };
+			if (colorForRow) merged.color = colorForRow;
+			return merged;
+		});
 		onChange(next);
 	}
 
@@ -45,7 +57,7 @@ export function SizeInventoryEditor({
 	}
 
 	function addRow(presetSize = '') {
-		onChange([...rows, { size: presetSize, qty: 0 }]);
+		onChange([...rows, { size: presetSize, qty: 0, color: colorForRow }]);
 	}
 
 	return (

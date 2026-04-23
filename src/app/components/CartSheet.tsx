@@ -259,7 +259,16 @@ export function CartSheet() {
 																className="mt-0.5 text-xs text-[#a34963]/80"
 																style={sans}
 															>
-																Talla: {line.size}
+																{line.color ? `Color: ${line.color}` : ''}
+																{line.color && line.size ? ' · ' : ''}
+																{line.size ? `Talla: ${line.size}` : ''}
+															</p>
+														) : line.color ? (
+															<p
+																className="mt-0.5 text-xs text-[#a34963]/80"
+																style={sans}
+															>
+																Color: {line.color}
 															</p>
 														) : null}
 													</div>

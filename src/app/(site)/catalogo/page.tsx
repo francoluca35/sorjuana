@@ -24,6 +24,8 @@ export default async function Page() {
 		return {
 			id: p.id,
 			name: p.name,
+			product_code: p.code === '—' ? '' : p.code.trim(),
+			color: p.color,
 			garment_cost: p.base_price,
 			price: p.price,
 			transfer_price: p.transfer_price,

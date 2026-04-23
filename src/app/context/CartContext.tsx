@@ -26,6 +26,7 @@ export type CartLine = {
 	price: number;
 	qty: number;
 	image?: string;
+	color?: string;
 	size?: string;
 };
 
@@ -36,6 +37,7 @@ export type CartAddPayload = {
 	price: number;
 	qty?: number;
 	image?: string;
+	color?: string;
 	size?: string;
 };
 
@@ -90,8 +92,12 @@ function parseStoredLines(raw: string | null): CartLine[] {
 const CartContext = createContext<CartContextValue | null>(null);
 
 function lineIdFor(item: CartAddPayload) {
+	const c = item.color?.trim();
 	const s = item.size?.trim();
-	return s ? `${item.id}__s_${s}` : item.id;
+	if (c && s) return `${item.id}__c_${c}__s_${s}`;
+	if (c) return `${item.id}__c_${c}`;
+	if (s) return `${item.id}__s_${s}`;
+	return item.id;
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -139,6 +145,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 						price: item.price,
 						qty,
 						image: item.image,
+						color: item.color?.trim() || undefined,
 						size: item.size?.trim() || undefined,
 					},
 				];

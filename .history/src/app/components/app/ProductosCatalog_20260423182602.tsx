@@ -91,59 +91,6 @@ function stockTextClass(stock: number) {
   return 'text-slate-800';
 }
 
-/** Un producto con varios colores en `size_inventory` → un bloque de edición por color (ids `tmp-color-*` para filas extra). */
-function splitProductDraftByInventoryColors(p: CatalogProduct): CatalogProduct[] {
-  const inv = p.size_inventory ?? [];
-  const hasRowColor = inv.some((s) => (s.color?.trim()?.length ?? 0) > 0);
-  if (!hasRowColor) {
-    return [{ ...p, size_inventory: inv.map((r) => ({ ...r })) }];
-  }
-  const byColor = new Map<string, SizeInventoryRow[]>();
-  for (const row of inv) {
-    const key = row.color?.trim() || 'Sin color';
-    const list = byColor.get(key);
-    const rr = { ...row, color: row.color?.trim() || null };
-    if (list) list.push(rr);
-    else byColor.set(key, [rr]);
-  }
-  const entries = Array.from(byColor.entries());
-  return entries.map(([colorLabel, rows], idx) => ({
-    ...p,
-    id: idx === 0 ? p.id : `tmp-color-${idx}`,
-    color: colorLabel === 'Sin color' ? '' : colorLabel,
-    size_inventory: rows,
-    stock: sumSizeInventoryQty(rows),
-  }));
-}
-
-function mergeStockFromColorVariants(variants: CatalogProduct[]): {
-  mergedSizesNorm: SizeInventoryRow[];
-  mergedStock: number;
-  mergedColors: string;
-} {
-  const mergedSizes: SizeInventoryRow[] = [];
-  for (const v of variants) {
-    const color = v.color?.trim() || null;
-    const sizesNorm = normalizeSizeInventoryForDb(v.size_inventory);
-    if (sizesNorm.length > 0) {
-      for (const s of sizesNorm) {
-        mergedSizes.push({ color, size: s.size, qty: s.qty });
-      }
-    } else if (v.stock > 0) {
-      mergedSizes.push({ color, size: 'Unico', qty: Math.max(0, Math.floor(v.stock)) });
-    }
-  }
-  const mergedSizesNorm = normalizeSizeInventoryForDb(mergedSizes);
-  const mergedStock =
-    mergedSizesNorm.length > 0
-      ? sumSizeInventoryQty(mergedSizesNorm)
-      : variants.reduce((sum, v) => sum + Math.max(0, Math.floor(v.stock)), 0);
-  const mergedColors = Array.from(
-    new Set(variants.map((v) => v.color?.trim() || '').filter((x) => x.length > 0)),
-  ).join(', ');
-  return { mergedSizesNorm, mergedStock, mergedColors };
-}
-
 function idsFromCategoryDb(
   tree: ShopCategoryTree[],
   raw: string | null,
@@ -191,6 +138,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
   const [editingVariantIds, setEditingVariantIds] = useState<string[]>([]);
   const [groupedVariantDrafts, setGroupedVariantDrafts] = useState<CatalogProduct[]>([]);
   const [newGroupedColor, setNewGroupedColor] = useState('');
+  const [selectedGroupedVariantId, setSelectedGroupedVariantId] = useState<string>('');
   const [optOpen, setOptOpen] = useState(true);
   const [imageUploading, setImageUploading] = useState(false);
   const [videoUploading, setVideoUploading] = useState(false);
@@ -370,6 +318,26 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
 
   const editingVariantDraftsEffective = groupedVariantDrafts.length > 0 ? groupedVariantDrafts : editingVariants;
 
+  const groupedColorStocks = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const v of editingVariantDraftsEffective) {
+      const color = v.color?.trim() || 'Sin color';
+      m.set(color, (m.get(color) ?? 0) + Math.max(0, v.stock));
+    }
+    return Array.from(m.entries())
+      .map(([color, stock]) => ({ color, stock }))
+      .sort((a, b) => a.color.localeCompare(b.color));
+  }, [editingVariantDraftsEffective]);
+
+  const selectedGroupedVariant = useMemo(() => {
+    if (editingVariantDraftsEffective.length === 0) return null;
+    if (selectedGroupedVariantId) {
+      const hit = editingVariantDraftsEffective.find((v) => v.id === selectedGroupedVariantId);
+      if (hit) return hit;
+    }
+    return editingVariantDraftsEffective[0] ?? null;
+  }, [editingVariantDraftsEffective, selectedGroupedVariantId]);
+
   const editingColorsSummary = useMemo(() => {
     const colors = Array.from(
       new Set(
@@ -449,14 +417,8 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
   }
 
   function updateGroupedVariantColor(variantId: string, nextColor: string) {
-    const trimmed = nextColor.trim();
-    const colorForRows = trimmed || null;
     setGroupedVariantDrafts((prev) =>
-      prev.map((v) => {
-        if (v.id !== variantId) return v;
-        const nextInv = v.size_inventory.map((r) => ({ ...r, color: colorForRows }));
-        return { ...v, color: nextColor, size_inventory: nextInv };
-      }),
+      prev.map((v) => (v.id === variantId ? { ...v, color: nextColor } : v)),
     );
   }
 
@@ -496,19 +458,45 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       size_inventory: [],
     };
     setGroupedVariantDrafts((prev) => [...prev, newVariant]);
+    setSelectedGroupedVariantId(tmpId);
     setNewGroupedColor('');
   }
 
-  function removeGroupedColorBlock(variantId: string) {
-    if (!String(variantId).startsWith('tmp-')) {
-      toast.error('Solo se pueden quitar colores recién agregados (aún no guardados).');
+  useEffect(() => {
+    if (editingVariantIds.length <= 1) {
+      setSelectedGroupedVariantId('');
       return;
     }
-    if (groupedVariantDrafts.length <= 1) {
-      toast.error('Tiene que quedar al menos un color.');
+    if (editingVariantDraftsEffective.length === 0) {
+      setSelectedGroupedVariantId('');
       return;
     }
-    setGroupedVariantDrafts((prev) => prev.filter((v) => v.id !== variantId));
+    const exists = editingVariantDraftsEffective.some((v) => v.id === selectedGroupedVariantId);
+    if (!exists) {
+      setSelectedGroupedVariantId(editingVariantDraftsEffective[0]!.id);
+    }
+  }, [editingVariantIds.length, editingVariantDraftsEffective, selectedGroupedVariantId]);
+
+  function adjustGroupedColorStock(colorLabel: string, delta: number) {
+    if (delta === 0) return;
+    setGroupedVariantDrafts((prev) => {
+      const idx = prev.findIndex((v) => (v.color?.trim() || 'Sin color') === colorLabel);
+      if (idx < 0) return prev;
+      const row = prev[idx]!;
+      const nextStock = Math.max(0, row.stock + delta);
+      const norm = normalizeSizeInventoryForDb(row.size_inventory);
+      const nextRows = norm.length > 0 ? applyStockToSizeInventory(norm, nextStock) : norm;
+      const computedStock = nextRows.length > 0 ? sumSizeInventoryQty(nextRows) : nextStock;
+      return prev.map((v, i) =>
+        i === idx
+          ? {
+              ...v,
+              stock: computedStock,
+              size_inventory: nextRows.length > 0 ? nextRows : v.size_inventory,
+            }
+          : v,
+      );
+    });
   }
 
   const summary = useMemo(() => {
@@ -532,10 +520,8 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     const baseDraft =
       variants.length > 1
         ? buildGroupedDraft(p, variants)
-        : { ...variants[0]! };
-    const forDrafts =
-      variants.length > 1 ? variants : splitProductDraftByInventoryColors(variants[0]!);
-    setGroupedVariantDrafts(forDrafts.map((v) => ({ ...v, size_inventory: v.size_inventory.map((r) => ({ ...r })) })));
+        : { ...p };
+    setGroupedVariantDrafts(variants.map((v) => ({ ...v, size_inventory: v.size_inventory.map((r) => ({ ...r })) })));
     setDraft(applyGarmentCostToDraft(baseDraft, baseDraft.base_price));
     setDrawerTab('registro');
     if (categoryTree.length > 0) {
@@ -569,9 +555,32 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     if (editingVariantIds.length > 1) {
       const variantsToSave = groupedVariantDrafts.length > 0 ? groupedVariantDrafts : editingVariants;
       if (variantsToSave.length === 0) return;
-      const persistedVariants = variantsToSave.filter((v) => !String(v.id).startsWith('tmp-'));
+      const persistedVariants = variantsToSave.filter((v) => !String(v.id).startsWith('tmp-new-'));
       const primary = persistedVariants[0] ?? variantsToSave[0]!;
-      const { mergedSizesNorm, mergedStock, mergedColors } = mergeStockFromColorVariants(variantsToSave);
+      const mergedSizes: SizeInventoryRow[] = [];
+      for (const v of variantsToSave) {
+        const color = v.color?.trim() || null;
+        const sizesNorm = normalizeSizeInventoryForDb(v.size_inventory);
+        if (sizesNorm.length > 0) {
+          for (const s of sizesNorm) {
+            mergedSizes.push({ color, size: s.size, qty: s.qty });
+          }
+        } else if (v.stock > 0) {
+          mergedSizes.push({ color, size: 'Unico', qty: Math.max(0, Math.floor(v.stock)) });
+        }
+      }
+      const mergedSizesNorm = normalizeSizeInventoryForDb(mergedSizes);
+      const mergedStock =
+        mergedSizesNorm.length > 0
+          ? sumSizeInventoryQty(mergedSizesNorm)
+          : variantsToSave.reduce((sum, v) => sum + Math.max(0, Math.floor(v.stock)), 0);
+      const mergedColors = Array.from(
+        new Set(
+          variantsToSave
+            .map((v) => v.color?.trim() || '')
+            .filter((x) => x.length > 0),
+        ),
+      ).join(', ');
       const saveRes = await updateProductAction(primary.id, {
         name: primary.name,
         garment_cost: primary.base_price,
@@ -607,64 +616,6 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       return;
     }
     const { cash, transfer } = effectiveDiscountPercents(draft);
-    if (draft.kind === 'combo') {
-      const sizesNormCombo = normalizeSizeInventoryForDb(draft.size_inventory);
-      const nextStockCombo =
-        sizesNormCombo.length > 0 ? sumSizeInventoryQty(sizesNormCombo) : Math.max(0, Math.floor(draft.stock));
-      const resCombo = await updateProductAction(draft.id, {
-        name: draft.name,
-        garment_cost: draft.base_price,
-        cash_discount_percent: cash,
-        transfer_discount_percent: transfer,
-        compare_at_price: draft.promoPrice,
-        category: draft.category_db?.trim() || null,
-        description: draft.description,
-        color: draft.color ?? '',
-        stock: nextStockCombo,
-        cost: draft.cost,
-        size_inventory: sizesNormCombo,
-        image_urls: galleryList(draft).slice(0, MAX_PRODUCT_IMAGES),
-        video_url: draft.video_url != null ? draft.video_url.trim() || null : null,
-      });
-      if (!resCombo.ok) {
-        toast.error(resCombo.message);
-        return;
-      }
-      const gallery = galleryList(draft).slice(0, MAX_PRODUCT_IMAGES);
-      const priced = computePricesFromGarmentCost(draft.base_price, cash, transfer);
-      const next: CatalogProduct = {
-        ...draft,
-        gallery_image_urls: gallery,
-        image: gallery[0] ?? PLACEHOLDER_IMG,
-        size_inventory: sizesNormCombo.length > 0 ? sizesNormCombo : [],
-        stock: nextStockCombo,
-        category: displayCategoryLabel(draft.category_db?.trim() || null),
-        price: priced.cash,
-        transfer_price: priced.transfer,
-        final_transfer_price: priced.card,
-        cash_discount_percent: cash,
-        transfer_discount_percent: transfer,
-        tax_applies: false,
-        tax_percent: null,
-      };
-      setProducts((prev) => prev.map((x) => (x.id === draft.id ? next : x)));
-      setSheetOpen(false);
-      toast.success('Cambios guardados.');
-      return;
-    }
-    const stockVariants = groupedVariantDrafts.length > 0 ? groupedVariantDrafts : [];
-    const mergedStockPayload =
-      stockVariants.length > 0
-        ? mergeStockFromColorVariants(stockVariants)
-        : {
-            mergedSizesNorm: normalizeSizeInventoryForDb(draft.size_inventory),
-            mergedStock:
-              normalizeSizeInventoryForDb(draft.size_inventory).length > 0
-                ? sumSizeInventoryQty(normalizeSizeInventoryForDb(draft.size_inventory))
-                : Math.max(0, Math.floor(draft.stock)),
-            mergedColors: draft.color ?? '',
-          };
-    const { mergedSizesNorm, mergedStock, mergedColors } = mergedStockPayload;
     const res = await updateProductAction(draft.id, {
       name: draft.name,
       garment_cost: draft.base_price,
@@ -674,10 +625,10 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       category: draft.category_db?.trim() || null,
       description: draft.description,
       /** Siempre string: las server actions omiten `undefined` y antes el servidor interpretaba color ausente como `null`. */
-      color: mergedColors || draft.color || '',
-      stock: mergedStock,
+      color: draft.color ?? '',
+      stock: draft.stock,
       cost: draft.cost,
-      size_inventory: mergedSizesNorm,
+      size_inventory: draft.size_inventory,
       image_urls: galleryList(draft).slice(0, MAX_PRODUCT_IMAGES),
       video_url: draft.video_url != null ? draft.video_url.trim() || null : null,
     });
@@ -685,16 +636,16 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       toast.error(res.message);
       return;
     }
+    const sizesNorm = normalizeSizeInventoryForDb(draft.size_inventory);
     const nextStock =
-      mergedSizesNorm.length > 0 ? sumSizeInventoryQty(mergedSizesNorm) : Math.max(0, Math.floor(mergedStock));
+      sizesNorm.length > 0 ? sumSizeInventoryQty(sizesNorm) : Math.max(0, Math.floor(draft.stock));
     const gallery = galleryList(draft).slice(0, MAX_PRODUCT_IMAGES);
     const priced = computePricesFromGarmentCost(draft.base_price, cash, transfer);
     const next: CatalogProduct = {
       ...draft,
-      color: mergedColors || draft.color,
       gallery_image_urls: gallery,
       image: gallery[0] ?? PLACEHOLDER_IMG,
-      size_inventory: mergedSizesNorm.length > 0 ? mergedSizesNorm : [],
+      size_inventory: sizesNorm.length > 0 ? sizesNorm : [],
       stock: nextStock,
       category: displayCategoryLabel(draft.category_db?.trim() || null),
       price: priced.cash,
@@ -1145,6 +1096,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
             setEditingVariantIds([]);
             setGroupedVariantDrafts([]);
             setNewGroupedColor('');
+            setSelectedGroupedVariantId('');
           }
         }}
       >
@@ -1497,129 +1449,195 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                       </CollapsibleContent>
                     </Collapsible>
                   </div>
-                ) : draft.kind === 'combo' ? (
-                  <div className="space-y-4">
-                    <p className="text-xs text-slate-500">Combo: un solo stock publicado.</p>
-                    <div>
-                      <Label htmlFor="d-stock-combo">Stock</Label>
-                      <Input
-                        id="d-stock-combo"
-                        type="number"
-                        min={0}
-                        value={draft.stock}
-                        onChange={(e) =>
-                          setDraft({ ...draft, stock: Math.max(0, Math.floor(Number(e.target.value) || 0)) })
-                        }
-                        className="mt-1.5 text-lg font-semibold"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="d-cost-combo">Costo unitario (referencia)</Label>
-                      <Input
-                        id="d-cost-combo"
-                        type="number"
-                        min={0}
-                        value={draft.cost}
-                        onChange={(e) => setDraft({ ...draft, cost: Number(e.target.value) || 0 })}
-                        className="mt-1.5"
-                      />
-                    </div>
-                  </div>
                 ) : (
                   <div className="space-y-4">
-                    <p className="text-xs text-slate-600">
-                      {editingVariantIds.length > 1
-                        ? `Al guardar se unifica en una publicación con todos los colores.`
-                        : `Por cada color: stock total y talles. Los talles se guardan con su color.`}
-                      {editingColorsSummary ? (
-                        <>
-                          {' '}
-                          <span className="font-medium text-slate-800">Resumen: {editingColorsSummary}</span>
-                        </>
-                      ) : null}
-                    </p>
-                    <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-end">
-                      <div className="min-w-0 flex-1">
-                        <Label htmlFor="new-grouped-color" className="text-xs text-slate-600">
-                          Nuevo color
-                        </Label>
+                    {editingVariantIds.length > 1 ? (
+                      <>
+                        <p className="text-xs text-slate-500">
+                          Colores en esta publicación: <strong>{editingColorsSummary || 'Sin color'}</strong>
+                        </p>
+                        <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-xs font-semibold text-slate-700">Stock por color</p>
+                          <div className="grid grid-cols-[1fr_auto] gap-2">
+                            <Input
+                              value={newGroupedColor}
+                              onChange={(e) => setNewGroupedColor(e.target.value)}
+                              placeholder="Agregar nuevo color"
+                              className="h-8 text-xs"
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-3"
+                              onClick={addGroupedColorVariant}
+                            >
+                              Agregar
+                            </Button>
+                          </div>
+                          {groupedColorStocks.map((row) => (
+                            <div key={row.color} className="flex items-center justify-between gap-2 text-xs">
+                              <span className="text-slate-700">{row.color}</span>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={() => adjustGroupedColorStock(row.color, -1)}
+                                >
+                                  -
+                                </Button>
+                                <span className="min-w-8 text-center font-semibold text-slate-800">{row.stock}</span>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2"
+                                  onClick={() => adjustGroupedColorStock(row.color, 1)}
+                                >
+                                  +
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                          <p className="pt-1 text-[11px] text-slate-500">
+                            Cambiá colores por variante abajo y se actualiza en vivo este resumen.
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <Label htmlFor="d-color-stock">Color</Label>
                         <Input
-                          id="new-grouped-color"
-                          value={newGroupedColor}
-                          onChange={(e) => setNewGroupedColor(e.target.value)}
-                          placeholder="Ej. negro, beige"
-                          className="mt-1 h-9 text-sm"
+                          id="d-color-stock"
+                          value={draft.color}
+                          onChange={(e) => setDraft({ ...draft, color: e.target.value })}
+                          className="mt-1.5"
+                          placeholder="Ej. beige, negro"
                         />
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-9 shrink-0 px-4"
-                        onClick={addGroupedColorVariant}
-                      >
-                        Agregar
-                      </Button>
-                    </div>
-                    <div className="space-y-4">
-                      {editingVariantDraftsEffective.map((v) => (
-                        <div
-                          key={v.id}
-                          className="space-y-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
-                        >
-                          <div className="flex items-start gap-2">
-                            <div className="min-w-0 flex-1 space-y-1">
-                              <Label htmlFor={`color-${v.id}`} className="text-xs font-medium text-slate-600">
-                                Color
-                              </Label>
-                              <Input
-                                id={`color-${v.id}`}
-                                value={v.color}
-                                onChange={(e) => updateGroupedVariantColor(v.id, e.target.value)}
-                                className="h-9"
-                                placeholder="Nombre del color"
+                    )}
+                    {editingVariantIds.length > 1 ? (
+                      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-xs font-semibold text-slate-700">Variante seleccionada (color/talle)</p>
+                        {selectedGroupedVariant ? (
+                          <div className="space-y-3 rounded border border-slate-200 bg-white p-3">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <div>
+                                <Label htmlFor="grouped-variant-select" className="text-[11px] text-slate-600">
+                                  Color
+                                </Label>
+                                <select
+                                  id="grouped-variant-select"
+                                  value={selectedGroupedVariant.id}
+                                  onChange={(e) => setSelectedGroupedVariantId(e.target.value)}
+                                  className={categorySelectClass}
+                                >
+                                  {editingVariantDraftsEffective.map((v) => (
+                                    <option key={v.id} value={v.id}>
+                                      {v.color?.trim() || 'Sin color'}
+                                    </option>
+                                  ))}
+                                </select>
+                                <Input
+                                  value={selectedGroupedVariant.color}
+                                  onChange={(e) => updateGroupedVariantColor(selectedGroupedVariant.id, e.target.value)}
+                                  className="mt-2 h-8"
+                                  placeholder="Ej. beige"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="grouped-variant-stock" className="text-[11px] text-slate-600">
+                                  Stock
+                                </Label>
+                                <Input
+                                  id="grouped-variant-stock"
+                                  type="number"
+                                  min={0}
+                                  value={selectedGroupedVariant.stock}
+                                  onChange={(e) =>
+                                    updateGroupedVariantStock(
+                                      selectedGroupedVariant.id,
+                                      Number(e.target.value) || 0,
+                                    )
+                                  }
+                                  className="mt-1 h-8 w-full text-right"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <p className="mb-1 text-[11px] font-medium text-slate-600">Talles y cantidades</p>
+                              <SizeInventoryEditor
+                                rows={selectedGroupedVariant.size_inventory}
+                                onChange={(rows) =>
+                                  updateGroupedVariantSizeInventory(selectedGroupedVariant.id, rows)
+                                }
+                                disabled={false}
+                                idPrefix={`grouped-${selectedGroupedVariant.id}`}
                               />
                             </div>
-                            {String(v.id).startsWith('tmp-') ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-9 w-9 shrink-0 text-red-600 hover:bg-red-50 hover:text-red-700"
-                                aria-label="Quitar este color"
-                                onClick={() => removeGroupedColorBlock(v.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            ) : null}
                           </div>
-                          <div>
-                            <Label htmlFor={`stock-${v.id}`} className="text-xs text-slate-600">
-                              Stock (total o ajuste rápido si ya cargaste talles)
-                            </Label>
-                            <Input
-                              id={`stock-${v.id}`}
-                              type="number"
-                              min={0}
-                              value={v.stock}
-                              onChange={(e) =>
-                                updateGroupedVariantStock(v.id, Number(e.target.value) || 0)
-                              }
-                              className="mt-1 h-9 w-full max-w-[14rem] text-right tabular-nums"
-                            />
-                          </div>
-                          <div className="border-t border-slate-100 pt-2">
-                            <SizeInventoryEditor
-                              rows={v.size_inventory}
-                              onChange={(rows) => updateGroupedVariantSizeInventory(v.id, rows)}
-                              disabled={false}
-                              idPrefix={`stock-${v.id}`}
-                              implicitColor={v.color?.trim() || null}
-                            />
-                          </div>
+                        ) : null}
+                        <div className="space-y-1 rounded border border-dashed border-slate-300 bg-slate-50 p-2">
+                          <p className="text-[11px] font-semibold text-slate-700">
+                            Vista previa (color, talle, cantidad)
+                          </p>
+                          {editingVariantDraftsEffective.flatMap((v) => {
+                            const sizes = normalizeSizeInventoryForDb(v.size_inventory);
+                            if (sizes.length === 0) {
+                              return [
+                                <p key={`${v.id}-no-size`} className="text-[11px] text-slate-600">
+                                  {(v.color?.trim() || 'Sin color')}, sin talle, stock {v.stock}
+                                </p>,
+                              ];
+                            }
+                            return sizes.map((s) => (
+                              <p key={`${v.id}-${s.size}`} className="text-[11px] text-slate-600">
+                                {(v.color?.trim() || 'Sin color')}, talle {s.size}, cantidad {s.qty}
+                              </p>
+                            ));
+                          })}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ) : null}
+                    <p className="text-sm text-slate-600">Talles y unidades por talle, o un solo total si no usás talles.</p>
+                    <SizeInventoryEditor
+                      rows={draft.size_inventory}
+                      onChange={(rows) => {
+                        const n = normalizeSizeInventoryForDb(rows);
+                        setDraft((d) => {
+                          if (!d) return d;
+                          return {
+                            ...d,
+                            size_inventory: rows,
+                            stock: n.length > 0 ? sumSizeInventoryQty(n) : d.stock,
+                          };
+                        });
+                      }}
+                      disabled={false}
+                      idPrefix="panel"
+                    />
+                    {editingVariantIds.length <= 1 && normalizeSizeInventoryForDb(draft.size_inventory).length === 0 ? (
+                      <div>
+                        <Label htmlFor="d-stock">Cantidad en stock (sin talles)</Label>
+                        <Input
+                          id="d-stock"
+                          type="number"
+                          min={0}
+                          value={draft.stock}
+                          onChange={(e) =>
+                            setDraft({ ...draft, stock: Math.max(0, Math.floor(Number(e.target.value) || 0)) })
+                          }
+                          className="mt-1.5 text-lg font-semibold"
+                        />
+                      </div>
+                    ) : editingVariantIds.length <= 1 ? (
+                      <p className="text-xs text-slate-500">
+                        Stock total guardado: <strong>{draft.stock}</strong> (suma de talles). Quitá todas las filas para
+                        editar un solo número.
+                      </p>
+                    ) : null}
                     <div>
                       <Label htmlFor="d-cost">Costo unitario (referencia)</Label>
                       <Input
