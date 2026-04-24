@@ -11,7 +11,7 @@ import {
   type ProductVariantForDetailModal,
 } from '@/app/components/ProductDetailModal';
 import { displayCategoryLabel, parseSubcategorySlugFromDb } from '@/lib/data/productCatalog';
-import { formatPrecioListaAr } from '@/lib/formatPrice';
+import { formatPrecioListaAr, getPrimaryDiscountedPrice } from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 
 type CatalogProduct = {
@@ -510,33 +510,28 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                         <div className="flex items-center justify-center">
                           <div className="h-px w-8 bg-[#b8956a]/30" />
                           <div
-                            className="mx-4 text-[#b8956a]"
-                            style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: 400 }}
+                            className="mx-4 text-[#1a1410]"
+                            style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.5rem', fontWeight: 700 }}
                           >
-                            {formatPrecioListaAr(product.garment_cost)}
+                            {formatPrecioListaAr(getPrimaryDiscountedPrice(product.price, product.transfer_price))}
                           </div>
                           <div className="h-px w-8 bg-[#b8956a]/30" />
                         </div>
+                        <p
+                          className="mt-1 text-center text-[10px] uppercase tracking-[0.18em] text-[#6b6156]"
+                          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+                        >
+                          Efectivo o transferencia
+                        </p>
                         <div
                           className="mt-3 space-y-1 text-left text-[11px] leading-snug text-[#5c5349]"
                           style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
                         >
                           <p>
-                            <span className="text-[#8b6f47]">Efectivo</span>
-                            {product.cash_discount_percent != null && product.cash_discount_percent > 0
-                              ? ` · ${product.cash_discount_percent}% dto.`
-                              : ''}
-                            : {formatPrecioListaAr(product.price)}
+                            <span className="text-[#8b6f47]">Precio de lista</span>: {formatPrecioListaAr(product.final_transfer_price)}
                           </p>
                           <p>
-                            <span className="text-[#8b6f47]">Transferencia</span>
-                            {product.transfer_discount_percent != null && product.transfer_discount_percent > 0
-                              ? ` · ${product.transfer_discount_percent}% dto.`
-                              : ''}
-                            : {formatPrecioListaAr(product.transfer_price)}
-                          </p>
-                          <p>
-                            <span className="text-[#8b6f47]">Tarjeta</span> · {formatPrecioListaAr(product.final_transfer_price)}
+                            <span className="text-[#8b6f47]">Tarjeta</span>: {formatPrecioListaAr(product.final_transfer_price)}
                           </p>
                         </div>
                       </div>

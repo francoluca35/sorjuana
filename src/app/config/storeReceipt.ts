@@ -3,6 +3,14 @@ import { siteWhatsAppUrl } from '@/app/config/contact';
 /** Datos del local para comprobantes y documentos. Editá aquí para reflejar la información real. */
 function phoneFromWhatsAppUrl(url: string): string {
 	const digits = url.replace(/\D/g, '');
+	if (digits.startsWith('549') && digits.length >= 13) {
+		const area = digits.slice(3, 5);
+		const first = digits.slice(5, 9);
+		const second = digits.slice(9, 13);
+		if (area && first && second) {
+			return `+54 9 ${area} ${first}-${second}`;
+		}
+	}
 	if (digits.startsWith('54') && digits.length >= 10) {
 		const rest = digits.slice(2);
 		if (rest.length >= 10) {

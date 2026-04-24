@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useCart } from '@/app/context/CartContext';
 import { displayCategoryLabel, PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
-import { formatPrecioListaAr } from '@/lib/formatPrice';
+import { formatPrecioListaAr, getPrimaryDiscountedPrice } from '@/lib/formatPrice';
 import { whatsAppLinkWithMessage } from '@/app/config/contact';
 import type { ProductRow } from '@/lib/data/productCatalog';
 import { sumSizeInventoryQty, type SizeInventoryRow } from '@/lib/data/productSizes';
@@ -599,11 +599,17 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 									style={{
 										fontFamily: 'Montserrat, sans-serif',
 										fontSize: 'clamp(1.65rem, 5vw, 2.6rem)',
-										fontWeight: 600,
+										fontWeight: 700,
 										letterSpacing: '-0.02em',
 									}}
 								>
-									{formatPrecioListaAr(product.garment_cost)}
+									{formatPrecioListaAr(getPrimaryDiscountedPrice(product.price, product.transfer_price))}
+								</p>
+								<p
+									className="mt-1 pl-0.5 text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]"
+									style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+								>
+									Efectivo o transferencia
 								</p>
 								<div
 									className="mt-4 space-y-3 rounded-xl border border-[#e4dfd6] bg-[#faf8f6] px-4 py-4"
@@ -611,34 +617,15 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 								>
 									<div>
 										<p className="text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]" style={{ fontWeight: 600 }}>
-											Efectivo
+											Precio de lista
 										</p>
-										<p className="mt-1 text-sm font-medium text-[#1f1f1f]">
-											{product.cash_discount_percent != null && product.cash_discount_percent > 0 ? (
-												<span className="text-[#5c5349]">{product.cash_discount_percent}% de descuento · </span>
-											) : null}
-											{formatPrecioListaAr(product.price)}
-										</p>
-									</div>
-									<div className="border-t border-[#e4dfd6] pt-3">
-										<p className="text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]" style={{ fontWeight: 600 }}>
-											Transferencia
-										</p>
-										<p className="mt-1 text-sm font-medium text-[#1f1f1f]">
-											{product.transfer_discount_percent != null && product.transfer_discount_percent > 0 ? (
-												<span className="text-[#5c5349]">{product.transfer_discount_percent}% de descuento · </span>
-											) : null}
-											{formatPrecioListaAr(product.transfer_price)}
-										</p>
+										<p className="mt-1 text-sm font-medium text-[#1f1f1f]">{formatPrecioListaAr(product.final_transfer_price)}</p>
 									</div>
 									<div className="border-t border-[#e4dfd6] pt-3">
 										<p className="text-[0.68rem] uppercase tracking-[0.22em] text-[#6b6156]" style={{ fontWeight: 600 }}>
 											Tarjeta débito / crédito
 										</p>
-										<p className="mt-1 text-sm font-semibold text-[#1f1f1f]">
-											<span className="font-medium text-[#5c5349]">Sin descuento · </span>
-											{formatPrecioListaAr(product.final_transfer_price)}
-										</p>
+										<p className="mt-1 text-sm font-semibold text-[#1f1f1f]">{formatPrecioListaAr(product.final_transfer_price)}</p>
 										<p className="mt-1.5 text-xs leading-relaxed text-[#5c5349]" style={{ fontWeight: 500 }}>
 											Débito: un solo pago. Crédito: 3 cuotas sin interés.
 										</p>

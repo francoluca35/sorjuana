@@ -9,7 +9,7 @@ import { motion } from 'motion/react';
 import { ProductDetailModal, productRowToDetailModalProduct } from './ProductDetailModal';
 import { cn } from './ui/utils';
 import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog';
-import { formatPrecioListaAr } from '@/lib/formatPrice';
+import { formatPrecioListaAr, getPrimaryDiscountedPrice } from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 import { fetchProductsByIdsAction } from '@/app/actions/products';
 import { getSiteHomeStoredIdsAction } from '@/app/actions/siteHomeConfig';
@@ -409,29 +409,22 @@ export function NewArrivals({
 											Costo de prenda
 										</p>
 										<span
-											className="block text-[#b8956a]"
-											style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.15rem', fontWeight: 500 }}
+											className="block text-[#1a1410]"
+											style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.15rem', fontWeight: 700 }}
 										>
-											{formatPrecioListaAr(product.garmentCost)}
+											{formatPrecioListaAr(getPrimaryDiscountedPrice(product.price, product.transferPrice))}
 										</span>
+										<p
+											className="text-[10px] uppercase tracking-[0.14em] text-[#6b6156]"
+											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+										>
+											Efectivo o transferencia
+										</p>
 										<div
 											className="space-y-0.5 text-[10px] leading-snug text-[#5c5349]"
 											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 										>
-											<p>
-												Efectivo
-												{product.cashDiscountPercent != null && product.cashDiscountPercent > 0
-													? ` · ${product.cashDiscountPercent}% dto.`
-													: ''}
-												: {formatPrecioListaAr(product.price)}
-											</p>
-											<p>
-												Transferencia
-												{product.transferDiscountPercent != null && product.transferDiscountPercent > 0
-													? ` · ${product.transferDiscountPercent}% dto.`
-													: ''}
-												: {formatPrecioListaAr(product.transferPrice)}
-											</p>
+											<p>Precio de lista: {formatPrecioListaAr(product.cardPrice)}</p>
 											<p>Tarjeta: {formatPrecioListaAr(product.cardPrice)}</p>
 										</div>
 										{product.oldPrice != null ? (

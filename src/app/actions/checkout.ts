@@ -44,7 +44,7 @@ ${lines.join('\n')}
 
 Total: ${formatMoney(args.total)}`;
 
-	let phone = '541131199882';
+	let phone = '5491159795700';
 	try {
 		const u = new URL(
 			siteWhatsAppUrl.startsWith('http') ? siteWhatsAppUrl : `https://${siteWhatsAppUrl}`,
