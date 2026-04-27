@@ -3,13 +3,22 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import * as React from 'react';
-import { Heart, Eye, Sparkles, Truck, ShieldCheck } from 'lucide-react';
+import { ShoppingCart, Sparkles, Truck, ShieldCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { ProductDetailModal, productRowToDetailModalProduct } from '@/app/components/ProductDetailModal';
-import { CardImageCarousel, mapRowToNewArrivalProduct } from '@/app/components/NewArrivals';
+import {
+	CardImageCarousel,
+	getPublicationTotalStock,
+	mapRowToNewArrivalProduct,
+} from '@/app/components/NewArrivals';
 import type { ProductRow } from '@/lib/data/productCatalog';
-import { formatPrecioListaAr } from '@/lib/formatPrice';
+import {
+	computeDiscountPercent,
+	formatCuotaAr,
+	formatPrecioListaAr,
+	getPrimaryDiscountedPrice,
+} from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 import { fetchProductsByIdsAction } from '@/app/actions/products';
 import { getSiteHomeStoredIdsAction } from '@/app/actions/siteHomeConfig';
@@ -25,12 +34,15 @@ type GridProduct = {
 	name: string;
 	category: string;
 	price: number;
+	transferPrice: number;
+	cardPrice: number;
 	oldPrice: number | null;
 	cardImages: string[];
 	videoUrl: string | null;
 	description: string | null;
 	stock: number;
 	sizeInventory: SizeInventoryRow[];
+	publicationStock: number;
 };
 
 function mapRowToGridProduct(p: ProductRow): GridProduct {
@@ -40,12 +52,15 @@ function mapRowToGridProduct(p: ProductRow): GridProduct {
 		name: base.name,
 		category: base.category,
 		price: base.price,
+		transferPrice: base.transferPrice,
+		cardPrice: base.cardPrice,
 		oldPrice: base.oldPrice,
 		cardImages: base.cardImages,
 		videoUrl: base.videoUrl,
 		description: base.description,
 		stock: base.stock,
 		sizeInventory: base.sizeInventory,
+		publicationStock: getPublicationTotalStock(base.sizeInventory, base.stock),
 	};
 }
 
@@ -251,29 +266,22 @@ export function PopularProducts({
 										</div>
 									) : null}
 
-									<div className="absolute inset-0 z-20 flex items-center justify-center space-x-3 bg-[#1a1410]/80 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+									<div className="absolute inset-0 z-20 flex items-center justify-center bg-[#1a1410]/80 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
 										<motion.button
 											type="button"
-											whileHover={{ scale: 1.1, rotate: 5 }}
-											whileTap={{ scale: 0.95 }}
-											onClick={(e) => e.stopPropagation()}
-											className="bg-white p-2.5 transition-colors duration-200 hover:bg-[#b8956a] hover:text-white md:bg-white/90 md:backdrop-blur-sm"
-											aria-label="Favoritos"
-										>
-											<Heart className="h-4 w-4" strokeWidth={1.5} />
-										</motion.button>
-										<motion.button
-											type="button"
-											whileHover={{ scale: 1.1, rotate: -5 }}
+											whileHover={{ scale: 1.08 }}
 											whileTap={{ scale: 0.95 }}
 											onClick={(e) => {
 												e.stopPropagation();
 												openProduct(product);
 											}}
-											className="bg-white p-2.5 transition-colors duration-200 hover:bg-[#b8956a] hover:text-white md:bg-white/90 md:backdrop-blur-sm"
-											aria-label="Ver detalle"
+											className="flex items-center gap-2 bg-white px-4 py-2.5 text-[#1a1410] transition-colors duration-200 hover:bg-[#b8956a] hover:text-white md:bg-white/90 md:backdrop-blur-sm"
+											aria-label="Abrir producto"
 										>
-											<Eye className="h-4 w-4" strokeWidth={1.5} />
+											<ShoppingCart className="h-4 w-4" strokeWidth={1.7} />
+											<span className="text-xs uppercase tracking-[0.12em]" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}>
+												Comprar
+											</span>
 										</motion.button>
 									</div>
 								</div>
@@ -291,22 +299,66 @@ export function PopularProducts({
 									>
 										{product.name}
 									</h3>
-									<div className="flex items-center justify-center space-x-2">
-										<span
-											className="text-[#b8956a]"
-											style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem' }}
-										>
-											{formatPrecioListaAr(product.price)}
-										</span>
-										{product.oldPrice != null ? (
-											<span
-												className="text-xs text-[#6b6156]/50 line-through"
-												style={{ fontFamily: 'Montserrat, sans-serif' }}
-											>
-												{formatPrecioListaAr(product.oldPrice)}
-											</span>
-										) : null}
-									</div>
+									{(() => {
+										const discountedPrice = getPrimaryDiscountedPrice(product.price, product.transferPrice);
+										const listPrice = product.cardPrice > 0 ? product.cardPrice : discountedPrice;
+										const discountPercent = computeDiscountPercent(listPrice, discountedPrice);
+										const hasDiscount = discountPercent > 0;
+										const installments = 6;
+
+										return (
+											<div className="space-y-1 text-center">
+												{hasDiscount ? (
+													<div className="flex items-center justify-center gap-2">
+														<span
+															className="text-[11px] text-[#6b6156] line-through"
+															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+														>
+															{formatPrecioListaAr(listPrice)}
+														</span>
+														<span
+															className="text-[12px] text-[#d61f45]"
+															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
+														>
+															{discountPercent}% OFF
+														</span>
+													</div>
+												) : null}
+												<span
+													className="text-[#1a1410]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.2rem', fontWeight: 800 }}
+												>
+													{formatPrecioListaAr(discountedPrice)}
+												</span>
+												<p
+													className="text-[10px] uppercase tracking-[0.14em] text-[#6b6156]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+												>
+													Efectivo o transferencia
+												</p>
+												<p
+													className="text-[10px] leading-snug text-[#1a1410]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+												>
+													Precio de lista: {formatPrecioListaAr(listPrice)}
+												</p>
+												<p
+													className="text-[10px] leading-snug text-[#1a1410]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+												>
+													{installments} x {formatCuotaAr(listPrice, installments)} sin interés
+												</p>
+												<p
+													className="text-[10px] uppercase tracking-[0.14em] text-[#6b6156]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
+												>
+													{product.publicationStock > 0
+														? `Stock disponible: ${product.publicationStock}`
+														: 'No hay stock disponible.'}
+												</p>
+											</div>
+										);
+									})()}
 								</div>
 							</motion.article>
 						))}

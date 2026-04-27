@@ -11,7 +11,12 @@ import {
   type ProductVariantForDetailModal,
 } from '@/app/components/ProductDetailModal';
 import { displayCategoryLabel, parseSubcategorySlugFromDb } from '@/lib/data/productCatalog';
-import { formatPrecioListaAr, getPrimaryDiscountedPrice } from '@/lib/formatPrice';
+import {
+  computeDiscountPercent,
+  formatCuotaAr,
+  formatPrecioListaAr,
+  getPrimaryDiscountedPrice,
+} from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 
 type CatalogProduct = {
@@ -501,39 +506,71 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                         {product.name}
                       </h3>
                       <div className="mx-auto max-w-sm">
-                        <p
-                          className="mb-1 text-[0.65rem] uppercase tracking-[0.18em] text-[#6b6156]"
-                          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
-                        >
-                          Costo de prenda
-                        </p>
-                        <div className="flex items-center justify-center">
-                          <div className="h-px w-8 bg-[#b8956a]/30" />
-                          <div
-                            className="mx-4 text-[#1a1410]"
-                            style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.5rem', fontWeight: 700 }}
-                          >
-                            {formatPrecioListaAr(getPrimaryDiscountedPrice(product.price, product.transfer_price))}
-                          </div>
-                          <div className="h-px w-8 bg-[#b8956a]/30" />
-                        </div>
-                        <p
-                          className="mt-1 text-center text-[10px] uppercase tracking-[0.18em] text-[#6b6156]"
-                          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
-                        >
-                          Efectivo o transferencia
-                        </p>
-                        <div
-                          className="mt-3 space-y-1 text-left text-[11px] leading-snug text-[#5c5349]"
-                          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-                        >
-                          <p>
-                            <span className="text-[#8b6f47]">Precio de lista</span>: {formatPrecioListaAr(product.final_transfer_price)}
-                          </p>
-                          <p>
-                            <span className="text-[#8b6f47]">Tarjeta</span>: {formatPrecioListaAr(product.final_transfer_price)}
-                          </p>
-                        </div>
+						{(() => {
+							const discountedPrice = getPrimaryDiscountedPrice(product.price, product.transfer_price);
+							const listPrice =
+								product.final_transfer_price > 0
+									? product.final_transfer_price
+									: discountedPrice;
+							const discountPercent = computeDiscountPercent(listPrice, discountedPrice);
+							const hasDiscount = discountPercent > 0;
+							const installments = 6;
+
+							return (
+								<>
+									{hasDiscount ? (
+										<div className="mb-1 flex items-center justify-center gap-2">
+											<span
+												className="text-sm text-[#6b6156] line-through"
+												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+											>
+												{formatPrecioListaAr(listPrice)}
+											</span>
+											<span
+												className="text-base text-[#d61f45]"
+												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
+											>
+												{discountPercent}% OFF
+											</span>
+										</div>
+									) : null}
+									<div className="flex items-center justify-center">
+										<div className="h-px w-8 bg-[#b8956a]/30" />
+										<div
+											className="mx-4 text-[#1a1410]"
+											style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.9rem', fontWeight: 800 }}
+										>
+											{formatPrecioListaAr(discountedPrice)}
+										</div>
+										<div className="h-px w-8 bg-[#b8956a]/30" />
+									</div>
+									<p
+										className="mt-1 text-center text-[10px] uppercase tracking-[0.18em] text-[#6b6156]"
+										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+									>
+										Efectivo o transferencia
+									</p>
+									<p
+										className="mt-1 text-center text-sm text-[#1a1410]"
+										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+									>
+										Precio de lista: {formatPrecioListaAr(listPrice)}
+									</p>
+									<p
+										className="mt-1 text-center text-sm text-[#1a1410]"
+										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+									>
+										{installments} x {formatCuotaAr(listPrice, installments)} sin interés
+									</p>
+									<p
+										className="mt-1 text-center text-[10px] uppercase tracking-[0.18em] text-[#6b6156]"
+										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
+									>
+										{product.stock > 0 ? `Stock disponible: ${product.stock}` : 'No hay stock disponible.'}
+									</p>
+								</>
+							);
+						})()}
                       </div>
                     </div>
                   </motion.div>

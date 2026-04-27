@@ -11,6 +11,8 @@ import { useCart, parseProductIdFromLineId } from '@/app/context/CartContext';
 import { checkoutAndReserve } from '@/app/actions/checkout';
 import { cn } from '@/app/components/ui/utils';
 
+type PaymentMethod = 'efectivo' | 'transferencia' | 'tarjeta';
+
 const accent = '#a34963';
 const serif = { fontFamily: '"Cormorant Garamond", serif' } as const;
 const sans = { fontFamily: 'Montserrat, sans-serif' } as const;
@@ -40,6 +42,8 @@ export function CartSheet() {
 	const [custPhone, setCustPhone] = useState('');
 	const [custLocality, setCustLocality] = useState('');
 	const [custAddress, setCustAddress] = useState('');
+	const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
+	const [showCheckoutProducts, setShowCheckoutProducts] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 
 	useLayoutEffect(() => {
@@ -54,12 +58,18 @@ export function CartSheet() {
 		if (!isOpen) {
 			setCheckoutStep('cart');
 			setSubmitting(false);
+			setPaymentMethod('efectivo');
+			setShowCheckoutProducts(false);
 		}
 	}, [isOpen]);
 
 	useEffect(() => {
 		if (items.length === 0) setCheckoutStep('cart');
 	}, [items.length]);
+
+	useEffect(() => {
+		if (checkoutStep !== 'checkout') setShowCheckoutProducts(false);
+	}, [checkoutStep]);
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -79,10 +89,22 @@ export function CartSheet() {
 		return () => window.removeEventListener('keydown', onKey);
 	}, [isOpen, closeCart]);
 
-	const subtotal = useMemo(
+	const discountedSubtotal = useMemo(
 		() => items.reduce((s, l) => s + l.price * l.qty, 0),
 		[items],
 	);
+
+	const checkoutSubtotal = useMemo(() => {
+		return items.reduce((sum, l) => {
+			const effectiveUnitPrice =
+				paymentMethod === 'tarjeta'
+					? l.listPrice != null && l.listPrice > 0
+						? l.listPrice
+						: l.price
+					: l.price;
+			return sum + effectiveUnitPrice * l.qty;
+		}, 0);
+	}, [items, paymentMethod]);
 
 	async function onWhatsAppCheckout(e: FormEvent) {
 		e.preventDefault();
@@ -101,6 +123,17 @@ export function CartSheet() {
 					size: l.size ?? null,
 					qty: l.qty,
 				})),
+				paymentMethod,
+				items.map((l) => ({
+					productId: l.productId || parseProductIdFromLineId(l.id),
+					productCode: l.productCode ?? null,
+					name: l.name,
+					size: l.size ?? null,
+					qty: l.qty,
+					discountedUnitPrice: l.price,
+					listUnitPrice:
+						l.listPrice != null && l.listPrice > 0 ? l.listPrice : l.price,
+				})),
 			);
 			if (r.ok) {
 				window.open(r.whatsappUrl, '_blank', 'noopener,noreferrer');
@@ -109,6 +142,7 @@ export function CartSheet() {
 				setCustPhone('');
 				setCustLocality('');
 				setCustAddress('');
+				setPaymentMethod('efectivo');
 				setCheckoutStep('cart');
 				closeCart();
 				toast.success('Pedido registrado. Se reservó el stock y se abrió WhatsApp.');
@@ -219,7 +253,7 @@ export function CartSheet() {
 										Ver catálogo
 									</Link>
 								</p>
-							) : (
+							) : checkoutStep === 'checkout' ? null : (
 								<ul className="space-y-5">
 									{items.map((line) => (
 										<li
@@ -332,7 +366,9 @@ export function CartSheet() {
 								<span className="text-lg" style={{ fontWeight: 500 }}>
 									Total estimado
 								</span>
-								<span className="text-xl font-semibold">{formatMoney(subtotal)}</span>
+								<span className="text-xl font-semibold">
+									{formatMoney(checkoutStep === 'cart' ? discountedSubtotal : checkoutSubtotal)}
+								</span>
 							</div>
 
 							{checkoutStep === 'cart' ? (
@@ -385,6 +421,43 @@ export function CartSheet() {
 										← Volver al carrito
 									</button>
 									<div>
+										<button
+											type="button"
+											onClick={() => setShowCheckoutProducts((v) => !v)}
+											className="mb-1 w-full rounded-lg border border-black/10 bg-[#faf8f6] px-3 py-2.5 text-left text-xs font-semibold tracking-[0.06em] text-[#1a1410] transition hover:bg-[#f5f2ed]"
+											style={sans}
+										>
+											{showCheckoutProducts ? 'Ocultar productos' : 'Ver productos'}
+										</button>
+										{showCheckoutProducts ? (
+											<div className="max-h-44 overflow-y-auto rounded-lg border border-black/10 bg-white px-3 py-2.5">
+												<ul className="space-y-2">
+													{items.map((line) => {
+														const unitPrice =
+															paymentMethod === 'tarjeta'
+																? line.listPrice != null && line.listPrice > 0
+																	? line.listPrice
+																	: line.price
+																: line.price;
+														return (
+															<li key={line.id} className="border-b border-black/[0.06] pb-2 last:border-b-0 last:pb-0">
+																<p className="text-xs font-semibold text-[#1a1410]" style={sans}>
+																	{line.name}
+																</p>
+																<p className="mt-0.5 text-[11px] text-black/65" style={sans}>
+																	Talle: {line.size?.trim() || '—'} · Color: {line.color?.trim() || '—'}
+																</p>
+																<p className="mt-0.5 text-[11px] text-black/75" style={sans}>
+																	{line.qty} × {formatMoney(unitPrice)}
+																</p>
+															</li>
+														);
+													})}
+												</ul>
+											</div>
+										) : null}
+									</div>
+									<div>
 										<label className="text-xs font-medium text-black/60" style={sans}>
 											Nombre y apellido
 										</label>
@@ -429,6 +502,21 @@ export function CartSheet() {
 									</div>
 									<div>
 										<label className="text-xs font-medium text-black/60" style={sans}>
+											Pagar con
+										</label>
+										<select
+											name="payment_method"
+											value={paymentMethod}
+											onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+											className={inputClass}
+										>
+											<option value="efectivo">Efectivo</option>
+											<option value="transferencia">Transferencia</option>
+											<option value="tarjeta">Tarjeta</option>
+										</select>
+									</div>
+									<div>
+										<label className="text-xs font-medium text-black/60" style={sans}>
 											Dirección
 										</label>
 										<input
@@ -463,6 +551,11 @@ export function CartSheet() {
 										Al confirmar se reserva el stock, se guarda el pedido en el panel y se abre
 										WhatsApp con el mensaje listo para enviar.
 									</p>
+									{paymentMethod === 'tarjeta' ? (
+										<p className="text-center text-[11px] leading-snug text-black/50" style={sans}>
+											Con tarjeta se usa el precio de lista.
+										</p>
+									) : null}
 								</form>
 							)}
 						</footer>
