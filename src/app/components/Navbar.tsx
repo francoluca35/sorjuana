@@ -13,8 +13,8 @@ import { useCart } from '@/app/context/CartContext';
 /** Reemplazá por tus URLs reales */
 const SOCIAL = {
   whatsapp: siteWhatsAppUrl,
-  instagram: 'https://www.instagram.com/',
-  tiktok: 'https://www.tiktok.com/@',
+  instagram: 'https://www.instagram.com/libertesorjuana?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==',
+  tiktok: 'https://www.tiktok.com/@libertesorjuana',
 } as const;
 
 function WhatsAppIcon({ className }: { className?: string }) {

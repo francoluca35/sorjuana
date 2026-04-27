@@ -60,7 +60,6 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
 
   const [selected, setSelected] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [hideHeroSocialIcons, setHideHeroSocialIcons] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -157,15 +156,6 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [activeHotspot, closeHotspotModal]);
-
-  useEffect(() => {
-    const onScroll = () => {
-      setHideHeroSocialIcons(window.scrollY > 40);
-    };
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   const openHotspot = useCallback(
     (h: HeroHotspot, el: HTMLButtonElement) => {
@@ -374,14 +364,7 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
         ))}
       </div>
 
-      <div
-        className={cn(
-          'absolute bottom-[max(1rem,env(safe-area-inset-bottom))] right-20 z-30 flex items-center gap-2 transition-all duration-300 md:bottom-8 md:right-24',
-          hideHeroSocialIcons
-            ? 'pointer-events-none translate-y-2 opacity-0'
-            : 'pointer-events-auto translate-y-0 opacity-100',
-        )}
-      >
+      <div className="pointer-events-auto absolute bottom-[max(1rem,env(safe-area-inset-bottom))] right-20 z-30 flex items-center gap-2 md:bottom-8 md:right-24">
         <a
           href={INSTAGRAM_URL}
           target="_blank"
