@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { ShoppingCart, X, ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useCart } from '@/app/context/CartContext';
 import { displayCategoryLabel, PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
@@ -150,9 +151,11 @@ export function ProductMediaCarousel({
 	showThumbRail?: boolean;
 }) {
 	const [idx, setIdx] = useState(0);
+	const [fullscreenIdx, setFullscreenIdx] = useState<number | null>(null);
 
 	useEffect(() => {
 		setIdx(0);
+		setFullscreenIdx(null);
 	}, [media.length]);
 
 	useEffect(() => {
@@ -169,6 +172,31 @@ export function ProductMediaCarousel({
 
 	function goNext() {
 		setIdx((i) => (i + 1) % media.length);
+	}
+
+	function openFullscreenIfMobile(i: number) {
+		if (typeof window === 'undefined') return;
+		if (window.matchMedia('(max-width: 767px)').matches) {
+			setFullscreenIdx(i);
+		}
+	}
+
+	function closeFullscreen() {
+		setFullscreenIdx(null);
+	}
+
+	function goPrevFullscreen() {
+		setFullscreenIdx((i) => {
+			if (i == null) return i;
+			return (i - 1 + media.length) % media.length;
+		});
+	}
+
+	function goNextFullscreen() {
+		setFullscreenIdx((i) => {
+			if (i == null) return i;
+			return (i + 1) % media.length;
+		});
 	}
 
 	const showControls = media.length > 1;
@@ -226,6 +254,7 @@ export function ProductMediaCarousel({
 								muted
 								loop
 								playsInline
+								onClick={() => openFullscreenIfMobile(idx)}
 							/>
 						) : (
 							<motion.img
@@ -237,6 +266,7 @@ export function ProductMediaCarousel({
 								src={media[idx].src}
 								alt={productName}
 								className={`h-full w-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} contrast-[1.02] md:contrast-[1.05] md:sepia-[0.06]`}
+								onClick={() => openFullscreenIfMobile(idx)}
 							/>
 						)}
 					</AnimatePresence>
@@ -283,6 +313,80 @@ export function ProductMediaCarousel({
 					) : null}
 				</div>
 			</div>
+			<AnimatePresence>
+				{fullscreenIdx != null ? (
+					<>
+						<motion.button
+							type="button"
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							className="fixed inset-0 z-[10020] bg-black/90"
+							onClick={closeFullscreen}
+							aria-label="Cerrar pantalla completa"
+						/>
+						<motion.div
+							initial={{ opacity: 0 }}
+							animate={{ opacity: 1 }}
+							exit={{ opacity: 0 }}
+							className="fixed inset-0 z-[10021] flex items-center justify-center"
+							onClick={closeFullscreen}
+						>
+							<button
+								type="button"
+								onClick={closeFullscreen}
+								className="absolute right-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-black/70 text-white"
+								aria-label="Cerrar visor"
+							>
+								<X className="h-6 w-6" />
+							</button>
+							{media[fullscreenIdx]?.type === 'video' ? (
+								<video
+									src={media[fullscreenIdx].src}
+									className="max-h-[100dvh] w-full object-contain"
+									controls
+									autoPlay
+									playsInline
+									onClick={(e) => e.stopPropagation()}
+								/>
+							) : (
+								<img
+									src={media[fullscreenIdx]?.src}
+									alt={productName}
+									className="max-h-[100dvh] w-full object-contain"
+									onClick={closeFullscreen}
+								/>
+							)}
+							{media.length > 1 ? (
+								<>
+									<button
+										type="button"
+										onClick={(e) => {
+											e.stopPropagation();
+											goPrevFullscreen();
+										}}
+										className="absolute left-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white"
+										aria-label="Anterior"
+									>
+										<ChevronLeft className="h-6 w-6" />
+									</button>
+									<button
+										type="button"
+										onClick={(e) => {
+											e.stopPropagation();
+											goNextFullscreen();
+										}}
+										className="absolute right-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-black/65 text-white"
+										aria-label="Siguiente"
+									>
+										<ChevronRight className="h-6 w-6" />
+									</button>
+								</>
+							) : null}
+						</motion.div>
+					</>
+				) : null}
+			</AnimatePresence>
 		</div>
 	);
 }
@@ -323,6 +427,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 	const [selectedColor, setSelectedColor] = useState<string>('');
 	const [selectedSize, setSelectedSize] = useState<string>('');
 	const [selectedQty, setSelectedQty] = useState(1);
+	const [portalReady, setPortalReady] = useState(false);
 	const lastResetProductIdRef = useRef<string | undefined>(undefined);
 
 	const variants = (product?.variants?.length
@@ -441,6 +546,11 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 		setSelectedQty(1);
 	}, [product?.id]);
 
+	useEffect(() => {
+		setPortalReady(true);
+		return () => setPortalReady(false);
+	}, []);
+
 	const effectiveColorNorm =
 		requiresColorBeforeSize && colorChosen && selectedColor
 			? normalizeColorValue(selectedColor)
@@ -538,13 +648,13 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 		closeProductModal();
 	}
 
-	return (
+	const modalTree = (
 		<AnimatePresence>
 			{product ? (
 				<>
 					<motion.button
 						type="button"
-						className="fixed inset-0 z-[10000] bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.45),rgba(0,0,0,0.78))] md:bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.35),rgba(0,0,0,0.72))] md:backdrop-blur-[3px]"
+						className="fixed inset-0 z-[10000] bg-[radial-gradient(circle_at_top,rgba(20,20,20,0.45),rgba(0,0,0,0.78))] backdrop-blur-[3px]"
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
@@ -821,4 +931,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 			) : null}
 		</AnimatePresence>
 	);
+
+	if (!portalReady) return null;
+	return createPortal(modalTree, document.body);
 }

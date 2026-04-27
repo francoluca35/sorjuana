@@ -406,12 +406,12 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
         <>
           <button
             type="button"
-            className="fixed inset-0 z-[100] bg-black/50 lg:bg-black/40 lg:backdrop-blur-[2px]"
+            className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-[3px]"
             aria-label="Cerrar"
             onClick={closeHotspotModal}
           />
           <div
-            className="fixed z-[101] w-[min(calc(100vw-1.5rem),20rem)] rounded-xl border border-white/15 bg-[#1a1410] p-4 text-[#f5f2ed] shadow-2xl sm:bg-[#1a1410]/96 sm:p-5 sm:backdrop-blur-md"
+            className="fixed z-[10001] w-[min(calc(100vw-1.5rem),20rem)] rounded-xl border border-white/15 bg-[#1a1410]/96 p-4 text-[#f5f2ed] shadow-2xl sm:p-5 sm:backdrop-blur-md"
             style={{
               left: modalPos.left,
               top: modalPos.top,
