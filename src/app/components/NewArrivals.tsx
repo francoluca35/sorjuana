@@ -3,13 +3,18 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import * as React from 'react';
-import { Heart, Eye, Sparkles } from 'lucide-react';
+import { ShoppingCart, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { ProductDetailModal, productRowToDetailModalProduct } from './ProductDetailModal';
 import { cn } from './ui/utils';
 import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog';
-import { formatPrecioListaAr, getPrimaryDiscountedPrice } from '@/lib/formatPrice';
+import {
+	computeDiscountPercent,
+	formatCuotaAr,
+	formatPrecioListaAr,
+	getPrimaryDiscountedPrice,
+} from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
 import { fetchProductsByIdsAction } from '@/app/actions/products';
 import { getSiteHomeStoredIdsAction } from '@/app/actions/siteHomeConfig';
@@ -41,6 +46,7 @@ type NewArrivalProduct = {
 	stock: number;
 	/** Talles con cantidad (vacío si el producto solo tiene stock total) */
 	sizeInventory: SizeInventoryRow[];
+	publicationStock: number;
 	isNew: boolean;
 };
 
@@ -77,6 +83,8 @@ export function mapRowToNewArrivalProduct(p: ProductRow): NewArrivalProduct {
 	const rawGallery = dedupeUrls(p.image_urls?.length ? p.image_urls : p.image_url ? [p.image_url] : []);
 	const cardImages = rawGallery.length > 0 ? rawGallery : [PLACEHOLDER_IMG];
 	const videoUrl = p.video_url?.trim() || null;
+	const sizeInventory = p.size_inventory?.length ? p.size_inventory.map((r) => ({ ...r })) : [];
+	const publicationStock = getPublicationTotalStock(sizeInventory, p.stock);
 	return {
 		id: p.id,
 		name: p.name,
@@ -92,9 +100,16 @@ export function mapRowToNewArrivalProduct(p: ProductRow): NewArrivalProduct {
 		videoUrl,
 		description: p.description?.trim() ?? null,
 		stock: p.stock,
-		sizeInventory: p.size_inventory?.length ? p.size_inventory.map((r) => ({ ...r })) : [],
+		sizeInventory,
+		publicationStock,
 		isNew: true,
 	};
+}
+
+export function getPublicationTotalStock(sizeInventory: SizeInventoryRow[], fallbackStock: number): number {
+	const fromSizes = sizeInventory.reduce((sum, row) => sum + Math.max(0, Math.floor(row.qty || 0)), 0);
+	if (fromSizes > 0) return fromSizes;
+	return Math.max(0, Math.floor(fallbackStock || 0));
 }
 
 function usePrefersReducedMotion() {
@@ -361,29 +376,22 @@ export function NewArrivals({
 										</div>
 									) : null}
 
-									<div className="absolute inset-0 z-20 flex items-center justify-center space-x-3 bg-[#1a1410]/80 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+									<div className="absolute inset-0 z-20 flex items-center justify-center bg-[#1a1410]/80 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
 										<motion.button
 											type="button"
-											whileHover={{ scale: 1.1, rotate: 5 }}
-											whileTap={{ scale: 0.95 }}
-											onClick={(e) => e.stopPropagation()}
-											className="bg-white p-2.5 transition-colors duration-200 hover:bg-[#b8956a] hover:text-white md:bg-white/90 md:backdrop-blur-sm"
-											aria-label="Favoritos"
-										>
-											<Heart className="h-4 w-4" strokeWidth={1.5} />
-										</motion.button>
-										<motion.button
-											type="button"
-											whileHover={{ scale: 1.1, rotate: -5 }}
+											whileHover={{ scale: 1.08 }}
 											whileTap={{ scale: 0.95 }}
 											onClick={(e) => {
 												e.stopPropagation();
 												openProduct(product);
 											}}
-											className="bg-white p-2.5 transition-colors duration-200 hover:bg-[#b8956a] hover:text-white md:bg-white/90 md:backdrop-blur-sm"
-											aria-label="Ver fotos y video"
+											className="flex items-center gap-2 bg-white px-4 py-2.5 text-[#1a1410] transition-colors duration-200 hover:bg-[#b8956a] hover:text-white md:bg-white/90 md:backdrop-blur-sm"
+											aria-label="Abrir producto"
 										>
-											<Eye className="h-4 w-4" strokeWidth={1.5} />
+											<ShoppingCart className="h-4 w-4" strokeWidth={1.7} />
+											<span className="text-xs uppercase tracking-[0.12em]" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}>
+												Comprar
+											</span>
 										</motion.button>
 									</div>
 								</div>
@@ -401,41 +409,66 @@ export function NewArrivals({
 									>
 										{product.name}
 									</h3>
-									<div className="space-y-1.5 text-center">
-										<p
-											className="text-[0.6rem] uppercase tracking-[0.16em] text-[#6b6156]"
-											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
-										>
-											Costo de prenda
-										</p>
-										<span
-											className="block text-[#1a1410]"
-											style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.15rem', fontWeight: 700 }}
-										>
-											{formatPrecioListaAr(getPrimaryDiscountedPrice(product.price, product.transferPrice))}
-										</span>
-										<p
-											className="text-[10px] uppercase tracking-[0.14em] text-[#6b6156]"
-											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
-										>
-											Efectivo o transferencia
-										</p>
-										<div
-											className="space-y-0.5 text-[10px] leading-snug text-[#5c5349]"
-											style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-										>
-											<p>Precio de lista: {formatPrecioListaAr(product.cardPrice)}</p>
-											<p>Tarjeta: {formatPrecioListaAr(product.cardPrice)}</p>
-										</div>
-										{product.oldPrice != null ? (
-											<p
-												className="text-[10px] text-[#6b6156]/60 line-through"
-												style={{ fontFamily: 'Montserrat, sans-serif' }}
-											>
-												Promo {formatPrecioListaAr(product.oldPrice)}
-											</p>
-										) : null}
-									</div>
+									{(() => {
+										const discountedPrice = getPrimaryDiscountedPrice(product.price, product.transferPrice);
+										const listPrice = product.cardPrice > 0 ? product.cardPrice : discountedPrice;
+										const discountPercent = computeDiscountPercent(listPrice, discountedPrice);
+										const hasDiscount = discountPercent > 0;
+										const installments = 6;
+
+										return (
+											<div className="space-y-1.5 text-center">
+												{hasDiscount ? (
+													<div className="flex items-center justify-center gap-1.5">
+														<span
+															className="text-[10px] text-[#6b6156] line-through"
+															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+														>
+															{formatPrecioListaAr(listPrice)}
+														</span>
+														<span
+															className="text-[12px] text-[#d61f45]"
+															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
+														>
+															{discountPercent}% OFF
+														</span>
+													</div>
+												) : null}
+												<span
+													className="block text-[#1a1410]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.25rem', fontWeight: 800 }}
+												>
+													{formatPrecioListaAr(discountedPrice)}
+												</span>
+												<p
+													className="text-[10px] uppercase tracking-[0.14em] text-[#6b6156]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+												>
+													Efectivo o transferencia
+												</p>
+												<p
+													className="text-[11px] leading-snug text-[#1a1410]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+												>
+													Precio de lista: {formatPrecioListaAr(listPrice)}
+												</p>
+												<p
+													className="text-[11px] leading-snug text-[#1a1410]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+												>
+													{installments} x {formatCuotaAr(listPrice, installments)} sin interés
+												</p>
+												<p
+													className="text-[10px] uppercase tracking-[0.14em] text-[#6b6156]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
+												>
+													{product.publicationStock > 0
+														? `Stock disponible: ${product.publicationStock}`
+														: 'No hay stock disponible.'}
+												</p>
+											</div>
+										);
+									})()}
 								</div>
 							</motion.article>
 						))}

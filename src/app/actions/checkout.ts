@@ -10,6 +10,18 @@ export type CheckoutLineInput = {
 	qty: number;
 };
 
+export type CheckoutPaymentMethod = 'efectivo' | 'transferencia' | 'tarjeta';
+
+export type CheckoutDisplayLineInput = {
+	productId: string;
+	productCode?: string | null;
+	name: string;
+	size?: string | null;
+	qty: number;
+	discountedUnitPrice: number;
+	listUnitPrice: number;
+};
+
 export type CheckoutCustomerInput = {
 	name: string;
 	phone: string;
@@ -23,6 +35,7 @@ function formatMoney(n: number) {
 
 function buildWhatsAppUrl(args: {
 	customerName: string;
+	paymentMethod: CheckoutPaymentMethod;
 	items: {
 		product_code: string;
 		name: string;
@@ -33,6 +46,12 @@ function buildWhatsAppUrl(args: {
 	}[];
 	total: number;
 }) {
+	const paymentMethodLabel =
+		args.paymentMethod === 'tarjeta'
+			? 'Tarjeta'
+			: args.paymentMethod === 'transferencia'
+				? 'Transferencia'
+				: 'Efectivo';
 	const lines = args.items.map((l) => {
 		const code = l.product_code?.trim() ? ` [${l.product_code}]` : '';
 		const talla = l.size?.trim() ? ` — Talle: ${l.size}` : '';
@@ -41,6 +60,8 @@ function buildWhatsAppUrl(args: {
 	const body = `Hola, soy ${args.customerName.trim()}, quiero comprar estos productos:
 
 ${lines.join('\n')}
+
+Método de pago: ${paymentMethodLabel}
 
 Total: ${formatMoney(args.total)}`;
 
@@ -59,12 +80,17 @@ Total: ${formatMoney(args.total)}`;
 export async function checkoutAndReserve(
 	customer: CheckoutCustomerInput,
 	lines: CheckoutLineInput[],
+	paymentMethod: CheckoutPaymentMethod,
+	displayLines: CheckoutDisplayLineInput[],
 ): Promise<
 	| { ok: true; orderId: string; whatsappUrl: string; total: number }
 	| { ok: false; error: string }
 > {
 	if (!lines.length) {
 		return { ok: false, error: 'El carrito está vacío.' };
+	}
+	if (!['efectivo', 'transferencia', 'tarjeta'].includes(paymentMethod)) {
+		return { ok: false, error: 'Método de pago inválido.' };
 	}
 
 	const payload = lines.map((l) => ({
@@ -102,23 +128,47 @@ export async function checkoutAndReserve(
 		return { ok: false, error: 'Respuesta inválida del servidor.' };
 	}
 
-	const itemsRaw = row.items;
-	const itemsArr = Array.isArray(itemsRaw) ? itemsRaw : [];
+	const safeDisplayLines = displayLines
+		.filter((l) => l && typeof l === 'object')
+		.map((l) => {
+			const qty = Math.max(1, Math.floor(Number(l.qty) || 0));
+			const discountedUnitPrice = Math.max(0, Number(l.discountedUnitPrice) || 0);
+			const listUnitPrice = Math.max(0, Number(l.listUnitPrice) || 0);
+			const unitPrice =
+				paymentMethod === 'tarjeta'
+					? listUnitPrice > 0
+						? listUnitPrice
+						: discountedUnitPrice
+					: discountedUnitPrice;
+			return {
+				product_code: String(l.productCode ?? '').trim(),
+				name: String(l.name ?? '').trim(),
+				size: String(l.size ?? '').trim(),
+				qty,
+				unit_price: unitPrice,
+				line_total: unitPrice * qty,
+			};
+		})
+		.filter((l) => l.name.length > 0);
+
+	const whatsappItems =
+		safeDisplayLines.length > 0
+			? safeDisplayLines
+			: lines.map((l) => ({
+					product_code: '',
+					name: 'Producto',
+					size: String(l.size ?? '').trim(),
+					qty: Math.max(1, Math.floor(Number(l.qty) || 0)),
+					unit_price: 0,
+					line_total: 0,
+				}));
+	const whatsappTotal = whatsappItems.reduce((sum, l) => sum + l.line_total, 0);
 
 	const whatsappUrl = buildWhatsAppUrl({
 		customerName: customer.name,
-		items: itemsArr.map((it) => {
-			const i = it as Record<string, unknown>;
-			return {
-				product_code: String(i.product_code ?? ''),
-				name: String(i.name ?? ''),
-				size: String(i.size ?? ''),
-				qty: Number(i.qty) || 0,
-				unit_price: Number(i.unit_price) || 0,
-				line_total: Number(i.line_total) || 0,
-			};
-		}),
-		total: Number(row.total) || 0,
+		paymentMethod,
+		items: whatsappItems,
+		total: whatsappTotal,
 	});
 
 	revalidatePath('/catalogo');
@@ -130,6 +180,6 @@ export async function checkoutAndReserve(
 		ok: true,
 		orderId: String(row.order_id ?? ''),
 		whatsappUrl,
-		total: Number(row.total) || 0,
+		total: whatsappTotal,
 	};
 }

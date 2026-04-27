@@ -24,6 +24,8 @@ export type CartLine = {
 	productId: string;
 	name: string;
 	price: number;
+	listPrice?: number;
+	productCode?: string;
 	qty: number;
 	image?: string;
 	color?: string;
@@ -35,6 +37,8 @@ export type CartAddPayload = {
 	productId?: string;
 	name: string;
 	price: number;
+	listPrice?: number;
+	productCode?: string;
 	qty?: number;
 	image?: string;
 	color?: string;
@@ -81,6 +85,14 @@ function parseStoredLines(raw: string | null): CartLine[] {
 				...line,
 				qty: Math.floor(line.qty),
 				productId: line.productId ?? parseProductIdFromLineId(line.id),
+				listPrice:
+					line.listPrice != null && Number.isFinite(line.listPrice)
+						? Number(line.listPrice)
+						: undefined,
+				productCode:
+					typeof line.productCode === 'string' && line.productCode.trim().length > 0
+						? line.productCode.trim()
+						: undefined,
 			});
 		}
 		return out;
@@ -143,6 +155,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
 						productId,
 						name: item.name,
 						price: item.price,
+						listPrice:
+							item.listPrice != null && Number.isFinite(item.listPrice)
+								? item.listPrice
+								: undefined,
+						productCode: item.productCode?.trim() || undefined,
 						qty,
 						image: item.image,
 						color: item.color?.trim() || undefined,

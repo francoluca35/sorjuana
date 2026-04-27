@@ -6,7 +6,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { useCart } from '@/app/context/CartContext';
 import { displayCategoryLabel, PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
-import { formatPrecioListaAr, getPrimaryDiscountedPrice } from '@/lib/formatPrice';
+import {
+	computeDiscountPercent,
+	formatCuotaAr,
+	formatPrecioListaAr,
+	getPrimaryDiscountedPrice,
+} from '@/lib/formatPrice';
 import { whatsAppLinkWithMessage } from '@/app/config/contact';
 import type { ProductRow } from '@/lib/data/productCatalog';
 import { sumSizeInventoryQty, type SizeInventoryRow } from '@/lib/data/productSizes';
@@ -519,8 +524,10 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 		addItem({
 			id: selectedVariant.id,
 			productId: selectedVariant.id,
+			productCode: product.product_code ?? undefined,
 			name: product.name,
 			price: selectedVariant.price,
+			listPrice: product.final_transfer_price,
 			image: selectedVariant.image || product.image,
 			color: normalizeColorValue(selectedVariant.color),
 			size: selectedSize || undefined,
@@ -588,49 +595,76 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 								>
 									{product.name}
 								</h2>
-								<p
-									className="mt-5 pl-0.5 text-[0.7rem] uppercase tracking-[0.22em] text-[#6b6156]"
-									style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
-								>
-									Costo de prenda
-								</p>
-								<p
-									className="mt-1 text-[#1f1f1f]"
-									style={{
-										fontFamily: 'Montserrat, sans-serif',
-										fontSize: 'clamp(1.65rem, 5vw, 2.6rem)',
-										fontWeight: 700,
-										letterSpacing: '-0.02em',
-									}}
-								>
-									{formatPrecioListaAr(getPrimaryDiscountedPrice(product.price, product.transfer_price))}
-								</p>
-								<p
-									className="mt-1 pl-0.5 text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]"
-									style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
-								>
-									Efectivo o transferencia
-								</p>
-								<div
-									className="mt-4 space-y-3 rounded-xl border border-[#e4dfd6] bg-[#faf8f6] px-4 py-4"
-									style={{ fontFamily: 'Montserrat, sans-serif' }}
-								>
-									<div>
-										<p className="text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]" style={{ fontWeight: 600 }}>
-											Precio de lista
-										</p>
-										<p className="mt-1 text-sm font-medium text-[#1f1f1f]">{formatPrecioListaAr(product.final_transfer_price)}</p>
-									</div>
-									<div className="border-t border-[#e4dfd6] pt-3">
-										<p className="text-[0.68rem] uppercase tracking-[0.22em] text-[#6b6156]" style={{ fontWeight: 600 }}>
-											Tarjeta débito / crédito
-										</p>
-										<p className="mt-1 text-sm font-semibold text-[#1f1f1f]">{formatPrecioListaAr(product.final_transfer_price)}</p>
-										<p className="mt-1.5 text-xs leading-relaxed text-[#5c5349]" style={{ fontWeight: 500 }}>
-											Débito: un solo pago. Crédito: 3 cuotas sin interés.
-										</p>
-									</div>
-								</div>
+								{(() => {
+									const discountedPrice = getPrimaryDiscountedPrice(product.price, product.transfer_price);
+									const listPrice =
+										product.final_transfer_price > 0 ? product.final_transfer_price : discountedPrice;
+									const discountPercent = computeDiscountPercent(listPrice, discountedPrice);
+									const hasDiscount = discountPercent > 0;
+									const installments = 6;
+									const publicationStock = Math.max(
+										product.stock,
+										product.size_inventory.reduce((sum, row) => sum + Math.max(0, Math.floor(row.qty || 0)), 0),
+									);
+
+									return (
+										<>
+											{hasDiscount ? (
+												<div className="mt-5 flex items-center gap-2">
+													<span
+														className="text-[0.95rem] text-[#6b6156] line-through"
+														style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+													>
+														{formatPrecioListaAr(listPrice)}
+													</span>
+													<span
+														className="text-[1.05rem] text-[#d61f45]"
+														style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
+													>
+														{discountPercent}% OFF
+													</span>
+												</div>
+											) : null}
+											<p
+												className="mt-1 text-[#1f1f1f]"
+												style={{
+													fontFamily: 'Montserrat, sans-serif',
+													fontSize: 'clamp(1.65rem, 5vw, 2.6rem)',
+													fontWeight: 800,
+													letterSpacing: '-0.02em',
+												}}
+											>
+												{formatPrecioListaAr(discountedPrice)}
+											</p>
+											<p
+												className="mt-1 pl-0.5 text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]"
+												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+											>
+												Efectivo o transferencia
+											</p>
+											<p
+												className="mt-1 text-sm text-[#1f1f1f]"
+												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+											>
+												Precio de lista: {formatPrecioListaAr(listPrice)}
+											</p>
+											<p
+												className="mt-1 text-sm text-[#1f1f1f]"
+												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+											>
+												{installments} x {formatCuotaAr(listPrice, installments)} sin interés
+											</p>
+											<p
+												className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[#6b6156]"
+												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
+											>
+												{publicationStock > 0
+													? `Stock disponible: ${publicationStock}`
+													: 'No hay stock disponible.'}
+											</p>
+										</>
+									);
+								})()}
 								<div className="mt-5 rounded-xl border border-[#e4dfd6] bg-[#f5f2ed] p-4">
 									<p
 										className="text-sm leading-relaxed text-[#3d3830]"
@@ -723,7 +757,9 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 										className="mt-7 text-xs uppercase tracking-[0.18em] text-[#666]"
 										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
 									>
-										Stock disponible: {selectedVariantStock}
+										{selectedVariantStock > 0
+											? `Stock disponible: ${selectedVariantStock}`
+											: 'No hay stock disponible.'}
 									</p>
 								)}
 
