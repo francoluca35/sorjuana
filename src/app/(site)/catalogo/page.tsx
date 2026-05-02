@@ -1,7 +1,31 @@
+import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { CatalogoPage } from '@/app/pages/CatalogoPage';
 import { fetchRecentProducts } from '@/lib/data/recentProducts';
 import { PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
+import { getCanonicalUrl } from '@/lib/seo';
+
+const canonicalUrl = getCanonicalUrl('/catalogo');
+
+export const metadata: Metadata = {
+	title: 'Catálogo de moda femenina',
+	description:
+		'Explorá el catálogo de Sor Juana con prendas italianas y francesas. Novedades, precios y disponibilidad actualizada.',
+	alternates: {
+		canonical: '/catalogo',
+	},
+	openGraph: {
+		url: '/catalogo',
+		title: 'Catálogo de moda femenina | Sor Juana',
+		description:
+			'Explorá el catálogo de Sor Juana con prendas italianas y francesas. Novedades, precios y disponibilidad actualizada.',
+	},
+	twitter: {
+		title: 'Catálogo de moda femenina | Sor Juana',
+		description:
+			'Explorá el catálogo de Sor Juana con prendas italianas y francesas. Novedades, precios y disponibilidad actualizada.',
+	},
+};
 
 /** Supabase server client usa cookies; el catálogo no puede pre-renderizarse estático. */
 export const dynamic = 'force-dynamic';
@@ -41,10 +65,34 @@ export default async function Page() {
 			stock: p.stock,
 		};
 	});
+	const itemListJsonLd = {
+		'@context': 'https://schema.org',
+		'@type': 'ItemList',
+		name: 'Catálogo Sor Juana',
+		url: canonicalUrl,
+		itemListElement: products.slice(0, 20).map((product, index) => ({
+			'@type': 'ListItem',
+			position: index + 1,
+			url: canonicalUrl,
+			item: {
+				'@type': 'Product',
+				name: product.name,
+				sku: product.product_code || undefined,
+				image: product.image ? [product.image] : undefined,
+				description: product.description || undefined,
+			},
+		})),
+	};
 
 	return (
-		<Suspense fallback={<CatalogoFallback />}>
-			<CatalogoPage products={products} />
-		</Suspense>
+		<>
+			<script
+				type="application/ld+json"
+				dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+			/>
+			<Suspense fallback={<CatalogoFallback />}>
+				<CatalogoPage products={products} />
+			</Suspense>
+		</>
 	);
 }

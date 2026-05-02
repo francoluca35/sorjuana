@@ -43,13 +43,12 @@ import type { CatalogProduct } from '@/lib/data/productCatalog';
 import { displayCategoryLabel, PLACEHOLDER_IMG } from '@/lib/data/productCatalog';
 import type { ShopCategoryTree } from '@/lib/data/shopCategories';
 import { normalizeSizeInventoryForDb, sumSizeInventoryQty, type SizeInventoryRow } from '@/lib/data/productSizes';
+import { MAX_PRODUCT_GALLERY_IMAGES } from '@/lib/productMediaLimits';
 
 const sans = 'Montserrat, sans-serif';
 
-const MAX_PRODUCT_IMAGES = 3;
-
 function syncDraftImages(d: CatalogProduct, urls: string[]): CatalogProduct {
-  const gallery = urls.filter(Boolean).slice(0, MAX_PRODUCT_IMAGES);
+  const gallery = urls.filter(Boolean).slice(0, MAX_PRODUCT_GALLERY_IMAGES);
   return {
     ...d,
     gallery_image_urls: [...gallery],
@@ -584,7 +583,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
         stock: mergedStock,
         cost: primary.cost,
         size_inventory: mergedSizesNorm,
-        image_urls: galleryList(primary).slice(0, MAX_PRODUCT_IMAGES),
+        image_urls: galleryList(primary).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
         video_url: primary.video_url != null ? primary.video_url.trim() || null : null,
       });
       if (!saveRes.ok) {
@@ -623,14 +622,14 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
         stock: nextStockCombo,
         cost: draft.cost,
         size_inventory: sizesNormCombo,
-        image_urls: galleryList(draft).slice(0, MAX_PRODUCT_IMAGES),
+        image_urls: galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
         video_url: draft.video_url != null ? draft.video_url.trim() || null : null,
       });
       if (!resCombo.ok) {
         toast.error(resCombo.message);
         return;
       }
-      const gallery = galleryList(draft).slice(0, MAX_PRODUCT_IMAGES);
+      const gallery = galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES);
       const priced = computePricesFromGarmentCost(draft.base_price, cash, transfer);
       const next: CatalogProduct = {
         ...draft,
@@ -678,7 +677,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       stock: mergedStock,
       cost: draft.cost,
       size_inventory: mergedSizesNorm,
-      image_urls: galleryList(draft).slice(0, MAX_PRODUCT_IMAGES),
+      image_urls: galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
       video_url: draft.video_url != null ? draft.video_url.trim() || null : null,
     });
     if (!res.ok) {
@@ -687,7 +686,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     }
     const nextStock =
       mergedSizesNorm.length > 0 ? sumSizeInventoryQty(mergedSizesNorm) : Math.max(0, Math.floor(mergedStock));
-    const gallery = galleryList(draft).slice(0, MAX_PRODUCT_IMAGES);
+    const gallery = galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES);
     const priced = computePricesFromGarmentCost(draft.base_price, cash, transfer);
     const next: CatalogProduct = {
       ...draft,
@@ -808,7 +807,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       category: draft.category_db?.trim() || null,
       minOrderQty: draft.min_order_qty,
       maxOrderQty: draft.max_order_qty,
-      imageUrls: galleryList(draft).slice(0, 3),
+      imageUrls: galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
       videoUrl: draft.video_url,
       compareAtPrice: draft.promoPrice,
     });
@@ -834,9 +833,9 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       return;
     }
 
-    const room = MAX_PRODUCT_IMAGES - galleryList(current).length;
+    const room = MAX_PRODUCT_GALLERY_IMAGES - galleryList(current).length;
     if (room <= 0) {
-      toast.message(`Máximo ${MAX_PRODUCT_IMAGES} imágenes.`);
+      toast.message(`Máximo ${MAX_PRODUCT_GALLERY_IMAGES} imágenes.`);
       return;
     }
 
@@ -1202,7 +1201,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                   <div className="space-y-5">
                     <div>
                       <Label className="text-slate-800">Imágenes del producto</Label>
-                      <p className="mt-1 text-xs text-slate-500">Hasta {MAX_PRODUCT_IMAGES} fotos. La primera es la portada.</p>
+                      <p className="mt-1 text-xs text-slate-500">Hasta {MAX_PRODUCT_GALLERY_IMAGES} fotos. La primera es la portada.</p>
                       <input
                         ref={imageInputRef}
                         type="file"
@@ -1211,7 +1210,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                         className="hidden"
                         onChange={(ev) => void handleEditImagesChange(ev)}
                       />
-                      <div className="mt-3 grid grid-cols-3 gap-2">
+                      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
                         {galleryList(draft).map((url, idx) => (
                           <div
                             key={`${url}-${idx}`}
@@ -1234,7 +1233,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                           </div>
                         ))}
                       </div>
-                      {galleryList(draft).length < MAX_PRODUCT_IMAGES ? (
+                      {galleryList(draft).length < MAX_PRODUCT_GALLERY_IMAGES ? (
                         <Button
                           type="button"
                           variant="outline"

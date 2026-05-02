@@ -7,6 +7,7 @@ import { ShoppingCart, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { ProductDetailModal, productRowToDetailModalProduct } from './ProductDetailModal';
+import { SingleLineFitText } from '@/app/components/SingleLineFitText';
 import { cn } from './ui/utils';
 import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog';
 import {
@@ -419,45 +420,57 @@ export function NewArrivals({
 										return (
 											<div className="space-y-1.5 text-center">
 												{hasDiscount ? (
-													<div className="flex items-center justify-center gap-1.5">
+													<div className="flex min-w-0 flex-nowrap items-center justify-center gap-1.5">
+														<div className="min-w-0 max-w-[65%]">
+															<SingleLineFitText
+																minFontSizePx={8}
+																maxFontSizePx={10}
+																className="text-[10px] text-[#6b6156] line-through"
+																style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+															>
+																{formatPrecioListaAr(listPrice)}
+															</SingleLineFitText>
+														</div>
 														<span
-															className="text-[10px] text-[#6b6156] line-through"
-															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-														>
-															{formatPrecioListaAr(listPrice)}
-														</span>
-														<span
-															className="text-[12px] text-[#d61f45]"
+															className="shrink-0 text-[12px] text-[#d61f45]"
 															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
 														>
 															{discountPercent}% OFF
 														</span>
 													</div>
 												) : null}
-												<span
-													className="block text-[#1a1410]"
-													style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.25rem', fontWeight: 800 }}
+												<SingleLineFitText
+													minFontSizePx={10}
+													maxFontSizePx={20}
+													className="text-[#1a1410]"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 800 }}
 												>
 													{formatPrecioListaAr(discountedPrice)}
-												</span>
+												</SingleLineFitText>
 												<p
 													className="text-[10px] uppercase tracking-[0.14em] text-[#6b6156]"
 													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
 												>
 													Efectivo o transferencia
 												</p>
-												<p
-													className="text-[11px] leading-snug text-[#1a1410]"
+												<SingleLineFitText
+													wrapperClassName="mt-0.5"
+													minFontSizePx={7}
+													maxFontSizePx={11}
+													className="text-[11px] text-[#1a1410]"
 													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 												>
-													Precio de lista: {formatPrecioListaAr(listPrice)}
-												</p>
-												<p
-													className="text-[11px] leading-snug text-[#1a1410]"
+													{`Precio de lista: ${formatPrecioListaAr(listPrice)}`}
+												</SingleLineFitText>
+												<SingleLineFitText
+													wrapperClassName="mt-0.5"
+													minFontSizePx={7}
+													maxFontSizePx={11}
+													className="text-[11px] text-[#1a1410]"
 													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 												>
-													{installments} x {formatCuotaAr(listPrice, installments)} sin interés
-												</p>
+													{`${installments} x ${formatCuotaAr(listPrice, installments)} sin interés`}
+												</SingleLineFitText>
 												<p
 													className="text-[10px] uppercase tracking-[0.14em] text-[#6b6156]"
 													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}

@@ -21,7 +21,7 @@ const FALLBACK_IMAGE: Record<AdminCategorySlug, string> = {
 	abrigos:
 		'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?auto=format&fit=crop&w=400&q=80',
 	accesorios:
-		'https://images.unsplash.com/photo-1611923260878-ed453f0b0721?auto=format&fit=crop&w=400&q=80',
+		'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=400&q=80',
 };
 
 function pickImage(row: Record<string, unknown>): string | null {

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { ProductosCatalog } from '@/app/components/app/ProductosCatalog';
 import { cn } from '@/app/components/ui/utils';
 import { productRowToCatalogProduct } from '@/lib/data/productCatalog';
-import { fetchRecentProducts } from '@/lib/data/recentProducts';
+import { fetchAllProductsForPanel } from '@/lib/data/recentProducts';
 
 export const metadata: Metadata = {
   title: 'Lista de productos — Sor Juana',
@@ -14,7 +14,7 @@ const shellBleed = cn(
 );
 
 export default async function Page() {
-  const rows = await fetchRecentProducts(500);
+  const rows = await fetchAllProductsForPanel();
   const initialProducts = rows.map(productRowToCatalogProduct);
 
   return (

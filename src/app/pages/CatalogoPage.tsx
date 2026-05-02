@@ -10,6 +10,7 @@ import {
   buildProductForDetailModal,
   type ProductVariantForDetailModal,
 } from '@/app/components/ProductDetailModal';
+import { SingleLineFitText } from '@/app/components/SingleLineFitText';
 import { displayCategoryLabel, parseSubcategorySlugFromDb } from '@/lib/data/productCatalog';
 import {
   computeDiscountPercent,
@@ -519,30 +520,38 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
 							return (
 								<>
 									{hasDiscount ? (
-										<div className="mb-1 flex items-center justify-center gap-2">
+										<div className="mb-1 flex min-w-0 flex-nowrap items-center justify-center gap-2">
+											<div className="min-w-0 max-w-[65%]">
+												<SingleLineFitText
+													minFontSizePx={9}
+													maxFontSizePx={14}
+													className="text-sm text-[#6b6156] line-through"
+													style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+												>
+													{formatPrecioListaAr(listPrice)}
+												</SingleLineFitText>
+											</div>
 											<span
-												className="text-sm text-[#6b6156] line-through"
-												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-											>
-												{formatPrecioListaAr(listPrice)}
-											</span>
-											<span
-												className="text-base text-[#d61f45]"
+												className="shrink-0 text-base text-[#d61f45]"
 												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
 											>
 												{discountPercent}% OFF
 											</span>
 										</div>
 									) : null}
-									<div className="flex items-center justify-center">
-										<div className="h-px w-8 bg-[#b8956a]/30" />
-										<div
-											className="mx-4 text-[#1a1410]"
-											style={{ fontFamily: 'Montserrat, sans-serif', fontSize: '1.9rem', fontWeight: 800 }}
-										>
-											{formatPrecioListaAr(discountedPrice)}
+									<div className="flex min-w-0 w-full items-center justify-center gap-2">
+										<div className="h-px w-8 shrink-0 bg-[#b8956a]/30" />
+										<div className="min-w-0 flex-1">
+											<SingleLineFitText
+												minFontSizePx={11}
+												maxFontSizePx={30}
+												className="text-[#1a1410]"
+												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 800 }}
+											>
+												{formatPrecioListaAr(discountedPrice)}
+											</SingleLineFitText>
 										</div>
-										<div className="h-px w-8 bg-[#b8956a]/30" />
+										<div className="h-px w-8 shrink-0 bg-[#b8956a]/30" />
 									</div>
 									<p
 										className="mt-1 text-center text-[10px] uppercase tracking-[0.18em] text-[#6b6156]"
@@ -550,18 +559,24 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
 									>
 										Efectivo o transferencia
 									</p>
-									<p
-										className="mt-1 text-center text-sm text-[#1a1410]"
+									<SingleLineFitText
+										wrapperClassName="mt-1"
+										minFontSizePx={9}
+										maxFontSizePx={14}
+										className="text-sm text-[#1a1410]"
 										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 									>
-										Precio de lista: {formatPrecioListaAr(listPrice)}
-									</p>
-									<p
-										className="mt-1 text-center text-sm text-[#1a1410]"
+										{`Precio de lista: ${formatPrecioListaAr(listPrice)}`}
+									</SingleLineFitText>
+									<SingleLineFitText
+										wrapperClassName="mt-1"
+										minFontSizePx={9}
+										maxFontSizePx={14}
+										className="text-sm text-[#1a1410]"
 										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 									>
-										{installments} x {formatCuotaAr(listPrice, installments)} sin interés
-									</p>
+										{`${installments} x ${formatCuotaAr(listPrice, installments)} sin interés`}
+									</SingleLineFitText>
 									<p
 										className="mt-1 text-center text-[10px] uppercase tracking-[0.18em] text-[#6b6156]"
 										style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}

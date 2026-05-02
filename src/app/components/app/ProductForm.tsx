@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { fetchRecentProductsAction, insertProductAction } from '@/app/actions/products';
+import { fetchAllProductsForPanelAction, insertProductAction } from '@/app/actions/products';
 import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
 import { getPriceSettingsAction } from '@/app/actions/priceSettings';
 import type { ShopCategoryTree } from '@/lib/data/shopCategories';
@@ -21,6 +21,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Textarea } from '@/app/components/ui/textarea';
 import { cn } from '@/app/components/ui/utils';
+import { MAX_PRODUCT_GALLERY_IMAGES, MAX_PRODUCT_VIDEOS } from '@/lib/productMediaLimits';
 import { Trash2 } from 'lucide-react';
 
 const serif = "'Cormorant Garamond', serif";
@@ -50,8 +51,6 @@ const selectClass =
 	'flex h-10 w-full rounded-md border border-[#b8956a]/28 bg-white/55 px-3 text-sm text-[#1a1410] outline-none backdrop-blur-sm focus:border-[#8b6f47]/55 focus:ring-2 focus:ring-[#b8956a]/20';
 
 const innerCard = 'rounded-md border border-[#b8956a]/22 bg-white/40 p-4 backdrop-blur-sm sm:p-5';
-
-const MAX_IMAGES = 3;
 
 type ComboSourceProduct = {
 	id: string;
@@ -193,7 +192,7 @@ export default function ProductForm() {
 		(async () => {
 			setComboProductsLoading(true);
 			try {
-				const rows = await fetchRecentProductsAction(500);
+				const rows = await fetchAllProductsForPanelAction();
 				if (cancelled) return;
 				setComboProducts(
 					rows
@@ -296,11 +295,11 @@ export default function ProductForm() {
 		const list = e.target.files;
 		if (!list?.length) return;
 		const next = [...imageFiles];
-		for (let i = 0; i < list.length && next.length < MAX_IMAGES; i++) {
+		for (let i = 0; i < list.length && next.length < MAX_PRODUCT_GALLERY_IMAGES; i++) {
 			next.push(list[i]!);
 		}
-		if (list.length + imageFiles.length > MAX_IMAGES) {
-			toast.message(`Solo podés subir hasta ${MAX_IMAGES} fotos.`);
+		if (list.length + imageFiles.length > MAX_PRODUCT_GALLERY_IMAGES) {
+			toast.message(`Solo podés subir hasta ${MAX_PRODUCT_GALLERY_IMAGES} fotos.`);
 		}
 		setImageFiles(next);
 		setRemoteImageUrls([]);
@@ -510,7 +509,7 @@ export default function ProductForm() {
 						Carga de producto
 					</h1>
 					<p className="mt-2 max-w-xl text-sm font-light leading-relaxed text-[#6b6156]">
-						Alta de producto, combo u oferta: datos de precio, stock y hasta {MAX_IMAGES} fotos y un video.
+						Alta de producto, combo u oferta: datos de precio, stock y hasta {MAX_PRODUCT_GALLERY_IMAGES} fotos y un video.
 					</p>
 				</div>
 				<p
@@ -1063,13 +1062,13 @@ export default function ProductForm() {
 									className="w-full border-[#b8956a]/35 bg-white/40 text-[#2a2520] hover:bg-[#f5f2ed]"
 									style={{ fontFamily: sans, fontWeight: 400 }}
 									onClick={() => imagesInputRef.current?.click()}
-									disabled={imageFiles.length >= MAX_IMAGES}
+									disabled={imageFiles.length >= MAX_PRODUCT_GALLERY_IMAGES}
 								>
-									{imageFiles.length >= MAX_IMAGES
-										? `${MAX_IMAGES} fotos cargadas`
+									{imageFiles.length >= MAX_PRODUCT_GALLERY_IMAGES
+										? `${MAX_PRODUCT_GALLERY_IMAGES} fotos cargadas`
 										: imageFiles.length
-											? `Agregar foto (${imageFiles.length}/${MAX_IMAGES})`
-											: `Elegir fotos (máx. ${MAX_IMAGES})`}
+											? `Agregar foto (${imageFiles.length}/${MAX_PRODUCT_GALLERY_IMAGES})`
+											: `Elegir fotos (máx. ${MAX_PRODUCT_GALLERY_IMAGES})`}
 								</Button>
 								{imageFiles.length > 0 ? (
 									<ul className="space-y-2 text-left text-xs text-[#5c5349]">
@@ -1102,7 +1101,7 @@ export default function ProductForm() {
 									style={{ fontFamily: sans, fontWeight: 400 }}
 									onClick={() => videoRef.current?.click()}
 								>
-									{videoFile ? 'Cambiar video' : 'Elegir video (máx. 1)'}
+									{videoFile ? 'Cambiar video' : `Elegir video (máx. ${MAX_PRODUCT_VIDEOS})`}
 								</Button>
 								{videoPreviewUrl ? (
 									<video

@@ -1,10 +1,13 @@
+/** Espacio fino no rompible tras `$`, para que signo y monto no partan en dos líneas. */
+const NBSP = '\u00A0';
+
 /**
  * Precio para listados de tienda, estilo planilla AR: `$ 59.900` (miles con punto, sin decimales).
  */
 export function formatPrecioListaAr(n: number): string {
-	if (!Number.isFinite(n)) return '$ 0';
+	if (!Number.isFinite(n)) return `$${NBSP}0`;
 	const v = Math.round(Math.max(0, n));
-	return `$ ${v.toLocaleString('es-AR', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`;
+	return `$${NBSP}${v.toLocaleString('es-AR', { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`;
 }
 
 /**
@@ -30,9 +33,9 @@ export function computeDiscountPercent(listPrice: number, discountedPrice: numbe
  * Formatea cuota AR con 2 decimales, ej: `$ 11.166,67`.
  */
 export function formatCuotaAr(total: number, installments: number): string {
-	if (!Number.isFinite(total) || total <= 0 || installments <= 0) return '$ 0,00';
+	if (!Number.isFinite(total) || total <= 0 || installments <= 0) return `$${NBSP}0,00`;
 	const value = total / installments;
-	return `$ ${value.toLocaleString('es-AR', {
+	return `$${NBSP}${value.toLocaleString('es-AR', {
 		minimumFractionDigits: 2,
 		maximumFractionDigits: 2,
 	})}`;

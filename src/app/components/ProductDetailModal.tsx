@@ -14,6 +14,7 @@ import {
 	getPrimaryDiscountedPrice,
 } from '@/lib/formatPrice';
 import { whatsAppLinkWithMessage } from '@/app/config/contact';
+import { SingleLineFitText } from '@/app/components/SingleLineFitText';
 import type { ProductRow } from '@/lib/data/productCatalog';
 import { sumSizeInventoryQty, type SizeInventoryRow } from '@/lib/data/productSizes';
 
@@ -720,50 +721,67 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 									return (
 										<>
 											{hasDiscount ? (
-												<div className="mt-5 flex items-center gap-2">
+												<div className="mt-5 flex min-w-0 flex-nowrap items-center gap-2">
+													<div className="min-w-0 max-w-[65%]">
+														<SingleLineFitText
+															align="left"
+															minFontSizePx={10}
+															maxFontSizePx={15}
+															className="text-[0.95rem] text-[#6b6156] line-through"
+															style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+														>
+															{formatPrecioListaAr(listPrice)}
+														</SingleLineFitText>
+													</div>
 													<span
-														className="text-[0.95rem] text-[#6b6156] line-through"
-														style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
-													>
-														{formatPrecioListaAr(listPrice)}
-													</span>
-													<span
-														className="text-[1.05rem] text-[#d61f45]"
+														className="shrink-0 text-[1.05rem] text-[#d61f45]"
 														style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
 													>
 														{discountPercent}% OFF
 													</span>
 												</div>
 											) : null}
-											<p
-												className="mt-1 text-[#1f1f1f]"
-												style={{
-													fontFamily: 'Montserrat, sans-serif',
-													fontSize: 'clamp(1.65rem, 5vw, 2.6rem)',
-													fontWeight: 800,
-													letterSpacing: '-0.02em',
-												}}
-											>
-												{formatPrecioListaAr(discountedPrice)}
-											</p>
+											<div className="mt-1 min-w-0 w-full">
+												<SingleLineFitText
+													align="left"
+													minFontSizePx={14}
+													maxFontSizePx={42}
+													className="text-[#1f1f1f]"
+													style={{
+														fontFamily: 'Montserrat, sans-serif',
+														fontWeight: 800,
+														letterSpacing: '-0.02em',
+													}}
+												>
+													{formatPrecioListaAr(discountedPrice)}
+												</SingleLineFitText>
+											</div>
 											<p
 												className="mt-1 pl-0.5 text-[0.68rem] uppercase tracking-[0.18em] text-[#6b6156]"
 												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
 											>
 												Efectivo o transferencia
 											</p>
-											<p
-												className="mt-1 text-sm text-[#1f1f1f]"
+											<SingleLineFitText
+												wrapperClassName="mt-1 pl-0.5"
+												align="left"
+												minFontSizePx={10}
+												maxFontSizePx={14}
+												className="text-sm text-[#1f1f1f]"
 												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 											>
-												Precio de lista: {formatPrecioListaAr(listPrice)}
-											</p>
-											<p
-												className="mt-1 text-sm text-[#1f1f1f]"
+												{`Precio de lista: ${formatPrecioListaAr(listPrice)}`}
+											</SingleLineFitText>
+											<SingleLineFitText
+												wrapperClassName="mt-1 pl-0.5"
+												align="left"
+												minFontSizePx={10}
+												maxFontSizePx={14}
+												className="text-sm text-[#1f1f1f]"
 												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
 											>
-												{installments} x {formatCuotaAr(listPrice, installments)} sin interés
-											</p>
+												{`${installments} x ${formatCuotaAr(listPrice, installments)} sin interés`}
+											</SingleLineFitText>
 											<p
 												className="mt-1 text-[11px] uppercase tracking-[0.16em] text-[#6b6156]"
 												style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}

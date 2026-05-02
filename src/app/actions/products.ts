@@ -18,6 +18,7 @@ import {
 	ensureShopCategoryPathForImport,
 	revalidateShopCategoryPaths,
 } from '@/app/actions/shopCategories';
+import { MAX_PRODUCT_GALLERY_IMAGES } from '@/lib/productMediaLimits';
 
 function hasMissingPriceColumnsError(message: string): boolean {
 	return (
@@ -425,7 +426,7 @@ export async function insertProductAction(
 			return { ok: false, message: 'El nombre es obligatorio.' };
 		}
 
-		const imageUrls = input.imageUrls.filter(Boolean).slice(0, 3);
+		const imageUrls = input.imageUrls.filter(Boolean).slice(0, MAX_PRODUCT_GALLERY_IMAGES);
 		const garmentCost = Math.max(0, input.garmentCost);
 		const cashDisc = clampPercent(input.cashDiscountPercent);
 		const transferDisc = clampPercent(input.transferDiscountPercent);
@@ -516,7 +517,7 @@ export type UpdateProductPatch = {
 	stock: number;
 	cost: number;
 	size_inventory: SizeInventoryRow[];
-	/** Hasta 3 URLs; la primera es la imagen principal (`image_url`). */
+	/** Hasta 5 URLs de galería; la primera es la imagen principal (`image_url`). */
 	image_urls: string[];
 	video_url: string | null;
 };
@@ -537,7 +538,7 @@ export async function updateProductAction(
 	const sizesNorm = normalizeSizeInventoryForDb(patch.size_inventory ?? []);
 	const stock =
 		sizesNorm.length > 0 ? sumSizeInventoryQty(sizesNorm) : Math.max(0, Math.floor(patch.stock));
-	const imageUrls = (patch.image_urls ?? []).filter(Boolean).slice(0, 3);
+	const imageUrls = (patch.image_urls ?? []).filter(Boolean).slice(0, MAX_PRODUCT_GALLERY_IMAGES);
 
 	const garmentCost = Math.max(0, patch.garment_cost);
 	const cashDisc = clampPercent(patch.cash_discount_percent);
