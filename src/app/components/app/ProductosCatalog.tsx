@@ -585,6 +585,9 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
         size_inventory: mergedSizesNorm,
         image_urls: galleryList(primary).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
         video_url: primary.video_url != null ? primary.video_url.trim() || null : null,
+        cashPrice: primary.price,
+        transferPrice: primary.transfer_price,
+        cardPrice: primary.final_transfer_price,
       });
       if (!saveRes.ok) {
         toast.error(saveRes.message);
@@ -624,13 +627,15 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
         size_inventory: sizesNormCombo,
         image_urls: galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
         video_url: draft.video_url != null ? draft.video_url.trim() || null : null,
+        cashPrice: draft.price,
+        transferPrice: draft.transfer_price,
+        cardPrice: draft.final_transfer_price,
       });
       if (!resCombo.ok) {
         toast.error(resCombo.message);
         return;
       }
       const gallery = galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES);
-      const priced = computePricesFromGarmentCost(draft.base_price, cash, transfer);
       const next: CatalogProduct = {
         ...draft,
         gallery_image_urls: gallery,
@@ -638,9 +643,9 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
         size_inventory: sizesNormCombo.length > 0 ? sizesNormCombo : [],
         stock: nextStockCombo,
         category: displayCategoryLabel(draft.category_db?.trim() || null),
-        price: priced.cash,
-        transfer_price: priced.transfer,
-        final_transfer_price: priced.card,
+        price: draft.price,
+        transfer_price: draft.transfer_price,
+        final_transfer_price: draft.final_transfer_price,
         cash_discount_percent: cash,
         transfer_discount_percent: transfer,
         tax_applies: false,
@@ -679,6 +684,9 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       size_inventory: mergedSizesNorm,
       image_urls: galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
       video_url: draft.video_url != null ? draft.video_url.trim() || null : null,
+      cashPrice: draft.price,
+      transferPrice: draft.transfer_price,
+      cardPrice: draft.final_transfer_price,
     });
     if (!res.ok) {
       toast.error(res.message);
@@ -687,7 +695,6 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     const nextStock =
       mergedSizesNorm.length > 0 ? sumSizeInventoryQty(mergedSizesNorm) : Math.max(0, Math.floor(mergedStock));
     const gallery = galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES);
-    const priced = computePricesFromGarmentCost(draft.base_price, cash, transfer);
     const next: CatalogProduct = {
       ...draft,
       color: mergedColors || draft.color,
@@ -696,9 +703,9 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       size_inventory: mergedSizesNorm.length > 0 ? mergedSizesNorm : [],
       stock: nextStock,
       category: displayCategoryLabel(draft.category_db?.trim() || null),
-      price: priced.cash,
-      transfer_price: priced.transfer,
-      final_transfer_price: priced.card,
+      price: draft.price,
+      transfer_price: draft.transfer_price,
+      final_transfer_price: draft.final_transfer_price,
       cash_discount_percent: cash,
       transfer_discount_percent: transfer,
       tax_applies: false,
@@ -810,6 +817,9 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       imageUrls: galleryList(draft).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
       videoUrl: draft.video_url,
       compareAtPrice: draft.promoPrice,
+      cashPrice: draft.price,
+      transferPrice: draft.transfer_price,
+      cardPrice: draft.final_transfer_price,
     });
     if (!res.ok) {
       toast.error(res.message);
@@ -1315,31 +1325,69 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                       </p>
                     </div>
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Precios calculados</p>
-                      <div className="mt-3 space-y-2 text-sm">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-slate-600">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Precios de venta (editables para redondear)
+                      </p>
+                      <p className="mt-1 text-[11px] leading-snug text-slate-500">
+                        Sugeridos al cambiar el costo de prenda; podés ajustar cada monto antes de guardar.
+                      </p>
+                      <div className="mt-3 space-y-3 text-sm">
+                        <div>
+                          <Label htmlFor="d-price-cash" className="text-slate-600">
                             Efectivo ({effectiveDiscountPercents(draft).cash}%)
-                          </span>
-                          <span className="font-semibold tabular-nums text-slate-900">
-                            {formatMoney(draft.price)}
-                          </span>
+                          </Label>
+                          <Input
+                            id="d-price-cash"
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={draft.price}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                price: Math.max(0, Math.round(Number(e.target.value) || 0)),
+                              })
+                            }
+                            className="mt-1.5 tabular-nums"
+                          />
                         </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-slate-600">
+                        <div>
+                          <Label htmlFor="d-price-transfer" className="text-slate-600">
                             Transferencia ({effectiveDiscountPercents(draft).transfer}%)
-                          </span>
-                          <span className="font-semibold tabular-nums text-slate-900">
-                            {formatMoney(draft.transfer_price)}
-                          </span>
+                          </Label>
+                          <Input
+                            id="d-price-transfer"
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={draft.transfer_price}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                transfer_price: Math.max(0, Math.round(Number(e.target.value) || 0)),
+                              })
+                            }
+                            className="mt-1.5 tabular-nums"
+                          />
                         </div>
-                        <div className="border-t border-slate-200 pt-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-slate-600">Tarjeta (crédito/débito)</span>
-                            <span className="font-semibold tabular-nums text-slate-900">
-                              {formatMoney(draft.final_transfer_price)}
-                            </span>
-                          </div>
+                        <div className="border-t border-slate-200 pt-3">
+                          <Label htmlFor="d-price-card" className="text-slate-600">
+                            Tarjeta (crédito/débito)
+                          </Label>
+                          <Input
+                            id="d-price-card"
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={draft.final_transfer_price}
+                            onChange={(e) =>
+                              setDraft({
+                                ...draft,
+                                final_transfer_price: Math.max(0, Math.round(Number(e.target.value) || 0)),
+                              })
+                            }
+                            className="mt-1.5 tabular-nums"
+                          />
                           <p className="mt-1 text-[11px] leading-snug text-slate-500">
                             Débito: un solo pago. Crédito: 3 cuotas sin interés.
                           </p>

@@ -7,15 +7,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getSiteHomeConfigAction, saveHeroSlidesAction } from '@/app/actions/siteHomeConfig';
 import { fetchAllProductsForPanelAction } from '@/app/actions/products';
+import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/tabs';
 import {
 	broadcastHeroSlidesUpdated,
 	DEFAULT_HERO_SLIDES,
 	type HeroHotspot,
 	type HeroSlide,
 	readHeroSlidesFromStorage,
+	writeHeroSlidesToStorage,
 } from '@/lib/heroSlidesConfig';
 import { productRowToCatalogProduct, type ProductRow } from '@/lib/data/productCatalog';
 import { formatPrecioListaAr } from '@/lib/formatPrice';
@@ -39,50 +42,9 @@ function emptyHotspot(slideId: number): HeroHotspot {
 	};
 }
 
-const HERO_IMG_MAX_BYTES = 2_400_000;
+/** Mismo límite que `uploadSorjuanaMedia` — las URLs ocupan poco en JSON (no data URLs enormes). */
+const HERO_UPLOAD_MAX_BYTES = 12 * 1024 * 1024;
 const HERO_IMG_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
-
-/** Reduce tamaño para persistencia; devuelve data URL JPEG. */
-function fileToHeroDataUrl(file: File, maxSide: number, jpegQuality: number): Promise<string> {
-	return new Promise((resolve, reject) => {
-		const objUrl = URL.createObjectURL(file);
-		const img = new window.Image();
-		img.onload = () => {
-			URL.revokeObjectURL(objUrl);
-			let w = img.naturalWidth;
-			let h = img.naturalHeight;
-			if (!w || !h) {
-				reject(new Error('dimensiones'));
-				return;
-			}
-			if (w > maxSide || h > maxSide) {
-				if (w >= h) {
-					h = Math.round((h * maxSide) / w);
-					w = maxSide;
-				} else {
-					w = Math.round((w * maxSide) / h);
-					h = maxSide;
-				}
-			}
-			const canvas = document.createElement('canvas');
-			canvas.width = w;
-			canvas.height = h;
-			const ctx = canvas.getContext('2d');
-			if (!ctx) {
-				reject(new Error('canvas'));
-				return;
-			}
-			ctx.drawImage(img, 0, 0, w, h);
-			const dataUrl = canvas.toDataURL('image/jpeg', jpegQuality);
-			resolve(dataUrl);
-		};
-		img.onerror = () => {
-			URL.revokeObjectURL(objUrl);
-			reject(new Error('lectura'));
-		};
-		img.src = objUrl;
-	});
-}
 
 type PreviewMode = 'desktop' | 'mobile';
 
@@ -108,6 +70,9 @@ export function MapaPaginaHeroEditor() {
 	const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_HERO_SLIDES);
 	const [slideIndex, setSlideIndex] = useState(0);
 	const [previewMode, setPreviewMode] = useState<PreviewMode>('desktop');
+	const [dataEditTab, setDataEditTab] = useState<'desktop' | 'mobile'>('desktop');
+	/** Qué coordenadas se escriben al hacer clic en la vista previa (PC vs móvil). */
+	const [placementTarget, setPlacementTarget] = useState<'desktop' | 'mobile' | null>(null);
 	const [placementHotspotId, setPlacementHotspotId] = useState<string | null>(null);
 	const fileMainRef = useRef<HTMLInputElement>(null);
 	const fileMobileRef = useRef<HTMLInputElement>(null);
@@ -115,6 +80,9 @@ export function MapaPaginaHeroEditor() {
 	const [catalogLoading, setCatalogLoading] = useState(false);
 	const [catalogErr, setCatalogErr] = useState<string | null>(null);
 	const [catalogSearchByHotspot, setCatalogSearchByHotspot] = useState<Record<string, string>>({});
+
+	/** Misma proporción ancho/alto que la ventana — el hero real ocupa todo el viewport en escritorio. */
+	const [viewportAspect, setViewportAspect] = useState(16 / 9);
 
 	const loadCatalog = useCallback(async () => {
 		setCatalogLoading(true);
@@ -133,6 +101,15 @@ export function MapaPaginaHeroEditor() {
 	useEffect(() => {
 		void loadCatalog();
 	}, [loadCatalog]);
+
+	useEffect(() => {
+		const sync = () => {
+			setViewportAspect(window.innerWidth / Math.max(1, window.innerHeight));
+		};
+		sync();
+		window.addEventListener('resize', sync);
+		return () => window.removeEventListener('resize', sync);
+	}, []);
 
 	useEffect(() => {
 		void getSiteHomeConfigAction().then((cfg) => {
@@ -196,8 +173,12 @@ export function MapaPaginaHeroEditor() {
 	);
 
 	useEffect(() => {
-		if (!slide?.imageMobile) setPreviewMode('desktop');
-	}, [slide?.imageMobile]);
+		if (!slide?.imageMobile && previewMode === 'mobile') setPreviewMode('desktop');
+	}, [slide?.imageMobile, previewMode]);
+
+	useEffect(() => {
+		if (!placementHotspotId) setPlacementTarget(null);
+	}, [placementHotspotId]);
 
 	const clearMobileImage = useCallback(() => {
 		setSlides((prev) =>
@@ -211,7 +192,9 @@ export function MapaPaginaHeroEditor() {
 			}),
 		);
 		setPreviewMode('desktop');
+		setDataEditTab('desktop');
 		setPlacementHotspotId(null);
+		setPlacementTarget(null);
 	}, [slideIndex]);
 
 	const addHotspot = useCallback(() => {
@@ -221,9 +204,14 @@ export function MapaPaginaHeroEditor() {
 			prev.map((s, i) => (i === slideIndex ? { ...s, hotspots: [...s.hotspots, h] } : s)),
 		);
 		setPlacementHotspotId(h.id);
-		const vista = activePreview === 'mobile' ? 'Vista celular' : 'Vista PC';
+		const target: 'desktop' | 'mobile' =
+			dataEditTab === 'mobile' && slide.imageMobile ? 'mobile' : 'desktop';
+		setPlacementTarget(target);
+		if (target === 'mobile') setPreviewMode('mobile');
+		else setPreviewMode('desktop');
+		const vista = target === 'mobile' ? 'Vista celular' : 'Vista PC';
 		toast.message(`Tocá la vista previa (${vista}) para colocar el +`);
-	}, [slide, slideIndex, activePreview]);
+	}, [slide, slideIndex, dataEditTab]);
 
 	const removeHotspot = useCallback(
 		(id: string) => {
@@ -233,6 +221,7 @@ export function MapaPaginaHeroEditor() {
 				),
 			);
 			setPlacementHotspotId((cur) => (cur === id ? null : cur));
+			setPlacementTarget(null);
 		},
 		[slideIndex],
 	);
@@ -246,25 +235,33 @@ export function MapaPaginaHeroEditor() {
 			const y = ((e.clientY - rect.top) / rect.height) * 100;
 			const left = `${Math.min(99, Math.max(1, x)).toFixed(1)}%`;
 			const top = `${Math.min(99, Math.max(1, y)).toFixed(1)}%`;
-			if (activePreview === 'mobile' && slide.imageMobile) {
+			const target = placementTarget ?? 'desktop';
+			if (target === 'mobile' && slide.imageMobile) {
 				updateHotspot(placementHotspotId, { topMobile: top, leftMobile: left });
+				toast.success('Posición móvil guardada en este borrador');
 			} else {
 				updateHotspot(placementHotspotId, { left, top });
+				toast.success('Posición escritorio guardada en este borrador');
 			}
 			setPlacementHotspotId(null);
-			toast.success(
-				activePreview === 'mobile'
-					? 'Posición móvil guardada en este borrador'
-					: 'Posición escritorio guardada en este borrador',
-			);
+			setPlacementTarget(null);
 		},
-		[placementHotspotId, slide, updateHotspot, activePreview],
+		[placementHotspotId, placementTarget, slide, updateHotspot],
 	);
 
 	const previewSrc = useMemo(() => {
 		if (!slide) return '';
 		if (activePreview === 'mobile' && slide.imageMobile) return slide.imageMobile;
 		return slide.image || slide.imageMobile || '';
+	}, [slide, activePreview]);
+
+	/** Alineado con `HeroCarousel`: escritorio usa objectPositionDesktop; móvil usa objectPositionMobile. */
+	const previewObjectPosition = useMemo(() => {
+		if (!slide) return 'center center';
+		if (activePreview === 'mobile') {
+			return slide.objectPositionMobile ?? 'center 22%';
+		}
+		return slide.objectPositionDesktop ?? 'center center';
 	}, [slide, activePreview]);
 
 	const onPickHeroImage = useCallback(
@@ -274,29 +271,30 @@ export function MapaPaginaHeroEditor() {
 				toast.error('Elegí un archivo de imagen');
 				return;
 			}
-			if (file.size > HERO_IMG_MAX_BYTES) {
-				toast.error('La imagen es demasiado grande (máx. ~2,3 MB). Probá otra más liviana.');
+			if (file.size > HERO_UPLOAD_MAX_BYTES) {
+				toast.error('La imagen supera 12 MB (límite del almacenamiento).');
 				return;
 			}
 			try {
-				const maxSide = field === 'image' ? 2400 : 1600;
-				const q = field === 'image' ? 0.86 : 0.82;
-				const dataUrl = await fileToHeroDataUrl(file, maxSide, q);
-				if (dataUrl.length > 3_000_000) {
-					toast.error('Tras comprimir sigue siendo muy grande. Usá una foto más chica.');
+				const fd = new FormData();
+				fd.append('file', file);
+				fd.append('kind', 'image');
+				const res = await uploadSorjuanaMedia(fd);
+				if (!res.ok) {
+					toast.error(res.message);
 					return;
 				}
 				if (field === 'image') {
-					updateSlide({ image: dataUrl });
-					toast.success('Imagen principal cargada');
+					updateSlide({ image: res.publicUrl });
+					toast.success('Imagen escritorio subida; queda guardada al pulsar Guardar en el sitio.');
 				} else {
-					updateSlide({ imageMobile: dataUrl });
+					updateSlide({ imageMobile: res.publicUrl });
 					toast.success(
-						'Imagen móvil cargada. Usá «Vista celular» para colocar los + en el teléfono.',
+						'Imagen móvil subida. Usá Vista celular para colocar los +; Guardar para publicar.',
 					);
 				}
 			} catch {
-				toast.error('No se pudo leer la imagen');
+				toast.error('No se pudo subir la imagen');
 			}
 		},
 		[updateSlide],
@@ -308,6 +306,7 @@ export function MapaPaginaHeroEditor() {
 				toast.error(res.message ?? 'No se pudo guardar el carrusel. Si las imágenes son muy pesadas, probá otras más livianas.');
 				return;
 			}
+			writeHeroSlidesToStorage(slides);
 			broadcastHeroSlidesUpdated();
 			toast.success('Carrusel guardado en el sitio (visible para todos los visitantes).');
 		});
@@ -316,13 +315,16 @@ export function MapaPaginaHeroEditor() {
 	const resetDefaults = useCallback(() => {
 		setSlideIndex(0);
 		setPreviewMode('desktop');
+		setDataEditTab('desktop');
 		setPlacementHotspotId(null);
+		setPlacementTarget(null);
 		setSlides(DEFAULT_HERO_SLIDES);
 		void saveHeroSlidesAction(DEFAULT_HERO_SLIDES).then((res) => {
 			if (!res.ok) {
 				toast.error(res.message ?? 'No se pudo guardar el predeterminado.');
 				return;
 			}
+			writeHeroSlidesToStorage(DEFAULT_HERO_SLIDES);
 			broadcastHeroSlidesUpdated();
 			toast.message('Restaurado al contenido por defecto y guardado en el sitio');
 		});
@@ -346,9 +348,9 @@ export function MapaPaginaHeroEditor() {
 					Hero del inicio
 				</h2>
 				<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-					La vista previa arranca en formato escritorio. Si cargás una imagen móvil, podés alternar Vista PC y
-					Vista celular para colocar los + en cada formato. El botón «Ver catálogo» en el sitio no cambia; el
-					enlace depende del filtro.
+					Editá cada slide abajo: primero título y filtro del catálogo; después alterná Escritorio / Móvil para las
+					imágenes y encuadres. Los puntos + tienen botón aparte para PC y para celular (solo si hay foto móvil).
+					Guardá para publicar.
 				</p>
 
 				<div className="mt-4 flex flex-wrap gap-2">
@@ -359,7 +361,9 @@ export function MapaPaginaHeroEditor() {
 							onClick={() => {
 								setSlideIndex(i);
 								setPlacementHotspotId(null);
+								setPlacementTarget(null);
 								setPreviewMode('desktop');
+								setDataEditTab('desktop');
 							}}
 							className={cn(
 								'rounded-full border px-3 py-1.5 text-xs tracking-wide transition',
@@ -380,110 +384,201 @@ export function MapaPaginaHeroEditor() {
 					<h3 className="text-sm font-medium uppercase tracking-[0.2em] text-[#8a7a68]" style={{ fontFamily: sans }}>
 						Datos del slide
 					</h3>
-					<div className="space-y-2">
-						<Label htmlFor="hero-title" style={{ fontFamily: sans }}>
-							Título
-						</Label>
-						<Input
-							id="hero-title"
-							value={slide.title}
-							onChange={(e) => updateSlide({ title: e.target.value })}
-							className="bg-white/90"
-							style={{ fontFamily: sans }}
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label style={{ fontFamily: sans }}>Imagen principal (escritorio y base)</Label>
-						<input
-							ref={fileMainRef}
-							type="file"
-							accept={HERO_IMG_ACCEPT}
-							className="sr-only"
-							onChange={(e) => {
-								const f = e.target.files?.[0] ?? null;
-								void onPickHeroImage(f, 'image');
-								e.target.value = '';
-							}}
-						/>
-						<div className="flex flex-wrap items-center gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								className="border-[#b8956a]/40"
-								onClick={() => fileMainRef.current?.click()}
+
+					<div className="space-y-4 rounded-lg border border-[#b8956a]/18 bg-[#faf8f5]/90 p-4">
+						<p className="text-xs leading-relaxed text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
+							Vale para todas las vistas: título del hero y destino del botón «Ver catálogo».
+						</p>
+						<div className="space-y-2">
+							<Label htmlFor="hero-title" style={{ fontFamily: sans }}>
+								Título
+							</Label>
+							<Input
+								id="hero-title"
+								value={slide.title}
+								onChange={(e) => updateSlide({ title: e.target.value })}
+								className="bg-white/90"
+								style={{ fontFamily: sans }}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="hero-filter" style={{ fontFamily: sans }}>
+								Filtro del catálogo («Ver catálogo»)
+							</Label>
+							<select
+								id="hero-filter"
+								value={slide.filter}
+								onChange={(e) =>
+									updateSlide({ filter: e.target.value as HeroSlide['filter'] })
+								}
+								className="flex h-10 w-full rounded-md border border-input bg-white/90 px-3 py-2 text-sm"
+								style={{ fontFamily: sans }}
 							>
-								<Upload className="mr-2 h-4 w-4" />
-								Cargar imagen
-							</Button>
-							{slide.image ? (
-								<span className="text-xs text-[#6b6156]" style={{ fontFamily: sans }}>
-									{slide.image.startsWith('data:') ? 'Archivo en el borrador' : 'Predeterminada / enlace'}
-								</span>
-							) : null}
+								<option value="all">Todo el catálogo</option>
+								<option value="italiana">Italiana</option>
+								<option value="francesa">Francesa</option>
+							</select>
 						</div>
 					</div>
+
 					<div className="space-y-2">
-						<Label style={{ fontFamily: sans }}>Imagen móvil (opcional)</Label>
-						<p className="text-xs text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-							Sin imagen móvil, en el teléfono se usa la principal y un solo juego de posiciones +. Si cargás
-							una móvil, habilitamos vista previa tipo celular para ajustar los + aparte.
+						<p className="text-xs font-medium uppercase tracking-[0.14em] text-[#8a7a68]" style={{ fontFamily: sans }}>
+							Imagen y encuadre por dispositivo
 						</p>
-						<input
-							ref={fileMobileRef}
-							type="file"
-							accept={HERO_IMG_ACCEPT}
-							className="sr-only"
-							onChange={(e) => {
-								const f = e.target.files?.[0] ?? null;
-								void onPickHeroImage(f, 'imageMobile');
-								e.target.value = '';
+						<Tabs
+							value={dataEditTab}
+							onValueChange={(v) => {
+								const next = v === 'mobile' ? 'mobile' : 'desktop';
+								setDataEditTab(next);
+								setPlacementHotspotId(null);
+								setPlacementTarget(null);
+								if (next === 'mobile' && slide.imageMobile) setPreviewMode('mobile');
+								else setPreviewMode('desktop');
 							}}
-						/>
-						<div className="flex flex-wrap items-center gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								className="border-[#b8956a]/40"
-								onClick={() => fileMobileRef.current?.click()}
-							>
-								<Upload className="mr-2 h-4 w-4" />
-								Cargar imagen
-							</Button>
-							{slide.imageMobile ? (
-								<>
-									<span className="text-xs text-[#6b6156]" style={{ fontFamily: sans }}>
-										Móvil cargada
-									</span>
+							className="w-full"
+						>
+							<TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg border border-[#b8956a]/28 bg-[#f5f2ed]/90 p-1">
+								<TabsTrigger
+									value="desktop"
+									className="rounded-md px-3 py-2 text-xs data-[state=active]:bg-[#1a1410] data-[state=active]:text-[#f5f2ed]"
+									style={{ fontFamily: sans, fontWeight: 600 }}
+								>
+									Escritorio
+								</TabsTrigger>
+								<TabsTrigger
+									value="mobile"
+									className="rounded-md px-3 py-2 text-xs data-[state=active]:bg-[#1a1410] data-[state=active]:text-[#f5f2ed]"
+									style={{ fontFamily: sans, fontWeight: 600 }}
+								>
+									Móvil
+								</TabsTrigger>
+							</TabsList>
+							<TabsContent value="desktop" className="mt-4 space-y-4 outline-none">
+								<p className="text-xs leading-relaxed text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
+									Imagen horizontal para PC y tablets grandes. Es la única obligatoria.
+								</p>
+								<input
+									ref={fileMainRef}
+									type="file"
+									accept={HERO_IMG_ACCEPT}
+									className="sr-only"
+									onChange={(e) => {
+										const f = e.target.files?.[0] ?? null;
+										void onPickHeroImage(f, 'image');
+										e.target.value = '';
+									}}
+								/>
+								<div className="flex flex-wrap items-center gap-2">
 									<Button
 										type="button"
-										variant="ghost"
-										size="sm"
-										className="h-8 text-xs text-[#6b6156]"
-										onClick={clearMobileImage}
+										variant="outline"
+										className="border-[#b8956a]/40"
+										onClick={() => fileMainRef.current?.click()}
 									>
-										Quitar móvil
+										<Upload className="mr-2 h-4 w-4" />
+										Cargar imagen escritorio
 									</Button>
-								</>
-							) : null}
-						</div>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="hero-filter" style={{ fontFamily: sans }}>
-							Filtro del catálogo (enlace «Ver catálogo»)
-						</Label>
-						<select
-							id="hero-filter"
-							value={slide.filter}
-							onChange={(e) =>
-								updateSlide({ filter: e.target.value as HeroSlide['filter'] })
-							}
-							className="flex h-10 w-full rounded-md border border-input bg-white/90 px-3 py-2 text-sm"
-							style={{ fontFamily: sans }}
-						>
-							<option value="all">Todo el catálogo</option>
-							<option value="italiana">Italiana</option>
-							<option value="francesa">Francesa</option>
-						</select>
+									{slide.image ? (
+										<span className="text-xs text-[#6b6156]" style={{ fontFamily: sans }}>
+											{slide.image.startsWith('data:')
+												? 'Imagen antigua (data URL) — subí de nuevo para que guarde en el almacenamiento'
+												: 'Subida o enlace; pulsar Guardar publica en el sitio'}
+										</span>
+									) : null}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="hero-obj-desktop" style={{ fontFamily: sans }}>
+										Encuadre escritorio (object-position)
+									</Label>
+									<Input
+										id="hero-obj-desktop"
+										value={slide.objectPositionDesktop ?? ''}
+										placeholder="center center"
+										onChange={(e) =>
+											updateSlide({
+												objectPositionDesktop: e.target.value.trim() || undefined,
+											})
+										}
+										className="bg-white/90 text-sm"
+										style={{ fontFamily: sans }}
+									/>
+									<p className="text-[0.65rem] leading-snug text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
+										Ej.: <code className="rounded bg-black/[0.06] px-1">center 30%</code>,{' '}
+										<code className="rounded bg-black/[0.06] px-1">center top</code>. Vacío = centro.
+									</p>
+								</div>
+							</TabsContent>
+							<TabsContent value="mobile" className="mt-4 space-y-4 outline-none">
+								<p className="text-xs leading-relaxed text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
+									Opcional: foto más vertical solo para teléfono. Si no cargás nada, el sitio usa la imagen de
+									escritorio y los mismos + que en PC.
+								</p>
+								<input
+									ref={fileMobileRef}
+									type="file"
+									accept={HERO_IMG_ACCEPT}
+									className="sr-only"
+									onChange={(e) => {
+										const f = e.target.files?.[0] ?? null;
+										void onPickHeroImage(f, 'imageMobile');
+										e.target.value = '';
+									}}
+								/>
+								<div className="flex flex-wrap items-center gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										className="border-[#b8956a]/40"
+										onClick={() => fileMobileRef.current?.click()}
+									>
+										<Upload className="mr-2 h-4 w-4" />
+										Cargar imagen móvil
+									</Button>
+									{slide.imageMobile ? (
+										<>
+											<span className="text-xs text-[#6b6156]" style={{ fontFamily: sans }}>
+												Lista
+											</span>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												className="h-8 text-xs text-[#6b6156]"
+												onClick={clearMobileImage}
+											>
+												Quitar móvil
+											</Button>
+										</>
+									) : null}
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="hero-obj-mobile" style={{ fontFamily: sans }}>
+										Encuadre móvil (object-position)
+									</Label>
+									<Input
+										id="hero-obj-mobile"
+										value={slide.objectPositionMobile ?? ''}
+										placeholder="center 22%"
+										onChange={(e) =>
+											updateSlide({
+												objectPositionMobile: e.target.value.trim() || undefined,
+											})
+										}
+										className="bg-white/90 text-sm"
+										style={{ fontFamily: sans }}
+									/>
+								</div>
+								{!slide.imageMobile ? (
+									<div
+										className="rounded-md border border-amber-200/90 bg-amber-50/95 px-3 py-2 text-xs text-[#5c4a38]"
+										style={{ fontFamily: sans, fontWeight: 400 }}
+									>
+										Sin foto móvil, los puntos + del celular comparten posición con escritorio. Cargá una imagen
+										móvil para poder colocarlos aparte.
+									</div>
+								) : null}
+							</TabsContent>
+						</Tabs>
 					</div>
 
 					<div className="border-t border-[#b8956a]/20 pt-4">
@@ -495,9 +590,10 @@ export function MapaPaginaHeroEditor() {
 								Añadir prenda
 							</Button>
 						</div>
-						<p className="mb-3 text-xs text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-							Pulsá «Colocar en vista previa» y tocá la imagen. En Vista PC editás escritorio; con imagen
-							móvil cargada, en Vista celular editás las posiciones que verá el visitante en el teléfono.
+						<p className="mb-3 text-xs leading-relaxed text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
+							Elegí <strong className="font-semibold text-[#5c5349]">Colocar · Escritorio</strong> o{' '}
+							<strong className="font-semibold text-[#5c5349]">Colocar · Móvil</strong>, después tocá la vista
+							previa (derecha). Móvil solo si cargaste foto móvil arriba.
 						</p>
 						<ul className="space-y-4">
 							{slide.hotspots.map((h) => {
@@ -517,16 +613,63 @@ export function MapaPaginaHeroEditor() {
 										<Button
 											type="button"
 											size="sm"
-											variant={placementHotspotId === h.id ? 'default' : 'secondary'}
-											className={cn(
-												placementHotspotId === h.id && 'bg-[#b8956a] text-[#1a1410] hover:bg-[#c9a578]',
-											)}
-											onClick={() =>
-												setPlacementHotspotId((cur) => (cur === h.id ? null : h.id))
+											variant={
+												placementHotspotId === h.id && placementTarget === 'desktop'
+													? 'default'
+													: 'secondary'
 											}
+											className={cn(
+												placementHotspotId === h.id &&
+													placementTarget === 'desktop' &&
+													'bg-[#b8956a] text-[#1a1410] hover:bg-[#c9a578]',
+											)}
+											onClick={() => {
+												if (placementHotspotId === h.id && placementTarget === 'desktop') {
+													setPlacementHotspotId(null);
+													setPlacementTarget(null);
+													return;
+												}
+												setPlacementHotspotId(h.id);
+												setPlacementTarget('desktop');
+												setPreviewMode('desktop');
+											}}
 										>
 											<Crosshair className="mr-1 h-3.5 w-3.5" />
-											Colocar en vista previa
+											Colocar · Escritorio
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant={
+												placementHotspotId === h.id && placementTarget === 'mobile'
+													? 'default'
+													: 'secondary'
+											}
+											disabled={!slide.imageMobile}
+											title={
+												slide.imageMobile
+													? 'Colocar en la vista celular'
+													: 'Cargá una imagen móvil en la pestaña Móvil'
+											}
+											className={cn(
+												placementHotspotId === h.id &&
+													placementTarget === 'mobile' &&
+													'bg-[#b8956a] text-[#1a1410] hover:bg-[#c9a578]',
+											)}
+											onClick={() => {
+												if (!slide.imageMobile) return;
+												if (placementHotspotId === h.id && placementTarget === 'mobile') {
+													setPlacementHotspotId(null);
+													setPlacementTarget(null);
+													return;
+												}
+												setPlacementHotspotId(h.id);
+												setPlacementTarget('mobile');
+												setPreviewMode('mobile');
+											}}
+										>
+											<Crosshair className="mr-1 h-3.5 w-3.5" />
+											Colocar · Móvil
 										</Button>
 										<Button
 											type="button"
@@ -722,6 +865,7 @@ export function MapaPaginaHeroEditor() {
 										onClick={() => {
 											setPreviewMode('desktop');
 											setPlacementHotspotId(null);
+											setPlacementTarget(null);
 										}}
 										className={cn(
 											'rounded-md px-3 py-1.5 text-xs transition',
@@ -740,6 +884,7 @@ export function MapaPaginaHeroEditor() {
 										onClick={() => {
 											setPreviewMode('mobile');
 											setPlacementHotspotId(null);
+											setPlacementTarget(null);
 										}}
 										className={cn(
 											'rounded-md px-3 py-1.5 text-xs transition',
@@ -759,7 +904,8 @@ export function MapaPaginaHeroEditor() {
 							)}
 							{placementHotspotId ? (
 								<span className="text-xs text-[#b8956a]" style={{ fontFamily: sans }}>
-									Tocá la imagen…
+									Tocá la imagen para{' '}
+									{placementTarget === 'mobile' ? 'posición móvil' : 'posición escritorio'}…
 								</span>
 							) : null}
 						</div>
@@ -774,12 +920,16 @@ export function MapaPaginaHeroEditor() {
 							onClick={placementHotspotId ? onPreviewClick : undefined}
 							className={cn(
 								'relative w-full overflow-hidden rounded-xl border border-[#b8956a]/30 bg-[#1a1410] shadow-md',
-								activePreview === 'desktop' &&
-									'aspect-video max-w-4xl lg:max-w-none',
+								activePreview === 'desktop' && 'max-h-[min(85vh,920px)]',
 								activePreview === 'mobile' &&
 									'aspect-[9/16] max-w-[min(100%,280px)] rounded-[1.35rem] border-[6px] border-[#2a241c] shadow-xl',
 								placementHotspotId && 'cursor-crosshair ring-2 ring-[#b8956a]/60',
 							)}
+							style={
+								activePreview === 'desktop'
+									? { aspectRatio: viewportAspect }
+									: undefined
+							}
 						>
 							{previewSrc ? (
 								<Image
@@ -788,6 +938,7 @@ export function MapaPaginaHeroEditor() {
 									fill
 									unoptimized
 									className="object-cover"
+									style={{ objectPosition: previewObjectPosition }}
 									sizes="(max-width: 1024px) 100vw, 50vw"
 								/>
 							) : (

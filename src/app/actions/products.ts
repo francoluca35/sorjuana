@@ -76,6 +76,29 @@ function computePricesFromGarmentCost(garmentCost: number, cashPct: number, tran
 	return { cash, transfer, card };
 }
 
+/** Si llegan overrides (p. ej. redondeo manual en el panel), reemplazan el cálculo por %. */
+function resolveSalePrices(
+	garmentCost: number,
+	cashPct: number,
+	transferPct: number,
+	overrides: { cash?: number; transfer?: number; card?: number },
+) {
+	const priced = computePricesFromGarmentCost(garmentCost, cashPct, transferPct);
+	const cash =
+		overrides.cash !== undefined && Number.isFinite(overrides.cash) && overrides.cash >= 0
+			? roundMoney(overrides.cash)
+			: priced.cash;
+	const transfer =
+		overrides.transfer !== undefined && Number.isFinite(overrides.transfer) && overrides.transfer >= 0
+			? roundMoney(overrides.transfer)
+			: priced.transfer;
+	const card =
+		overrides.card !== undefined && Number.isFinite(overrides.card) && overrides.card >= 0
+			? roundMoney(overrides.card)
+			: priced.card;
+	return { cash, transfer, card };
+}
+
 function normalizeHeader(value: unknown): string {
 	if (value == null) return '';
 	return String(value)
@@ -406,6 +429,10 @@ export type InsertProductInput = {
 	compareAtPrice: number | null;
 	sizeInventory: SizeInventoryRow[];
 	comboItems?: { productId: string; qty: number; unitPrice: number; name: string }[];
+	/** Efectivo, transferencia y tarjeta publicados; si faltan, se calculan desde costo de prenda. */
+	cashPrice?: number;
+	transferPrice?: number;
+	cardPrice?: number;
 };
 
 export async function insertProductAction(
@@ -430,7 +457,11 @@ export async function insertProductAction(
 		const garmentCost = Math.max(0, input.garmentCost);
 		const cashDisc = clampPercent(input.cashDiscountPercent);
 		const transferDisc = clampPercent(input.transferDiscountPercent);
-		const priced = computePricesFromGarmentCost(garmentCost, cashDisc, transferDisc);
+		const salePrices = resolveSalePrices(garmentCost, cashDisc, transferDisc, {
+			cash: input.cashPrice,
+			transfer: input.transferPrice,
+			card: input.cardPrice,
+		});
 		const sizesNorm = normalizeSizeInventoryForDb(input.sizeInventory ?? []);
 		const stock =
 			sizesNorm.length > 0
@@ -443,9 +474,9 @@ export async function insertProductAction(
 			stock,
 			cost: input.cost >= 0 ? input.cost : null,
 			base_price: garmentCost,
-			transfer_price: priced.transfer,
-			price: priced.cash,
-			final_transfer_price: priced.card,
+			transfer_price: salePrices.transfer,
+			price: salePrices.cash,
+			final_transfer_price: salePrices.card,
 			cash_discount_percent: cashDisc,
 			transfer_discount_percent: transferDisc,
 			tax_applies: input.taxApplies,
@@ -520,6 +551,10 @@ export type UpdateProductPatch = {
 	/** Hasta 5 URLs de galería; la primera es la imagen principal (`image_url`). */
 	image_urls: string[];
 	video_url: string | null;
+	/** Efectivo, transferencia y tarjeta; si faltan, se recalculan desde costo de prenda. */
+	cashPrice?: number;
+	transferPrice?: number;
+	cardPrice?: number;
 };
 
 export async function updateProductAction(
@@ -543,7 +578,11 @@ export async function updateProductAction(
 	const garmentCost = Math.max(0, patch.garment_cost);
 	const cashDisc = clampPercent(patch.cash_discount_percent);
 	const transferDisc = clampPercent(patch.transfer_discount_percent);
-	const priced = computePricesFromGarmentCost(garmentCost, cashDisc, transferDisc);
+	const salePrices = resolveSalePrices(garmentCost, cashDisc, transferDisc, {
+		cash: patch.cashPrice,
+		transfer: patch.transferPrice,
+		card: patch.cardPrice,
+	});
 
 	/**
 	 * Las server actions pueden omitir claves `undefined` al serializar. Si `color` no viene en el patch,
@@ -552,9 +591,9 @@ export async function updateProductAction(
 	const fullUpdate: Record<string, unknown> = {
 		name: patch.name.trim(),
 		base_price: garmentCost,
-		transfer_price: priced.transfer,
-		price: priced.cash,
-		final_transfer_price: priced.card,
+		transfer_price: salePrices.transfer,
+		price: salePrices.cash,
+		final_transfer_price: salePrices.card,
 		cash_discount_percent: cashDisc,
 		transfer_discount_percent: transferDisc,
 		tax_applies: false,

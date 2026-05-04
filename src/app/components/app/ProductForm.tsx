@@ -116,6 +116,9 @@ export default function ProductForm() {
 	const [stock, setStock] = useState('');
 	const [costoInicial, setCostoInicial] = useState('');
 	const [costoPrenda, setCostoPrenda] = useState('');
+	const [precioEfectivoStr, setPrecioEfectivoStr] = useState('');
+	const [precioTransferStr, setPrecioTransferStr] = useState('');
+	const [precioTarjetaStr, setPrecioTarjetaStr] = useState('');
 	const [cashDiscountPercent, setCashDiscountPercent] = useState(0);
 	const [transferDiscountPercent, setTransferDiscountPercent] = useState(0);
 	const [descripcion, setDescripcion] = useState('');
@@ -270,6 +273,25 @@ export default function ProductForm() {
 	}, [costoPrendaNum, transferDiscountPercent]);
 	const precioCalculadoTarjeta = useMemo(() => Math.round(costoPrendaNum), [costoPrendaNum]);
 
+	useEffect(() => {
+		if (!(costoPrendaNum > 0)) {
+			setPrecioEfectivoStr('');
+			setPrecioTransferStr('');
+			setPrecioTarjetaStr('');
+			return;
+		}
+		setPrecioEfectivoStr(String(precioCalculadoEfectivo));
+		setPrecioTransferStr(String(precioCalculadoTransferencia));
+		setPrecioTarjetaStr(String(precioCalculadoTarjeta));
+	}, [
+		costoPrendaNum,
+		cashDiscountPercent,
+		transferDiscountPercent,
+		precioCalculadoEfectivo,
+		precioCalculadoTransferencia,
+		precioCalculadoTarjeta,
+	]);
+
 	const comboFilteredProducts = useMemo(() => {
 		const q = comboSearch.trim().toLowerCase();
 		if (!q) return comboProducts.slice(0, 24);
@@ -414,6 +436,18 @@ export default function ProductForm() {
 			return;
 		}
 
+		const cashSale = parseMoneyInput(precioEfectivoStr);
+		const transferSale = parseMoneyInput(precioTransferStr);
+		const cardSale = parseMoneyInput(precioTarjetaStr);
+		const pricesFilled =
+			precioEfectivoStr.trim() !== '' &&
+			precioTransferStr.trim() !== '' &&
+			precioTarjetaStr.trim() !== '';
+		if (!pricesFilled || !(cashSale >= 0 && transferSale >= 0 && cardSale >= 0)) {
+			toast.error('Completá efectivo, transferencia y tarjeta con montos válidos (podés redondear sobre la sugerencia).');
+			return;
+		}
+
 		setIsSubmitting(true);
 		try {
 			const uploadedImages: string[] = [];
@@ -479,6 +513,9 @@ export default function ProductForm() {
 				compareAtPrice: null,
 				sizeInventory: sizeInventoryPayload,
 				comboItems,
+				cashPrice: cashSale,
+				transferPrice: transferSale,
+				cardPrice: cardSale,
 			});
 
 			if (!ins.ok) {
@@ -741,33 +778,52 @@ export default function ProductForm() {
 								<div className="sm:col-span-2">
 									<div className={cn(innerCard, 'mt-0 space-y-3')}>
 										<p className="text-xs font-medium uppercase tracking-[0.18em] text-[#6b6156]">
-											Precios calculados desde costo de prenda
+											Precios de venta (sugeridos desde costo de prenda; editables para redondear)
+										</p>
+										<p className="text-[11px] font-light leading-relaxed text-[#6b6156]" style={{ fontFamily: sans }}>
+											Al cambiar el costo de prenda o los % se actualizan las sugerencias; podés corregir los montos antes de
+											guardar.
 										</p>
 										<div className="grid gap-3 sm:grid-cols-3">
 											<div className="rounded-md border border-[#b8956a]/22 bg-[#fffdfb]/80 p-3">
-												<p className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
+												<Label htmlFor="precio-efectivo" className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
 													Efectivo ({cashDiscountPercent}%)
-												</p>
-												<p className="mt-1 text-base text-[#1a1410]" style={{ fontFamily: serif }}>
-													{formatMoneyAR(precioCalculadoEfectivo)}
-												</p>
+												</Label>
+												<Input
+													id="precio-efectivo"
+													inputMode="decimal"
+													value={precioEfectivoStr}
+													onChange={(e) => setPrecioEfectivoStr(e.target.value)}
+													className={cn(inputClass, 'mt-2')}
+													placeholder={String(precioCalculadoEfectivo)}
+												/>
 											</div>
 											<div className="rounded-md border border-[#b8956a]/22 bg-[#fffdfb]/80 p-3">
-												<p className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
+												<Label htmlFor="precio-transfer" className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
 													Transferencia ({transferDiscountPercent}%)
-												</p>
-												<p className="mt-1 text-base text-[#1a1410]" style={{ fontFamily: serif }}>
-													{formatMoneyAR(precioCalculadoTransferencia)}
-												</p>
+												</Label>
+												<Input
+													id="precio-transfer"
+													inputMode="decimal"
+													value={precioTransferStr}
+													onChange={(e) => setPrecioTransferStr(e.target.value)}
+													className={cn(inputClass, 'mt-2')}
+													placeholder={String(precioCalculadoTransferencia)}
+												/>
 											</div>
 											<div className="rounded-md border border-[#b8956a]/22 bg-[#fffdfb]/80 p-3">
-												<p className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
+												<Label htmlFor="precio-tarjeta" className="text-[11px] uppercase tracking-[0.14em] text-[#8b6f47]">
 													Tarjeta crédito/débito
-												</p>
-												<p className="mt-1 text-base text-[#1a1410]" style={{ fontFamily: serif }}>
-													{formatMoneyAR(precioCalculadoTarjeta)}
-												</p>
-												<p className="mt-1 text-[11px] text-[#6b6156]">
+												</Label>
+												<Input
+													id="precio-tarjeta"
+													inputMode="decimal"
+													value={precioTarjetaStr}
+													onChange={(e) => setPrecioTarjetaStr(e.target.value)}
+													className={cn(inputClass, 'mt-2')}
+													placeholder={String(precioCalculadoTarjeta)}
+												/>
+												<p className="mt-2 text-[11px] text-[#6b6156]">
 													Crédito: 3 cuotas sin interés. Débito: 1 pago.
 												</p>
 											</div>
@@ -1043,7 +1099,11 @@ export default function ProductForm() {
 									{nombre.trim() || 'Sin nombre'}
 								</p>
 								<p className="mt-2 text-base font-light text-[#8b6f47]" style={{ fontFamily: serif }}>
-									{formatMoneyAR(precioCalculadoEfectivo)}
+									{formatMoneyAR(
+										precioEfectivoStr.trim() !== ''
+											? parseMoneyInput(precioEfectivoStr)
+											: precioCalculadoEfectivo,
+									)}
 								</p>
 							</div>
 							<div className="space-y-3 border-t border-[#b8956a]/15 p-4">

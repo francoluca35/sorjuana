@@ -38,13 +38,14 @@ export async function saveHeroSlidesAction(slides: HeroSlide[]): Promise<{ ok: b
 
 	try {
 		const payload = JSON.parse(JSON.stringify(slides)) as unknown;
-		const { error } = await auth.supabase
+		const { data, error } = await auth.supabase
 			.from('site_home_config')
 			.update({
 				hero_slides: payload,
 				updated_at: new Date().toISOString(),
 			})
-			.eq('id', 1);
+			.eq('id', 1)
+			.select('id');
 
 		if (error) {
 			return {
@@ -53,6 +54,13 @@ export async function saveHeroSlidesAction(slides: HeroSlide[]): Promise<{ ok: b
 					error.message.includes('row') || error.code === 'PGRST116'
 						? 'No se encontró la fila de configuración. Ejecutá las migraciones de Supabase (site_home_config).'
 						: error.message,
+			};
+		}
+		if (!data?.length) {
+			return {
+				ok: false,
+				message:
+					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
 			};
 		}
 		revalidateHome();
