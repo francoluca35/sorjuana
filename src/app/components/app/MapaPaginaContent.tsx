@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { MapaPaginaCategorySpotlightRailPanel } from '@/app/components/app/MapaPaginaCategorySpotlightRailPanel';
+import { MapaPaginaFashionCategoriesPanel } from '@/app/components/app/MapaPaginaFashionCategoriesPanel';
 import { MapaPaginaHeroEditor } from '@/app/components/app/MapaPaginaHeroEditor';
 import { MapaPaginaMasVendidosPanel } from '@/app/components/app/MapaPaginaMasVendidosPanel';
 import { MapaPaginaRecienLlegadosPanel } from '@/app/components/app/MapaPaginaRecienLlegadosPanel';
@@ -8,7 +10,7 @@ import { cn } from '@/app/components/ui/utils';
 
 const sans = 'Montserrat, sans-serif';
 
-type Seccion = 'hero' | 'masvendidos' | 'recien';
+type Seccion = 'hero' | 'coleccion' | 'categorias' | 'masvendidos' | 'recien';
 
 export function MapaPaginaContent() {
 	const [seccion, setSeccion] = useState<Seccion>('hero');
@@ -35,7 +37,39 @@ export function MapaPaginaContent() {
 				>
 					Hero
 				</button>
-		
+
+				<button
+					type="button"
+					role="tab"
+					aria-selected={seccion === 'coleccion'}
+					onClick={() => setSeccion('coleccion')}
+					className={cn(
+						'rounded-lg px-4 py-2.5 text-sm transition',
+						seccion === 'coleccion'
+							? 'bg-[#1a1410] text-[#f5f2ed] shadow-sm'
+							: 'text-[#6b6156] hover:bg-white/70',
+					)}
+					style={{ fontFamily: sans, fontWeight: 500 }}
+				>
+					Colección (franja)
+				</button>
+
+				<button
+					type="button"
+					role="tab"
+					aria-selected={seccion === 'categorias'}
+					onClick={() => setSeccion('categorias')}
+					className={cn(
+						'rounded-lg px-4 py-2.5 text-sm transition',
+						seccion === 'categorias'
+							? 'bg-[#1a1410] text-[#f5f2ed] shadow-sm'
+							: 'text-[#6b6156] hover:bg-white/70',
+					)}
+					style={{ fontFamily: sans, fontWeight: 500 }}
+				>
+					Categorías (círculos)
+				</button>
+
 				<button
 					type="button"
 					role="tab"
@@ -71,6 +105,10 @@ export function MapaPaginaContent() {
 
 			{seccion === 'hero' ? (
 				<MapaPaginaHeroEditor />
+			) : seccion === 'coleccion' ? (
+				<MapaPaginaFashionCategoriesPanel />
+			) : seccion === 'categorias' ? (
+				<MapaPaginaCategorySpotlightRailPanel />
 			) : seccion === 'masvendidos' ? (
 				<MapaPaginaMasVendidosPanel />
 			) : (

@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { fetchAllProductsForPanelAction, insertProductAction } from '@/app/actions/products';
 import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
 import { getPriceSettingsAction } from '@/app/actions/priceSettings';
+import { PRICE_SETTINGS_UPDATED_EVENT } from '@/lib/priceSettingsEvents';
 import type { ShopCategoryTree } from '@/lib/data/shopCategories';
 import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { SizeInventoryEditor } from '@/app/components/app/SizeInventoryEditor';
@@ -223,18 +224,23 @@ export default function ProductForm() {
 
 	useEffect(() => {
 		let cancelled = false;
-		(async () => {
-			try {
-				const settings = await getPriceSettingsAction();
-				if (cancelled) return;
-				setCashDiscountPercent(Number(settings.cashDiscountPercent) || 0);
-				setTransferDiscountPercent(Number(settings.transferDiscountPercent) || 0);
-			} catch {
-				/* ignore and keep defaults */
-			}
-		})();
+		const sync = () => {
+			void (async () => {
+				try {
+					const settings = await getPriceSettingsAction();
+					if (cancelled) return;
+					setCashDiscountPercent(Number(settings.cashDiscountPercent) || 0);
+					setTransferDiscountPercent(Number(settings.transferDiscountPercent) || 0);
+				} catch {
+					/* ignore and keep defaults */
+				}
+			})();
+		};
+		sync();
+		window.addEventListener(PRICE_SETTINGS_UPDATED_EVENT, sync);
 		return () => {
 			cancelled = true;
+			window.removeEventListener(PRICE_SETTINGS_UPDATED_EVENT, sync);
 		};
 	}, []);
 

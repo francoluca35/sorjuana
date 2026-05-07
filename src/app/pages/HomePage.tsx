@@ -21,7 +21,7 @@ export async function HomePage() {
     <>
       <HeroCarouselClient initialSlides={siteHome.heroSlides} />
       <StoreBenefits />
-      <FashionCategories />
+      <FashionCategories panels={siteHome.fashionCategoryPanels} />
       <AdminCategorySpotlightRail items={categorySpotlights} />
 
       <PopularProducts products={homeCatalog} bestSellersIdsJson={siteHome.bestSellersIdsJson} />

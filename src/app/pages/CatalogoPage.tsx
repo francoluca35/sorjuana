@@ -13,6 +13,7 @@ import {
 import { SingleLineFitText } from '@/app/components/SingleLineFitText';
 import { displayCategoryLabel, parseSubcategorySlugFromDb } from '@/lib/data/productCatalog';
 import {
+  CARD_INSTALLMENTS_NO_INTEREST,
   computeDiscountPercent,
   formatCuotaAr,
   formatPrecioListaAr,
@@ -515,7 +516,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
 									: discountedPrice;
 							const discountPercent = computeDiscountPercent(listPrice, discountedPrice);
 							const hasDiscount = discountPercent > 0;
-							const installments = 6;
+							const installments = CARD_INSTALLMENTS_NO_INTEREST;
 
 							return (
 								<>

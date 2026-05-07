@@ -22,7 +22,7 @@ function formatMoney(n: number) {
 }
 
 const inputClass =
-	'mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-sm text-[#1a1410] outline-none transition placeholder:text-black/35 focus:border-[#a34963]/50';
+	'mt-1 w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-base text-[#1a1410] outline-none transition placeholder:text-black/35 focus:border-[#a34963]/50 md:text-sm';
 
 export function CartSheet() {
 	const {
@@ -194,9 +194,9 @@ export function CartSheet() {
 						exit={desktop ? { x: '100%' } : { y: '100%' }}
 						transition={sheetTransition}
 						className={cn(
-							'fixed z-10 flex max-h-[min(92dvh,100%)] w-full flex-col bg-white shadow-[0_-8px_40px_rgba(0,0,0,0.12)]',
+							'fixed z-10 flex h-[min(92dvh,100dvh)] max-h-[min(92dvh,100dvh)] min-h-0 w-full flex-col overflow-hidden bg-white shadow-[0_-8px_40px_rgba(0,0,0,0.12)]',
 							'bottom-0 left-0 right-0 rounded-t-[1.35rem]',
-							'md:bottom-0 md:top-0 md:left-auto md:right-0 md:max-h-none md:w-full md:max-w-[22.5rem] md:rounded-none md:rounded-l-[1.25rem] md:shadow-[-12px_0_48px_rgba(0,0,0,0.12)]',
+							'md:bottom-0 md:top-0 md:left-auto md:right-0 md:h-auto md:max-h-[100dvh] md:w-full md:max-w-[min(22.5rem,100vw)] md:rounded-none md:rounded-l-[1.25rem] md:shadow-[-12px_0_48px_rgba(0,0,0,0.12)]',
 						)}
 						style={{
 							paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
@@ -236,143 +236,352 @@ export function CartSheet() {
 							</button>
 						</header>
 
-						<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
-							{items.length === 0 ? (
-								<p
-									className="py-10 text-center text-sm text-black/50"
-									style={sans}
-								>
-									Tu carrito está vacío.
-									<br />
-									<Link
-										href="/catalogo"
-										onClick={closeCart}
-										className="mt-3 inline-block font-medium underline decoration-[#a34963]/40 underline-offset-4"
-										style={{ color: accent }}
+						{items.length === 0 ? (
+							<>
+								<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+									<p
+										className="py-10 text-center text-sm text-black/50"
+										style={sans}
 									>
-										Ver catálogo
-									</Link>
-								</p>
-							) : checkoutStep === 'checkout' ? null : (
-								<ul className="space-y-5">
-									{items.map((line) => (
-										<li
-											key={line.id}
-											className="flex gap-3 border-b border-black/[0.05] pb-5 last:border-0 last:pb-0"
+										Tu carrito está vacío.
+										<br />
+										<Link
+											href="/catalogo"
+											onClick={closeCart}
+											className="mt-3 inline-block font-medium underline decoration-[#a34963]/40 underline-offset-4"
+											style={{ color: accent }}
 										>
-											<div className="relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-lg bg-[#f5f2ed]">
-												{line.image ? (
-													<Image
-														src={line.image}
-														alt=""
-														fill
-														unoptimized
-														className="object-cover"
-														sizes="72px"
-													/>
-												) : (
-													<div
-														className="flex h-full w-full items-center justify-center text-xs text-black/35"
-														style={sans}
-													>
-														Sin foto
-													</div>
-												)}
-											</div>
-											<div className="min-w-0 flex-1">
-												<div className="flex justify-between gap-2">
-													<div className="min-w-0">
-														<p
-															className="text-[0.95rem] leading-snug text-[#1a1410] md:text-base"
-															style={{ ...serif, fontWeight: 500 }}
-														>
-															{line.name}
-														</p>
-														{line.size ? (
-															<p
-																className="mt-0.5 text-xs text-[#a34963]/80"
-																style={sans}
-															>
-																{line.color ? `Color: ${line.color}` : ''}
-																{line.color && line.size ? ' · ' : ''}
-																{line.size ? `Talla: ${line.size}` : ''}
-															</p>
-														) : line.color ? (
-															<p
-																className="mt-0.5 text-xs text-[#a34963]/80"
-																style={sans}
-															>
-																Color: {line.color}
-															</p>
-														) : null}
-													</div>
-													<button
-														type="button"
-														onClick={() => removeLine(line.id)}
-														className="shrink-0 rounded-md p-1.5 text-black/35 transition hover:bg-red-50 hover:text-red-600"
-														aria-label={`Quitar ${line.name}`}
-													>
-														<Trash2 className="h-4 w-4" strokeWidth={1.5} />
-													</button>
-												</div>
-												<p
-													className="mt-1 text-base font-semibold"
-													style={{ ...sans, color: accent }}
-												>
-													{formatMoney(line.price)}
-												</p>
-												<div className="mt-3 flex items-center gap-3">
-													<div
-														className="inline-flex items-center rounded-full border border-black/[0.1] bg-white px-1 py-0.5"
-														style={sans}
-													>
-														<button
-															type="button"
-															className="flex h-8 w-8 items-center justify-center rounded-full text-[#1a1410] transition hover:bg-black/[0.05]"
-															aria-label="Menos"
-															onClick={() =>
-																setLineQty(line.id, line.qty - 1)
-															}
-														>
-															<Minus className="h-3.5 w-3.5" strokeWidth={2} />
-														</button>
-														<span className="min-w-[1.5rem] text-center text-sm tabular-nums">
-															{line.qty}
-														</span>
-														<button
-															type="button"
-															className="flex h-8 w-8 items-center justify-center rounded-full text-[#1a1410] transition hover:bg-black/[0.05]"
-															aria-label="Más"
-															onClick={() =>
-																setLineQty(line.id, line.qty + 1)
-															}
-														>
-															<Plus className="h-3.5 w-3.5" strokeWidth={2} />
-														</button>
-													</div>
-												</div>
-											</div>
-										</li>
-									))}
-								</ul>
-							)}
-						</div>
-
-						<footer className="shrink-0 border-t border-black/[0.06] px-5 pt-4">
-							<div
-								className="mb-4 flex items-baseline justify-between gap-3 text-[#1a1410]"
-								style={serif}
+											Ver catálogo
+										</Link>
+									</p>
+								</div>
+								<footer className="shrink-0 border-t border-black/[0.06] px-5 pt-4">
+									<div
+										className="mb-4 flex items-baseline justify-between gap-3 text-[#1a1410]"
+										style={serif}
+									>
+										<span className="text-lg" style={{ fontWeight: 500 }}>
+											Total estimado
+										</span>
+										<span className="text-xl font-semibold">
+											{formatMoney(discountedSubtotal)}
+										</span>
+									</div>
+									<button
+										type="button"
+										onClick={closeCart}
+										className={cn(
+											'mb-3 flex w-full items-center justify-center rounded-xl border-2 border-[#a34963]/35 bg-white py-3 text-center text-xs font-semibold tracking-[0.1em] text-[#a34963] transition hover:bg-[#a34963]/8 active:scale-[0.99]',
+										)}
+										style={sans}
+									>
+										Seguir comprando
+									</button>
+									<button
+										type="button"
+										disabled
+										className={cn(
+											'flex w-full items-center justify-center rounded-xl py-3.5 text-center text-xs font-semibold tracking-[0.12em] text-white transition pointer-events-none opacity-45',
+										)}
+										style={{ ...sans, backgroundColor: accent }}
+									>
+										PROCEDER AL PAGO
+									</button>
+									<button
+										type="button"
+										disabled
+										className="mt-3 w-full py-2 text-sm font-medium text-black/25"
+										style={sans}
+									>
+										Vaciar carrito
+									</button>
+								</footer>
+							</>
+						) : checkoutStep === 'checkout' ? (
+							<form
+								onSubmit={onWhatsAppCheckout}
+								className="flex min-h-0 min-w-0 flex-1 flex-col"
 							>
-								<span className="text-lg" style={{ fontWeight: 500 }}>
-									Total estimado
-								</span>
-								<span className="text-xl font-semibold">
-									{formatMoney(checkoutStep === 'cart' ? discountedSubtotal : checkoutSubtotal)}
-								</span>
-							</div>
-
-							{checkoutStep === 'cart' ? (
-								<>
+								<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 touch-pan-y">
+									<button
+										type="button"
+										onClick={() => setCheckoutStep('cart')}
+										className="mb-3 text-left text-xs font-medium text-[#a34963] underline-offset-4 hover:underline"
+										style={sans}
+									>
+										← Volver al carrito
+									</button>
+									<div>
+										<button
+											type="button"
+											onClick={() => setShowCheckoutProducts((v) => !v)}
+											className="mb-1 w-full rounded-lg border border-black/10 bg-[#faf8f6] px-3 py-2.5 text-left text-xs font-semibold tracking-[0.06em] text-[#1a1410] transition hover:bg-[#f5f2ed]"
+											style={sans}
+										>
+											{showCheckoutProducts ? 'Ocultar productos' : 'Ver productos'}
+										</button>
+										{showCheckoutProducts ? (
+											<div className="max-h-[min(40vh,15rem)] overflow-y-auto overscroll-contain rounded-lg border border-black/10 bg-white px-3 py-2.5">
+												<ul className="space-y-2">
+													{items.map((line) => {
+														const unitPrice =
+															paymentMethod === 'tarjeta'
+																? line.listPrice != null && line.listPrice > 0
+																	? line.listPrice
+																	: line.price
+																: line.price;
+														return (
+															<li key={line.id} className="border-b border-black/[0.06] pb-2 last:border-b-0 last:pb-0">
+																<p className="text-xs font-semibold text-[#1a1410]" style={sans}>
+																	{line.name}
+																</p>
+																<p className="mt-0.5 text-[11px] text-black/65" style={sans}>
+																	Talle: {line.size?.trim() || '—'} · Color: {line.color?.trim() || '—'}
+																</p>
+																<p className="mt-0.5 text-[11px] text-black/75" style={sans}>
+																	{line.qty} × {formatMoney(unitPrice)}
+																</p>
+															</li>
+														);
+													})}
+												</ul>
+											</div>
+										) : null}
+									</div>
+									<div className="mt-3 space-y-3">
+										<div>
+											<label className="text-xs font-medium text-black/60" style={sans}>
+												Nombre y apellido
+											</label>
+											<input
+												required
+												name="name"
+												autoComplete="name"
+												value={custName}
+												onChange={(e) => setCustName(e.target.value)}
+												className={inputClass}
+												placeholder="Tu nombre"
+											/>
+										</div>
+										<div>
+											<label className="text-xs font-medium text-black/60" style={sans}>
+												Teléfono
+											</label>
+											<input
+												required
+												name="phone"
+												type="tel"
+												autoComplete="tel"
+												inputMode="tel"
+												value={custPhone}
+												onChange={(e) => setCustPhone(e.target.value)}
+												className={inputClass}
+												placeholder="Código de área + número"
+											/>
+										</div>
+										<div>
+											<label className="text-xs font-medium text-black/60" style={sans}>
+												Localidad
+											</label>
+											<input
+												required
+												name="locality"
+												autoComplete="address-level2"
+												value={custLocality}
+												onChange={(e) => setCustLocality(e.target.value)}
+												className={inputClass}
+												placeholder="Ciudad o localidad"
+											/>
+										</div>
+										<div>
+											<label className="text-xs font-medium text-black/60" style={sans}>
+												Pagar con
+											</label>
+											<select
+												name="payment_method"
+												value={paymentMethod}
+												onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+												className={inputClass}
+											>
+												<option value="efectivo">Efectivo</option>
+												<option value="transferencia">Transferencia</option>
+												<option value="tarjeta">Tarjeta</option>
+											</select>
+										</div>
+										<div>
+											<label className="text-xs font-medium text-black/60" style={sans}>
+												Dirección
+											</label>
+											<input
+												required
+												name="address"
+												autoComplete="street-address"
+												value={custAddress}
+												onChange={(e) => setCustAddress(e.target.value)}
+												className={inputClass}
+												placeholder="Calle y número"
+											/>
+										</div>
+									</div>
+									<p className="mt-4 text-center text-[11px] leading-snug text-black/45" style={sans}>
+										Al confirmar se reserva el stock, se guarda el pedido en el panel y se abre
+										WhatsApp con el mensaje listo para enviar.
+									</p>
+									{paymentMethod === 'tarjeta' ? (
+										<p className="mt-2 text-center text-[11px] leading-snug text-black/50" style={sans}>
+											Con tarjeta se usa el precio de lista.
+										</p>
+									) : null}
+								</div>
+								<footer className="shrink-0 border-t border-black/[0.06] bg-white px-5 pt-4 pb-1">
+									<div
+										className="mb-3 flex items-baseline justify-between gap-3 text-[#1a1410]"
+										style={serif}
+									>
+										<span className="text-lg" style={{ fontWeight: 500 }}>
+											Total estimado
+										</span>
+										<span className="text-xl font-semibold tabular-nums">
+											{formatMoney(checkoutSubtotal)}
+										</span>
+									</div>
+									<button
+										type="submit"
+										disabled={submitting || items.length === 0}
+										className={cn(
+											'flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-center text-xs font-semibold tracking-[0.12em] text-white transition hover:opacity-95 active:scale-[0.99]',
+											(submitting || items.length === 0) && 'pointer-events-none opacity-60',
+										)}
+										style={{ ...sans, backgroundColor: accent }}
+									>
+										{submitting ? (
+											<>
+												<Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+												Procesando…
+											</>
+										) : (
+											'Comprar por WhatsApp'
+										)}
+									</button>
+								</footer>
+							</form>
+						) : (
+							<>
+								<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 touch-pan-y">
+									<ul className="space-y-5">
+										{items.map((line) => (
+											<li
+												key={line.id}
+												className="flex gap-3 border-b border-black/[0.05] pb-5 last:border-0 last:pb-0"
+											>
+												<div className="relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-lg bg-[#f5f2ed]">
+													{line.image ? (
+														<Image
+															src={line.image}
+															alt=""
+															fill
+															unoptimized
+															className="object-cover"
+															sizes="72px"
+														/>
+													) : (
+														<div
+															className="flex h-full w-full items-center justify-center text-xs text-black/35"
+															style={sans}
+														>
+															Sin foto
+														</div>
+													)}
+												</div>
+												<div className="min-w-0 flex-1">
+													<div className="flex justify-between gap-2">
+														<div className="min-w-0">
+															<p
+																className="text-[0.95rem] leading-snug text-[#1a1410] md:text-base"
+																style={{ ...serif, fontWeight: 500 }}
+															>
+																{line.name}
+															</p>
+															{line.size ? (
+																<p
+																	className="mt-0.5 text-xs text-[#a34963]/80"
+																	style={sans}
+																>
+																	{line.color ? `Color: ${line.color}` : ''}
+																	{line.color && line.size ? ' · ' : ''}
+																	{line.size ? `Talla: ${line.size}` : ''}
+																</p>
+															) : line.color ? (
+																<p
+																	className="mt-0.5 text-xs text-[#a34963]/80"
+																	style={sans}
+																>
+																	Color: {line.color}
+																</p>
+															) : null}
+														</div>
+														<button
+															type="button"
+															onClick={() => removeLine(line.id)}
+															className="shrink-0 rounded-md p-1.5 text-black/35 transition hover:bg-red-50 hover:text-red-600"
+															aria-label={`Quitar ${line.name}`}
+														>
+															<Trash2 className="h-4 w-4" strokeWidth={1.5} />
+														</button>
+													</div>
+													<p
+														className="mt-1 text-base font-semibold"
+														style={{ ...sans, color: accent }}
+													>
+														{formatMoney(line.price)}
+													</p>
+													<div className="mt-3 flex items-center gap-3">
+														<div
+															className="inline-flex items-center rounded-full border border-black/[0.1] bg-white px-1 py-0.5"
+															style={sans}
+														>
+															<button
+																type="button"
+																className="flex h-8 w-8 items-center justify-center rounded-full text-[#1a1410] transition hover:bg-black/[0.05]"
+																aria-label="Menos"
+																onClick={() =>
+																	setLineQty(line.id, line.qty - 1)
+																}
+															>
+																<Minus className="h-3.5 w-3.5" strokeWidth={2} />
+															</button>
+															<span className="min-w-[1.5rem] text-center text-sm tabular-nums">
+																{line.qty}
+															</span>
+															<button
+																type="button"
+																className="flex h-8 w-8 items-center justify-center rounded-full text-[#1a1410] transition hover:bg-black/[0.05]"
+																aria-label="Más"
+																onClick={() =>
+																	setLineQty(line.id, line.qty + 1)
+																}
+															>
+																<Plus className="h-3.5 w-3.5" strokeWidth={2} />
+															</button>
+														</div>
+													</div>
+												</div>
+											</li>
+										))}
+									</ul>
+								</div>
+								<footer className="shrink-0 border-t border-black/[0.06] px-5 pt-4">
+									<div
+										className="mb-4 flex items-baseline justify-between gap-3 text-[#1a1410]"
+										style={serif}
+									>
+										<span className="text-lg" style={{ fontWeight: 500 }}>
+											Total estimado
+										</span>
+										<span className="text-xl font-semibold">
+											{formatMoney(discountedSubtotal)}
+										</span>
+									</div>
 									<button
 										type="button"
 										onClick={closeCart}
@@ -409,156 +618,9 @@ export function CartSheet() {
 									>
 										Vaciar carrito
 									</button>
-								</>
-							) : (
-								<form onSubmit={onWhatsAppCheckout} className="space-y-3 pb-2">
-									<button
-										type="button"
-										onClick={() => setCheckoutStep('cart')}
-										className="mb-1 text-left text-xs font-medium text-[#a34963] underline-offset-4 hover:underline"
-										style={sans}
-									>
-										← Volver al carrito
-									</button>
-									<div>
-										<button
-											type="button"
-											onClick={() => setShowCheckoutProducts((v) => !v)}
-											className="mb-1 w-full rounded-lg border border-black/10 bg-[#faf8f6] px-3 py-2.5 text-left text-xs font-semibold tracking-[0.06em] text-[#1a1410] transition hover:bg-[#f5f2ed]"
-											style={sans}
-										>
-											{showCheckoutProducts ? 'Ocultar productos' : 'Ver productos'}
-										</button>
-										{showCheckoutProducts ? (
-											<div className="max-h-44 overflow-y-auto rounded-lg border border-black/10 bg-white px-3 py-2.5">
-												<ul className="space-y-2">
-													{items.map((line) => {
-														const unitPrice =
-															paymentMethod === 'tarjeta'
-																? line.listPrice != null && line.listPrice > 0
-																	? line.listPrice
-																	: line.price
-																: line.price;
-														return (
-															<li key={line.id} className="border-b border-black/[0.06] pb-2 last:border-b-0 last:pb-0">
-																<p className="text-xs font-semibold text-[#1a1410]" style={sans}>
-																	{line.name}
-																</p>
-																<p className="mt-0.5 text-[11px] text-black/65" style={sans}>
-																	Talle: {line.size?.trim() || '—'} · Color: {line.color?.trim() || '—'}
-																</p>
-																<p className="mt-0.5 text-[11px] text-black/75" style={sans}>
-																	{line.qty} × {formatMoney(unitPrice)}
-																</p>
-															</li>
-														);
-													})}
-												</ul>
-											</div>
-										) : null}
-									</div>
-									<div>
-										<label className="text-xs font-medium text-black/60" style={sans}>
-											Nombre y apellido
-										</label>
-										<input
-											required
-											name="name"
-											autoComplete="name"
-											value={custName}
-											onChange={(e) => setCustName(e.target.value)}
-											className={inputClass}
-											placeholder="Tu nombre"
-										/>
-									</div>
-									<div>
-										<label className="text-xs font-medium text-black/60" style={sans}>
-											Teléfono
-										</label>
-										<input
-											required
-											name="phone"
-											type="tel"
-											autoComplete="tel"
-											value={custPhone}
-											onChange={(e) => setCustPhone(e.target.value)}
-											className={inputClass}
-											placeholder="Código de área + número"
-										/>
-									</div>
-									<div>
-										<label className="text-xs font-medium text-black/60" style={sans}>
-											Localidad
-										</label>
-										<input
-											required
-											name="locality"
-											autoComplete="address-level2"
-											value={custLocality}
-											onChange={(e) => setCustLocality(e.target.value)}
-											className={inputClass}
-											placeholder="Ciudad o localidad"
-										/>
-									</div>
-									<div>
-										<label className="text-xs font-medium text-black/60" style={sans}>
-											Pagar con
-										</label>
-										<select
-											name="payment_method"
-											value={paymentMethod}
-											onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-											className={inputClass}
-										>
-											<option value="efectivo">Efectivo</option>
-											<option value="transferencia">Transferencia</option>
-											<option value="tarjeta">Tarjeta</option>
-										</select>
-									</div>
-									<div>
-										<label className="text-xs font-medium text-black/60" style={sans}>
-											Dirección
-										</label>
-										<input
-											required
-											name="address"
-											autoComplete="street-address"
-											value={custAddress}
-											onChange={(e) => setCustAddress(e.target.value)}
-											className={inputClass}
-											placeholder="Calle y número"
-										/>
-									</div>
-									<button
-										type="submit"
-										disabled={submitting || items.length === 0}
-										className={cn(
-											'mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-center text-xs font-semibold tracking-[0.12em] text-white transition hover:opacity-95 active:scale-[0.99]',
-											(submitting || items.length === 0) && 'pointer-events-none opacity-60',
-										)}
-										style={{ ...sans, backgroundColor: accent }}
-									>
-										{submitting ? (
-											<>
-												<Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-												Procesando…
-											</>
-										) : (
-											'Comprar por WhatsApp'
-										)}
-									</button>
-									<p className="text-center text-[11px] leading-snug text-black/45" style={sans}>
-										Al confirmar se reserva el stock, se guarda el pedido en el panel y se abre
-										WhatsApp con el mensaje listo para enviar.
-									</p>
-									{paymentMethod === 'tarjeta' ? (
-										<p className="text-center text-[11px] leading-snug text-black/50" style={sans}>
-											Con tarjeta se usa el precio de lista.
-										</p>
-									) : null}
-								</form>
-							)}
-						</footer>
+								</footer>
+							</>
+						)}
 					</motion.div>
 				</div>
 			) : null}

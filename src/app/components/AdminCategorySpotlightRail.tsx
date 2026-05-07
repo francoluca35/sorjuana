@@ -47,12 +47,11 @@ function readBreakpoint(): Breakpoint {
 }
 
 function CategoryTile({ item }: { item: CategorySpotlight }) {
-	return (
-		<li className="flex w-[4.75rem] shrink-0 flex-col items-center sm:w-[5.5rem] md:w-[6.25rem]">
-			<Link
-				href={`/catalogo?categoria=${encodeURIComponent(item.slug)}`}
-				className="group flex w-full flex-col items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b8956a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#e8e3db]"
-			>
+	const isExternal = /^https?:\/\//i.test(item.href);
+	const innerClass =
+		'group flex w-full flex-col items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b8956a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#e8e3db]';
+	const media = (
+		<>
 				<span className="relative block aspect-square w-full overflow-hidden rounded-full bg-[#f5f2ed] ring-2 ring-[#b8956a]/35 ring-offset-2 ring-offset-[#e8e3db] transition duration-300 group-hover:ring-[#b8956a]/70">
 					<Image
 						src={item.imageUrl}
@@ -69,7 +68,24 @@ function CategoryTile({ item }: { item: CategorySpotlight }) {
 				>
 					{item.label}
 				</span>
-			</Link>
+		</>
+	);
+	return (
+		<li className="flex w-[4.75rem] shrink-0 flex-col items-center sm:w-[5.5rem] md:w-[6.25rem]">
+			{isExternal ? (
+				<a
+					href={item.href}
+					target="_blank"
+					rel="noopener noreferrer"
+					className={innerClass}
+				>
+					{media}
+				</a>
+			) : (
+				<Link href={item.href} className={innerClass}>
+					{media}
+				</Link>
+			)}
 		</li>
 	);
 }

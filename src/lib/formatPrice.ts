@@ -29,6 +29,9 @@ export function computeDiscountPercent(listPrice: number, discountedPrice: numbe
 	return Math.round(((list - discounted) / list) * 100);
 }
 
+/** Cuotas sin interés para texto precio lista / tarjeta en catálogo y fichas. */
+export const CARD_INSTALLMENTS_NO_INTEREST = 3;
+
 /**
  * Formatea cuota AR con 2 decimales, ej: `$ 11.166,67`.
  */

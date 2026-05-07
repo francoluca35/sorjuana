@@ -3,53 +3,24 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useState } from 'react';
-import { getCloudinaryAsset } from '@/app/config/cloudinaryAssets';
+import { useMemo, useState } from 'react';
+import {
+  DEFAULT_FASHION_CATEGORY_PANELS,
+  FASHION_CATEGORY_PANEL_COUNT,
+  type FashionCategoryPanel,
+} from '@/lib/fashionCategoryPanelsConfig';
 
-type CollectionPanel = {
-  title: string;
-  country: string;
-  href: string;
-  videoSrc: string;
-  previewImage: string;
+export type FashionCategoriesProps = {
+  /** Publicado desde Mapa de página; si falta o es inválido, se usan los valores por defecto. */
+  panels?: FashionCategoryPanel[] | null;
 };
 
-const PANELS: CollectionPanel[] = [
-  {
-    title: 'Elegancia italiana',
-    country: 'ITALIA',
-    href: '/catalogo?filter=italiana',
-    videoSrc: getCloudinaryAsset('/Assets/video/italia.mp4'),
-    previewImage:
-      'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1280&q=80',
-  },
-  {
-    title: 'Chic frances',
-    country: 'FRANCIA',
-    href: '/catalogo?filter=francesa',
-    videoSrc: getCloudinaryAsset('/Assets/video/francia.mp4'),
-    previewImage:
-      'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1280&q=80',
-  },
-  {
-    title: 'Accesorios premium',
-    country: 'EUROPA',
-    href: '/catalogo',
-    videoSrc: getCloudinaryAsset('/Assets/video/italia-m.mp4'),
-    previewImage:
-      'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1280&q=80',
-  },
-  {
-    title: 'Looks urbanos',
-    country: 'COLECCION',
-    href: '/catalogo',
-    videoSrc: 'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594296/francia-m_gxsq71.mp4',
-    previewImage:
-      'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1280&q=80',
-  },
-];
+export function FashionCategories({ panels: panelsProp }: FashionCategoriesProps) {
+  const panels = useMemo(() => {
+    if (panelsProp?.length === FASHION_CATEGORY_PANEL_COUNT) return panelsProp;
+    return DEFAULT_FASHION_CATEGORY_PANELS;
+  }, [panelsProp]);
 
-export function FashionCategories() {
   const [activePanel, setActivePanel] = useState(0);
 
   return (
@@ -93,11 +64,11 @@ export function FashionCategories() {
         className="hidden md:flex h-[72vh] min-h-[460px] max-h-[760px] w-full overflow-hidden border-y border-[#b8956a]/25 bg-[#1a1410]"
         onMouseLeave={() => setActivePanel(0)}
       >
-        {PANELS.map((panel, index) => {
+        {panels.map((panel, index) => {
           const isActive = activePanel === index;
           return (
             <Link
-              key={panel.title}
+              key={`fc-panel-${index}`}
               href={panel.href}
               onMouseEnter={() => setActivePanel(index)}
               className="relative h-full min-w-0 border-r border-[#b8956a]/25 last:border-r-0"
@@ -178,8 +149,8 @@ export function FashionCategories() {
       </div>
 
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 px-4 pb-10 sm:px-6 md:hidden">
-        {PANELS.map((panel) => (
-          <Link key={panel.title} href={panel.href} className="relative h-56 overflow-hidden">
+        {panels.map((panel, index) => (
+          <Link key={`fc-panel-m-${index}`} href={panel.href} className="relative h-56 overflow-hidden">
             <img
               className="h-full w-full object-cover"
               src={panel.previewImage}

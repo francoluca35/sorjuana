@@ -6,6 +6,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { getPriceSettingsAction, savePriceSettingsAction } from '@/app/actions/priceSettings';
+import { notifyPriceSettingsUpdated } from '@/lib/priceSettingsEvents';
 
 const sans = 'Montserrat, sans-serif';
 const serif = "'Cormorant Garamond', serif";
@@ -90,6 +91,7 @@ export function PreciosAdminPanel() {
 				return;
 			}
 			toast.success('Descuentos guardados en la base de datos.');
+			notifyPriceSettingsUpdated();
 		} finally {
 			setSaving(false);
 		}

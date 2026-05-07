@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useCart } from '@/app/context/CartContext';
 import { displayCategoryLabel, PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
 import {
+	CARD_INSTALLMENTS_NO_INTEREST,
 	computeDiscountPercent,
 	formatCuotaAr,
 	formatPrecioListaAr,
@@ -712,7 +713,7 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 										product.final_transfer_price > 0 ? product.final_transfer_price : discountedPrice;
 									const discountPercent = computeDiscountPercent(listPrice, discountedPrice);
 									const hasDiscount = discountPercent > 0;
-									const installments = 6;
+									const installments = CARD_INSTALLMENTS_NO_INTEREST;
 									const publicationStock = Math.max(
 										product.stock,
 										product.size_inventory.reduce((sum, row) => sum + Math.max(0, Math.floor(row.qty || 0)), 0),

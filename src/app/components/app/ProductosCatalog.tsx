@@ -36,6 +36,7 @@ import {
   updateProductAction,
 } from '@/app/actions/products';
 import { getPriceSettingsAction } from '@/app/actions/priceSettings';
+import { PRICE_SETTINGS_UPDATED_EVENT } from '@/lib/priceSettingsEvents';
 import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { SizeInventoryEditor } from '@/app/components/app/SizeInventoryEditor';
 import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
@@ -209,21 +210,26 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const cfg = await getPriceSettingsAction();
-        if (cancelled) return;
-        setGlobalCashDiscountPercent(Number(cfg.cashDiscountPercent) || 0);
-        setGlobalTransferDiscountPercent(Number(cfg.transferDiscountPercent) || 0);
-      } catch {
-        if (!cancelled) {
-          setGlobalCashDiscountPercent(0);
-          setGlobalTransferDiscountPercent(0);
+    const sync = () => {
+      void (async () => {
+        try {
+          const cfg = await getPriceSettingsAction();
+          if (cancelled) return;
+          setGlobalCashDiscountPercent(Number(cfg.cashDiscountPercent) || 0);
+          setGlobalTransferDiscountPercent(Number(cfg.transferDiscountPercent) || 0);
+        } catch {
+          if (!cancelled) {
+            setGlobalCashDiscountPercent(0);
+            setGlobalTransferDiscountPercent(0);
+          }
         }
-      }
-    })();
+      })();
+    };
+    sync();
+    window.addEventListener(PRICE_SETTINGS_UPDATED_EVENT, sync);
     return () => {
       cancelled = true;
+      window.removeEventListener(PRICE_SETTINGS_UPDATED_EVENT, sync);
     };
   }, []);
 

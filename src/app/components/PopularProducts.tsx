@@ -15,6 +15,7 @@ import {
 } from '@/app/components/NewArrivals';
 import type { ProductRow } from '@/lib/data/productCatalog';
 import {
+	CARD_INSTALLMENTS_NO_INTEREST,
 	computeDiscountPercent,
 	formatCuotaAr,
 	formatPrecioListaAr,
@@ -305,7 +306,7 @@ export function PopularProducts({
 										const listPrice = product.cardPrice > 0 ? product.cardPrice : discountedPrice;
 										const discountPercent = computeDiscountPercent(listPrice, discountedPrice);
 										const hasDiscount = discountPercent > 0;
-										const installments = 6;
+										const installments = CARD_INSTALLMENTS_NO_INTEREST;
 
 										return (
 											<div className="space-y-1 text-center">

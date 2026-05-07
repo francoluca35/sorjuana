@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { fetchSiteHomeConfig } from '@/lib/data/siteHomeConfig';
 import { BEST_SELLERS_MAX } from '@/lib/bestSellersSelection';
+import type { CategorySpotlightRailItem } from '@/lib/categorySpotlightRailConfig';
+import type { FashionCategoryPanel } from '@/lib/fashionCategoryPanelsConfig';
 import type { HeroSlide } from '@/lib/heroSlidesConfig';
 import { parseStoredProductIds, RECENT_ARRIVALS_MAX } from '@/lib/recentArrivalsSelection';
 
@@ -67,6 +69,88 @@ export async function saveHeroSlidesAction(slides: HeroSlide[]): Promise<{ ok: b
 		return { ok: true };
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Error al guardar el hero.';
+		return { ok: false, message: msg };
+	}
+}
+
+export async function saveCategorySpotlightRailAction(
+	items: CategorySpotlightRailItem[],
+): Promise<{ ok: boolean; message?: string }> {
+	const auth = await requireAuthUser();
+	if (!auth.ok) return auth;
+
+	try {
+		const payload = JSON.parse(JSON.stringify(items)) as unknown;
+		const { data, error } = await auth.supabase
+			.from('site_home_config')
+			.update({
+				category_spotlight_rail: payload,
+				updated_at: new Date().toISOString(),
+			})
+			.eq('id', 1)
+			.select('id');
+
+		if (error) {
+			return {
+				ok: false,
+				message:
+					error.message.includes('category_spotlight_rail') || error.code === '42703'
+						? 'Falta la columna en la base: ejecutá la migración `20260507130000_site_home_category_spotlight_rail.sql`.'
+						: error.message,
+			};
+		}
+		if (!data?.length) {
+			return {
+				ok: false,
+				message:
+					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
+			};
+		}
+		revalidateHome();
+		return { ok: true };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al guardar las categorías.';
+		return { ok: false, message: msg };
+	}
+}
+
+export async function saveFashionCategoryPanelsAction(
+	panels: FashionCategoryPanel[],
+): Promise<{ ok: boolean; message?: string }> {
+	const auth = await requireAuthUser();
+	if (!auth.ok) return auth;
+
+	try {
+		const payload = JSON.parse(JSON.stringify(panels)) as unknown;
+		const { data, error } = await auth.supabase
+			.from('site_home_config')
+			.update({
+				fashion_category_panels: payload,
+				updated_at: new Date().toISOString(),
+			})
+			.eq('id', 1)
+			.select('id');
+
+		if (error) {
+			return {
+				ok: false,
+				message:
+					error.message.includes('fashion_category_panels') || error.code === '42703'
+						? 'Falta la columna en la base: ejecutá la migración `20260507120000_site_home_fashion_panels.sql`.'
+						: error.message,
+			};
+		}
+		if (!data?.length) {
+			return {
+				ok: false,
+				message:
+					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
+			};
+		}
+		revalidateHome();
+		return { ok: true };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al guardar la colección.';
 		return { ok: false, message: msg };
 	}
 }
