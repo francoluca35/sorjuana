@@ -3,12 +3,14 @@
 import Image from 'next/image';
 import { useEffect, useLayoutEffect, useMemo, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ShoppingBag, X, Minus, Plus, Trash2, Loader2 } from 'lucide-react';
+import { ShoppingBag, X, Minus, Plus, Trash2, Loader2, Package } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { useCart, parseProductIdFromLineId } from '@/app/context/CartContext';
 import { checkoutAndReserve } from '@/app/actions/checkout';
+import { quoteShippingByPostalCodeAction } from '@/app/actions/shippingQuote';
+import { normalizeArgentinaPostalCode } from '@/lib/shipping/correoQuote';
 import { cn } from '@/app/components/ui/utils';
 
 type PaymentMethod = 'efectivo' | 'transferencia' | 'tarjeta';
@@ -45,6 +47,11 @@ export function CartSheet() {
 	const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
 	const [showCheckoutProducts, setShowCheckoutProducts] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
+	const [shippingCp, setShippingCp] = useState('');
+	const [shippingAmount, setShippingAmount] = useState<number | null>(null);
+	const [shippingValidForCp, setShippingValidForCp] = useState<string | null>(null);
+	const [shippingLoading, setShippingLoading] = useState(false);
+	const [shippingError, setShippingError] = useState<string | null>(null);
 
 	useLayoutEffect(() => {
 		const mq = window.matchMedia('(min-width: 768px)');
@@ -60,6 +67,10 @@ export function CartSheet() {
 			setSubmitting(false);
 			setPaymentMethod('efectivo');
 			setShowCheckoutProducts(false);
+			setShippingCp('');
+			setShippingAmount(null);
+			setShippingValidForCp(null);
+			setShippingError(null);
 		}
 	}, [isOpen]);
 
@@ -106,6 +117,46 @@ export function CartSheet() {
 		}, 0);
 	}, [items, paymentMethod]);
 
+	const cpNormalized = useMemo(() => normalizeArgentinaPostalCode(shippingCp), [shippingCp]);
+	const shippingApplies =
+		shippingAmount != null &&
+		shippingValidForCp != null &&
+		cpNormalized === shippingValidForCp &&
+		cpNormalized.length >= 4;
+
+	const checkoutGrandTotal = useMemo(
+		() => checkoutSubtotal + (shippingApplies ? shippingAmount : 0),
+		[checkoutSubtotal, shippingApplies, shippingAmount],
+	);
+
+	async function onCalculateShipping() {
+		setShippingError(null);
+		const cp = normalizeArgentinaPostalCode(shippingCp);
+		if (cp.length < 4) {
+			setShippingError('Ingresá un código postal de al menos 4 dígitos.');
+			return;
+		}
+		setShippingLoading(true);
+		try {
+			const r = await quoteShippingByPostalCodeAction(cp);
+			if (!r.ok) {
+				setShippingAmount(null);
+				setShippingValidForCp(null);
+				setShippingError(r.message);
+				return;
+			}
+			setShippingAmount(r.amountArs);
+			setShippingValidForCp(cp);
+			toast.success(`Envío estimado: ${formatMoney(r.amountArs)}`);
+		} catch (e) {
+			setShippingAmount(null);
+			setShippingValidForCp(null);
+			setShippingError(e instanceof Error ? e.message : 'No se pudo cotizar el envío.');
+		} finally {
+			setShippingLoading(false);
+		}
+	}
+
 	async function onWhatsAppCheckout(e: FormEvent) {
 		e.preventDefault();
 		if (items.length === 0) return;
@@ -117,6 +168,12 @@ export function CartSheet() {
 					phone: custPhone,
 					locality: custLocality,
 					address: custAddress,
+					...(shippingApplies && shippingAmount != null
+						? {
+								shippingPostalCode: cpNormalized,
+								shippingCostArs: shippingAmount,
+							}
+						: {}),
 				},
 				items.map((l) => ({
 					productId: l.productId || parseProductIdFromLineId(l.id),
@@ -143,6 +200,10 @@ export function CartSheet() {
 				setCustLocality('');
 				setCustAddress('');
 				setPaymentMethod('efectivo');
+				setShippingCp('');
+				setShippingAmount(null);
+				setShippingValidForCp(null);
+				setShippingError(null);
 				setCheckoutStep('cart');
 				closeCart();
 				toast.success('Pedido registrado. Se reservó el stock y se abrió WhatsApp.');
@@ -393,6 +454,69 @@ export function CartSheet() {
 												placeholder="Ciudad o localidad"
 											/>
 										</div>
+										<div className="rounded-lg border border-black/10 bg-[#faf8f6] p-3">
+											<p
+												className="text-xs font-semibold uppercase tracking-[0.08em] text-[#1a1410]"
+												style={sans}
+											>
+												Calcular precio de envío
+											</p>
+											<p className="mt-1 text-[11px] leading-snug text-black/50" style={sans}>
+												Ingresá el código postal de destino para ver el costo estimado de envío.
+											</p>
+											<div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+												<div className="min-w-0 flex-1">
+													<label className="text-xs font-medium text-black/60" style={sans}>
+														Código postal
+													</label>
+													<input
+														type="text"
+														inputMode="numeric"
+														autoComplete="postal-code"
+														value={shippingCp}
+														onChange={(e) => setShippingCp(e.target.value)}
+														className={inputClass}
+														placeholder="Ej: 1722"
+														maxLength={8}
+													/>
+												</div>
+												<button
+													type="button"
+													onClick={() => void onCalculateShipping()}
+													disabled={shippingLoading}
+													className={cn(
+														'flex shrink-0 items-center justify-center gap-2 rounded-lg border border-[#a34963]/40 bg-white px-4 py-2.5 text-xs font-semibold tracking-[0.08em] text-[#a34963] transition hover:bg-[#a34963]/10 disabled:pointer-events-none disabled:opacity-50',
+													)}
+													style={sans}
+												>
+													{shippingLoading ? (
+														<Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+													) : (
+														<Package className="h-4 w-4" aria-hidden />
+													)}
+													Calcular envío
+												</button>
+											</div>
+											{shippingError ? (
+												<p className="mt-2 text-[11px] text-red-600" style={sans}>
+													{shippingError}
+												</p>
+											) : null}
+											{shippingAmount != null && shippingValidForCp ? (
+												<p className="mt-2 text-sm font-semibold text-[#1a1410]" style={sans}>
+													Envío estimado (CP {shippingValidForCp}):{' '}
+													<span style={{ color: accent }}>{formatMoney(shippingAmount)}</span>
+												</p>
+											) : null}
+											{shippingAmount != null &&
+											shippingValidForCp &&
+											cpNormalized !== shippingValidForCp ? (
+												<p className="mt-2 text-[11px] text-amber-800" style={sans}>
+													El código postal cambió: tocá «Calcular envío» de nuevo para actualizar el
+													importe.
+												</p>
+											) : null}
+										</div>
 										<div>
 											<label className="text-xs font-medium text-black/60" style={sans}>
 												Pagar con
@@ -434,16 +558,25 @@ export function CartSheet() {
 									) : null}
 								</div>
 								<footer className="shrink-0 border-t border-black/[0.06] bg-white px-5 pt-4 pb-1">
-									<div
-										className="mb-3 flex items-baseline justify-between gap-3 text-[#1a1410]"
-										style={serif}
-									>
-										<span className="text-lg" style={{ fontWeight: 500 }}>
-											Total estimado
-										</span>
-										<span className="text-xl font-semibold tabular-nums">
-											{formatMoney(checkoutSubtotal)}
-										</span>
+									<div className="mb-3 space-y-2 text-[#1a1410]" style={serif}>
+										<div className="flex items-baseline justify-between gap-3 text-sm">
+											<span style={{ fontWeight: 500 }}>Productos</span>
+											<span className="tabular-nums">{formatMoney(checkoutSubtotal)}</span>
+										</div>
+										{shippingApplies ? (
+											<div className="flex items-baseline justify-between gap-3 text-sm text-black/75">
+												<span style={{ fontWeight: 500 }}>Envío (CP {shippingValidForCp})</span>
+												<span className="tabular-nums">{formatMoney(shippingAmount ?? 0)}</span>
+											</div>
+										) : null}
+										<div className="flex items-baseline justify-between gap-3 border-t border-black/[0.06] pt-2">
+											<span className="text-lg" style={{ fontWeight: 500 }}>
+												Total estimado
+											</span>
+											<span className="text-xl font-semibold tabular-nums">
+												{formatMoney(checkoutGrandTotal)}
+											</span>
+										</div>
 									</div>
 									<button
 										type="submit"

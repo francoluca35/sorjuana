@@ -27,6 +27,10 @@ export type CheckoutCustomerInput = {
 	phone: string;
 	locality: string;
 	address: string;
+	/** CP usado en la cotización de envío (solo dígitos). */
+	shippingPostalCode?: string;
+	/** Importe de envío en ARS (si el cliente cotizó antes de confirmar). */
+	shippingCostArs?: number;
 };
 
 function formatMoney(n: number) {
@@ -45,6 +49,8 @@ function buildWhatsAppUrl(args: {
 		line_total: number;
 	}[];
 	total: number;
+	shippingPostalCode?: string;
+	shippingCostArs?: number;
 }) {
 	const paymentMethodLabel =
 		args.paymentMethod === 'tarjeta'
@@ -57,13 +63,24 @@ function buildWhatsAppUrl(args: {
 		const talla = l.size?.trim() ? ` — Talle: ${l.size}` : '';
 		return `•${code} ${l.name}${talla} ×${l.qty} — ${formatMoney(l.unit_price)} c/u → ${formatMoney(l.line_total)}`;
 	});
+	const shippingLine =
+		args.shippingCostArs != null &&
+		args.shippingCostArs >= 0 &&
+		args.shippingPostalCode?.trim()
+			? `\nEnvío estimado (CP ${args.shippingPostalCode.trim()}): ${formatMoney(args.shippingCostArs)}`
+			: '';
+	const grandTotal =
+		args.total + (args.shippingCostArs != null && args.shippingCostArs >= 0 ? args.shippingCostArs : 0);
+
 	const body = `Hola, soy ${args.customerName.trim()}, quiero comprar estos productos:
 
 ${lines.join('\n')}
 
 Método de pago: ${paymentMethodLabel}
 
-Total: ${formatMoney(args.total)}`;
+Subtotal productos: ${formatMoney(args.total)}${shippingLine}
+
+Total: ${formatMoney(grandTotal)}`;
 
 	let phone = '5491159795700';
 	try {
@@ -169,6 +186,8 @@ export async function checkoutAndReserve(
 		paymentMethod,
 		items: whatsappItems,
 		total: whatsappTotal,
+		shippingPostalCode: customer.shippingPostalCode,
+		shippingCostArs: customer.shippingCostArs,
 	});
 
 	revalidatePath('/catalogo');

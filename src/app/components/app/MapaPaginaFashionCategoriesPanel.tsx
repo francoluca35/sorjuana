@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ExternalLink, RotateCcw, Save, Upload } from 'lucide-react';
 import { getSiteHomeConfigAction, saveFashionCategoryPanelsAction } from '@/app/actions/siteHomeConfig';
@@ -16,6 +16,15 @@ import {
 	type FashionCategoryPanel,
 } from '@/lib/fashionCategoryPanelsConfig';
 import { cn } from '@/app/components/ui/utils';
+import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
+import type { ShopCategoryTree } from '@/lib/data/shopCategories';
+import {
+	buildCatalogLinkPicks,
+	CUSTOM_CATALOG_LINK_ID,
+	FULL_CATALOG_LINK_ID,
+	matchPickIdForHref,
+	catalogAdminSelectClass,
+} from '@/lib/catalogAdminLinks';
 
 const sans = 'Montserrat, sans-serif';
 const serif = "'Cormorant Garamond', serif";
@@ -35,10 +44,16 @@ const PANEL_LABELS = [
 export function MapaPaginaFashionCategoriesPanel() {
 	const [panels, setPanels] = useState<FashionCategoryPanel[]>(DEFAULT_FASHION_CATEGORY_PANELS);
 	const [activeIdx, setActiveIdx] = useState(0);
+	const [categoryTree, setCategoryTree] = useState<ShopCategoryTree[]>([]);
+	const [categoriesLoading, setCategoriesLoading] = useState(true);
+	/** Si el usuario elige «Otro enlace» aunque el href coincida con una opción. */
+	const [pickForceCustom, setPickForceCustom] = useState<Record<number, boolean>>({});
 	const pendingImgIdxRef = useRef<number | null>(null);
 	const pendingVidIdxRef = useRef<number | null>(null);
 	const imgInputRef = useRef<HTMLInputElement>(null);
 	const vidInputRef = useRef<HTMLInputElement>(null);
+
+	const linkPicks = useMemo(() => buildCatalogLinkPicks(categoryTree), [categoryTree]);
 
 	useEffect(() => {
 		void getSiteHomeConfigAction().then((cfg) => {
@@ -46,6 +61,19 @@ export function MapaPaginaFashionCategoriesPanel() {
 				setPanels(cfg.fashionCategoryPanels);
 			}
 		});
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		setCategoriesLoading(true);
+		void listShopCategoryTreeAction().then((tree) => {
+			if (cancelled) return;
+			setCategoryTree(Array.isArray(tree) ? tree : []);
+			setCategoriesLoading(false);
+		});
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
 	const updatePanel = useCallback((index: number, partial: Partial<FashionCategoryPanel>) => {
@@ -135,6 +163,7 @@ export function MapaPaginaFashionCategoriesPanel() {
 	}, [panels]);
 
 	const resetDefaults = useCallback(() => {
+		setPickForceCustom({});
 		setPanels(DEFAULT_FASHION_CATEGORY_PANELS);
 		setActiveIdx(0);
 		void saveFashionCategoryPanelsAction(DEFAULT_FASHION_CATEGORY_PANELS).then((res) => {
@@ -146,7 +175,14 @@ export function MapaPaginaFashionCategoriesPanel() {
 		});
 	}, []);
 
-	const slide = panels[activeIdx];
+	const slide = panels[activeIdx] ?? null;
+
+	const linkPickId = useMemo(() => {
+		if (pickForceCustom[activeIdx]) return CUSTOM_CATALOG_LINK_ID;
+		if (!slide) return FULL_CATALOG_LINK_ID;
+		return matchPickIdForHref(slide.href, linkPicks);
+	}, [slide, linkPicks, activeIdx, pickForceCustom]);
+
 	if (!slide) return null;
 
 	return (
@@ -239,18 +275,99 @@ export function MapaPaginaFashionCategoriesPanel() {
 							/>
 						</div>
 						<div className="space-y-2">
-							<Label htmlFor={`fc-href-${activeIdx}`} style={{ fontFamily: sans }}>
-								Enlace al hacer clic
+							<Label htmlFor={`fc-link-pick-${activeIdx}`} style={{ fontFamily: sans }}>
+								Enlace al hacer clic (catálogo)
 							</Label>
-							<Input
-								id={`fc-href-${activeIdx}`}
-								value={slide.href}
-								onChange={(e) => updatePanel(activeIdx, { href: e.target.value })}
-								placeholder="/catalogo o https://..."
-								className="bg-white/90"
-								style={{ fontFamily: sans }}
-							/>
+							<select
+								id={`fc-link-pick-${activeIdx}`}
+								className={catalogAdminSelectClass}
+								style={{ fontFamily: sans, fontWeight: 400 }}
+								disabled={categoriesLoading}
+								value={linkPickId}
+								onChange={(e) => {
+									const id = e.target.value;
+									if (id === CUSTOM_CATALOG_LINK_ID) {
+										setPickForceCustom((prev) => ({ ...prev, [activeIdx]: true }));
+										return;
+									}
+									setPickForceCustom((prev) => {
+										const next = { ...prev };
+										delete next[activeIdx];
+										return next;
+									});
+									const pick = linkPicks.find((p) => p.id === id);
+									if (pick) updatePanel(activeIdx, { href: pick.href });
+								}}
+							>
+								<optgroup label="General">
+									{linkPicks
+										.filter((p) => p.id === FULL_CATALOG_LINK_ID)
+										.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.label}
+											</option>
+										))}
+								</optgroup>
+								<optgroup label="Una línea (colección)">
+									{linkPicks
+										.filter((p) => p.id.startsWith('line:'))
+										.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.label}
+											</option>
+										))}
+								</optgroup>
+								<optgroup label="Tipo (una opción, todas las categorías)">
+									{linkPicks
+										.filter((p) => p.id.startsWith('tipo:'))
+										.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.label}
+											</option>
+										))}
+								</optgroup>
+								<optgroup label="Línea + tipo">
+									{linkPicks
+										.filter((p) => p.id.startsWith('combo:'))
+										.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.label}
+											</option>
+										))}
+								</optgroup>
+								<option value={CUSTOM_CATALOG_LINK_ID}>Otro enlace (personalizado)…</option>
+							</select>
+							<p className="text-[0.7rem] leading-snug text-[#8a7a68]" style={{ fontFamily: sans, fontWeight: 300 }}>
+								«Tipo» lista cada subcategoría una sola vez (ej. un solo Pantalones para italiano, nacional,
+								etc.), igual que en los círculos del inicio.
+							</p>
 						</div>
+						{linkPickId === CUSTOM_CATALOG_LINK_ID ? (
+							<div className="space-y-2">
+								<Label htmlFor={`fc-href-${activeIdx}`} style={{ fontFamily: sans }}>
+									URL personalizada
+								</Label>
+								<Input
+									id={`fc-href-${activeIdx}`}
+									value={slide.href}
+									onChange={(e) => {
+										const v = e.target.value;
+										updatePanel(activeIdx, { href: v });
+										const matched = matchPickIdForHref(v, linkPicks);
+										if (matched !== CUSTOM_CATALOG_LINK_ID) {
+											setPickForceCustom((prev) => {
+												const next = { ...prev };
+												delete next[activeIdx];
+												return next;
+											});
+										}
+									}}
+									placeholder="/catalogo?… o https://…"
+									className="bg-white/90"
+									style={{ fontFamily: sans }}
+								/>
+							</div>
+						) : null}
 					</div>
 
 					<div className="border-t border-[#b8956a]/20 pt-4">

@@ -11,7 +11,12 @@ import {
   type ProductVariantForDetailModal,
 } from '@/app/components/ProductDetailModal';
 import { SingleLineFitText } from '@/app/components/SingleLineFitText';
-import { displayCategoryLabel, parseSubcategorySlugFromDb } from '@/lib/data/productCatalog';
+import {
+	ADMIN_CATEGORY_SLUGS,
+	displayCategoryLabel,
+	parseCategoryPathSegments,
+	parseSubcategorySlugFromDb,
+} from '@/lib/data/productCatalog';
 import {
   CARD_INSTALLMENTS_NO_INTEREST,
   computeDiscountPercent,
@@ -44,9 +49,16 @@ type CatalogProduct = {
 };
 
 function parseCategoryRoot(raw: string | null): string | null {
-  if (!raw?.trim()) return null;
-  const root = raw.trim().toLowerCase().split('/')[0];
-  return root || null;
+	const parts = parseCategoryPathSegments(raw);
+	return parts[0] ?? null;
+}
+
+/** Coincide si el slug aparece como único segmento o en cualquier posición bajo la línea (`a/b`, `a/b/c`). */
+function categoryDbHasSubSlugSegment(category_db: string | null, slug: string): boolean {
+	const parts = parseCategoryPathSegments(category_db);
+	if (!slug || parts.length === 0) return false;
+	if (parts.length === 1) return parts[0] === slug;
+	return parts.slice(1).some((seg) => seg === slug);
 }
 
 export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
@@ -58,12 +70,20 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   const subcategoriaParam = searchParams.get('subcategoria');
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [selectedSubSlug, setSelectedSubSlug] = useState<string>('all');
-  const [adminCategorySlug, setAdminCategorySlug] = useState<string | null>(null);
   const [priceRange, setPriceRange] = useState<string>('all');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
 
+  const adminTipoSlugSet = useMemo(
+    () => new Set<string>(ADMIN_CATEGORY_SLUGS as readonly string[]),
+    [],
+  );
+
   const replaceCatalogQuery = useCallback(
-    (updates: { filter?: string | null; subcategoria?: string | null }) => {
+    (updates: {
+      filter?: string | null;
+      subcategoria?: string | null;
+      categoria?: string | null;
+    }) => {
       const params = new URLSearchParams(searchParams.toString());
       if (updates.filter !== undefined) {
         if (!updates.filter || updates.filter === 'all') params.delete('filter');
@@ -75,6 +95,10 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
         } else {
           params.set('subcategoria', updates.subcategoria);
         }
+      }
+      if (updates.categoria !== undefined) {
+        if (!updates.categoria?.trim()) params.delete('categoria');
+        else params.set('categoria', updates.categoria.trim());
       }
       const q = params.toString();
       router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
@@ -102,25 +126,54 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     }));
   }, [productRows]);
 
+  const categoriaParamNorm = (categoriaParam ?? '').trim().toLowerCase();
+
+  const lineRootSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of productRows) {
+      const r = parseCategoryRoot(p.category_db);
+      if (r) s.add(r);
+    }
+    return s;
+  }, [productRows]);
+
+  const allSubSlugsInCatalog = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of productRows) {
+      const parts = parseCategoryPathSegments(p.category_db);
+      for (let i = 1; i < parts.length; i++) {
+        s.add(parts[i]!);
+      }
+    }
+    return s;
+  }, [productRows]);
+
+  /** `?categoria=italiano` cuando coincide con la raíz de ruta en productos cargados. */
+  const lineSlugFromCategoriaParam = useMemo(() => {
+    if (!categoriaParamNorm) return null;
+    if (lineRootSet.has(categoriaParamNorm)) return categoriaParamNorm;
+    return null;
+  }, [categoriaParamNorm, lineRootSet]);
+
+  /** `?categoria=pantalones` u otro slug de subcategoría (todas las líneas), o preset admin aunque aún no haya stock. */
+  const globalTipoSlug = useMemo(() => {
+    if (!categoriaParamNorm || lineSlugFromCategoriaParam) return null;
+    if (allSubSlugsInCatalog.has(categoriaParamNorm)) return categoriaParamNorm;
+    if (adminTipoSlugSet.has(categoriaParamNorm)) return categoriaParamNorm;
+    return null;
+  }, [categoriaParamNorm, lineSlugFromCategoriaParam, allSubSlugsInCatalog, adminTipoSlugSet]);
+
   useEffect(() => {
-    const raw = filterParam?.trim().toLowerCase() ?? '';
+    const fromFilter = filterParam?.trim().toLowerCase() ?? '';
+    const fromLineCat = lineSlugFromCategoriaParam ?? '';
+    const raw = fromFilter || fromLineCat;
     const valid = raw && categoryOptions.some((x) => x.value === raw);
     if (valid) {
       setSelectedFilter(raw);
     } else {
       setSelectedFilter('all');
     }
-  }, [filterParam, categoryOptions]);
-
-  useEffect(() => {
-    const raw = categoriaParam?.trim().toLowerCase() ?? '';
-    const valid = raw && categoryOptions.some((x) => x.value === raw);
-    if (valid) {
-      setAdminCategorySlug(raw);
-    } else {
-      setAdminCategorySlug(null);
-    }
-  }, [categoriaParam, categoryOptions]);
+  }, [filterParam, lineSlugFromCategoriaParam, categoryOptions]);
 
   const subcategoryOptions = useMemo(() => {
     if (selectedFilter === 'all') return [];
@@ -158,8 +211,8 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
 
   const filteredProducts = productRows.filter((product) => {
     const categoryMatch = selectedFilter === 'all' || product.adminCategory === selectedFilter;
-    const adminMatch =
-      !adminCategorySlug || product.adminCategory === adminCategorySlug;
+    const tipoMatch =
+      !globalTipoSlug || categoryDbHasSubSlugSegment(product.category_db, globalTipoSlug);
     const subMatch =
       selectedSubSlug === 'all' ||
       parseSubcategorySlugFromDb(product.category_db) === selectedSubSlug;
@@ -173,8 +226,8 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     } else if (priceRange === 'high') {
       priceMatch = refPrice >= 300;
     }
-    
-    return categoryMatch && adminMatch && subMatch && priceMatch;
+
+    return categoryMatch && tipoMatch && subMatch && priceMatch;
   });
 
   const groupedPublications = useMemo(() => {
@@ -272,6 +325,22 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
       >
         Filtros
       </h2>
+      {globalTipoSlug ? (
+        <div
+          className="mb-6 rounded-lg border border-[#b8956a]/25 bg-[#faf8f7] px-3 py-2.5 text-[0.75rem] leading-snug text-[#4a4238]"
+          style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+        >
+          <span className="block text-[#6b6156]">Tipo desde el inicio</span>
+          <span className="font-medium text-[#1a1410]">{displayCategoryLabel(globalTipoSlug)}</span>
+          <button
+            type="button"
+            className="mt-2 text-left text-[0.7rem] text-[#b8956a] underline decoration-[#b8956a]/40 underline-offset-2 hover:text-[#1a1410]"
+            onClick={() => replaceCatalogQuery({ categoria: null })}
+          >
+            Ver catálogo completo (quitar tipo)
+          </button>
+        </div>
+      ) : null}
       <div className="space-y-8">
         <div>
           <h3
@@ -405,28 +474,25 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
               letterSpacing: '0.05em'
             }}
           >
-            {selectedFilter === 'all' && 'Colección completa'}
-            {selectedFilter !== 'all' && displayCategoryLabel(selectedFilter)}
+            {selectedFilter !== 'all'
+              ? displayCategoryLabel(selectedFilter)
+              : globalTipoSlug
+                ? displayCategoryLabel(globalTipoSlug)
+                : 'Colección completa'}
           </h1>
-          
-          <p 
+
+          <p
             className="text-[#6b6156] italic"
             style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem' }}
           >
-            {selectedFilter === 'all' &&
-              'Explora nuestra colección de moda europea'}
-            {selectedFilter !== 'all' &&
+            {!globalTipoSlug && selectedFilter === 'all' && 'Explora nuestra colección de moda europea'}
+            {globalTipoSlug && selectedFilter === 'all' &&
+              `Todos los ${displayCategoryLabel(globalTipoSlug)} en todas las líneas (italiana, francesa, nacional, etc.)`}
+            {!globalTipoSlug && selectedFilter !== 'all' &&
               `Selección de ${displayCategoryLabel(selectedFilter)} disponible en tienda`}
+            {globalTipoSlug && selectedFilter !== 'all' &&
+              `${displayCategoryLabel(globalTipoSlug)} dentro de ${displayCategoryLabel(selectedFilter)}`}
           </p>
-          {adminCategorySlug ? (
-            <p
-              className="mt-4 text-[#1a1410]"
-              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500, fontSize: '0.9rem' }}
-            >
-              Categoría:{' '}
-              <span className="text-[#b8956a]">{displayCategoryLabel(adminCategorySlug)}</span>
-            </p>
-          ) : null}
         </motion.div>
 
         <div className="grid min-w-0 gap-8 lg:grid-cols-4 lg:items-start lg:gap-10">

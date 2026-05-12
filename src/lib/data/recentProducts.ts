@@ -1,5 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
-import { normalizeProductRow, type ProductRow } from '@/lib/data/productCatalog';
+import {
+	normalizeProductRow,
+	parseCategoryPathSegments,
+	type ProductRow,
+} from '@/lib/data/productCatalog';
 
 export type { ProductRow } from '@/lib/data/productCatalog';
 
@@ -83,6 +87,164 @@ async function resolvePanelSelectString(): Promise<string | null> {
 
 function mapRows(data: unknown[] | null): ProductRow[] {
 	return (data ?? []).map((raw) => normalizeProductRow(raw as unknown as Record<string, unknown>));
+}
+
+const STOREFRONT_CATALOG_FILTERED_CAP = 2500;
+
+/** Slug seguro para filtros PostgREST (`category.eq.…`, `ilike`, etc.). */
+function sanitizeCategorySlugParam(raw: string | undefined): string | null {
+	if (!raw?.trim()) return null;
+	const s = raw.trim().toLowerCase();
+	if (!/^[a-z0-9_-]{1,64}$/.test(s)) return null;
+	return s;
+}
+
+async function fetchShopParentSlugSet(
+	supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<Set<string>> {
+	const { data, error } = await supabase.from('shop_categories').select('slug');
+	if (error || !data?.length) return new Set();
+	const out = new Set<string>();
+	for (const row of data as { slug?: string }[]) {
+		const sl = String(row.slug ?? '')
+			.trim()
+			.toLowerCase();
+		if (sl) out.add(sl);
+	}
+	return out;
+}
+
+async function fetchShopSubcategorySlugSet(
+	supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<Set<string>> {
+	const { data, error } = await supabase.from('shop_subcategories').select('slug');
+	if (error || !data?.length) return new Set();
+	const out = new Set<string>();
+	for (const row of data as { slug?: string }[]) {
+		const sl = String(row.slug ?? '')
+			.trim()
+			.toLowerCase();
+		if (sl) out.add(sl);
+	}
+	return out;
+}
+
+/** Misma semántica que el catálogo cliente: slug en cualquier segmento bajo la línea o categoría única. */
+function categoryPathMatchesTipoSlug(category: string | null | undefined, tipoSlug: string): boolean {
+	const parts = parseCategoryPathSegments(category);
+	if (!tipoSlug || parts.length === 0) return false;
+	if (parts.length === 1) return parts[0] === tipoSlug;
+	return parts.slice(1).some((seg) => seg === tipoSlug);
+}
+
+const SUBSLUG_SCAN_PAGE = 800;
+const SUBSLUG_SCAN_MAX_ROWS = 50_000;
+
+/**
+ * Evita `.or()` con varios `ilike` y `%` (PostgREST a veces devuelve error o 0 filas).
+ * Pagina `products` y filtra en memoria por segmentos de ruta.
+ */
+async function fetchProductsMatchingSubslugPaginated(
+	selectStr: string,
+	tipoSlug: string,
+): Promise<ProductRow[]> {
+	const supabase = await createClient();
+	const out: ProductRow[] = [];
+	let from = 0;
+	for (;;) {
+		if (from >= SUBSLUG_SCAN_MAX_ROWS) break;
+		const { data, error } = await supabase
+			.from('products')
+			.select(selectStr)
+			.order('created_at', { ascending: false })
+			.range(from, from + SUBSLUG_SCAN_PAGE - 1);
+		if (error) {
+			console.error('[fetchProductsMatchingSubslugPaginated]', error.message);
+			break;
+		}
+		const chunk = mapRows(data);
+		if (chunk.length === 0) break;
+		for (const row of chunk) {
+			if (categoryPathMatchesTipoSlug(row.category, tipoSlug)) out.push(row);
+		}
+		if (chunk.length < SUBSLUG_SCAN_PAGE) break;
+		from += SUBSLUG_SCAN_PAGE;
+	}
+	return out;
+}
+
+/**
+ * Catálogo público: sin query devuelve los últimos 500; con `filter` y/o `categoria`
+ * consulta en base a rutas `products.category` (p. ej. `italiano/pantalones`) para no
+ * depender de que los pantalones estén entre los N más recientes.
+ */
+export async function fetchStorefrontCatalogRows(params: {
+	categoria?: string;
+	filter?: string;
+}): Promise<ProductRow[]> {
+	const c = sanitizeCategorySlugParam(params.categoria);
+	const f = sanitizeCategorySlugParam(params.filter);
+	const hasAxis = Boolean(c || f);
+	if (!hasAxis) {
+		return fetchRecentProducts(500);
+	}
+	try {
+		const selectStr = await resolvePanelSelectString();
+		if (!selectStr) return [];
+		const supabase = await createClient();
+		const parentSet = await fetchShopParentSlugSet(supabase);
+		const subSlugSet = await fetchShopSubcategorySlugSet(supabase);
+
+		let lineSlug: string | null = f || null;
+		let tipoSlug: string | null = null;
+
+		if (c) {
+			if (subSlugSet.has(c)) {
+				tipoSlug = c;
+			} else if (parentSet.has(c)) {
+				if (!lineSlug) lineSlug = c;
+			} else {
+				tipoSlug = c;
+			}
+		}
+
+		if (lineSlug && tipoSlug) {
+			const { data, error } = await supabase
+				.from('products')
+				.select(selectStr)
+				.or(`category.eq.${lineSlug}/${tipoSlug},category.ilike.${lineSlug}/${tipoSlug}/%`)
+				.order('created_at', { ascending: false })
+				.limit(STOREFRONT_CATALOG_FILTERED_CAP);
+			if (error) {
+				console.error('[fetchStorefrontCatalogRows]', error.message);
+				return [];
+			}
+			return mapRows(data);
+		}
+
+		if (lineSlug) {
+			const { data, error } = await supabase
+				.from('products')
+				.select(selectStr)
+				.or(`category.eq.${lineSlug},category.ilike.${lineSlug}/%`)
+				.order('created_at', { ascending: false })
+				.limit(STOREFRONT_CATALOG_FILTERED_CAP);
+			if (error) {
+				console.error('[fetchStorefrontCatalogRows]', error.message);
+				return [];
+			}
+			return mapRows(data);
+		}
+
+		if (tipoSlug) {
+			return fetchProductsMatchingSubslugPaginated(selectStr, tipoSlug);
+		}
+
+		return fetchRecentProducts(500);
+	} catch (e) {
+		console.error('[fetchStorefrontCatalogRows]', e);
+		return [];
+	}
 }
 
 /**

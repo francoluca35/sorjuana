@@ -2,11 +2,12 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ExternalLink, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
 import { getSiteHomeConfigAction, saveCategorySpotlightRailAction } from '@/app/actions/siteHomeConfig';
 import { uploadSorjuanaMedia } from '@/app/actions/storage';
+import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
@@ -15,6 +16,13 @@ import {
 	getDefaultCategorySpotlightRail,
 	type CategorySpotlightRailItem,
 } from '@/lib/categorySpotlightRailConfig';
+import {
+	buildUniqueSubcategoryTipoPicks,
+	CUSTOM_CATALOG_LINK_ID,
+	matchSpotlightSubPickId,
+	catalogAdminSelectClass,
+} from '@/lib/catalogAdminLinks';
+import type { ShopCategoryTree } from '@/lib/data/shopCategories';
 import { cn } from '@/app/components/ui/utils';
 
 const sans = 'Montserrat, sans-serif';
@@ -40,8 +48,13 @@ function blankItem(): CategorySpotlightRailItem {
 export function MapaPaginaCategorySpotlightRailPanel() {
 	const [items, setItems] = useState<CategorySpotlightRailItem[]>(getDefaultCategorySpotlightRail);
 	const [activeIdx, setActiveIdx] = useState(0);
+	const [categoryTree, setCategoryTree] = useState<ShopCategoryTree[]>([]);
+	const [categoriesLoading, setCategoriesLoading] = useState(true);
+	const [pickForceCustom, setPickForceCustom] = useState<Record<number, boolean>>({});
 	const pendingImgIdxRef = useRef<number | null>(null);
 	const imgInputRef = useRef<HTMLInputElement>(null);
+
+	const subPicks = useMemo(() => buildUniqueSubcategoryTipoPicks(categoryTree), [categoryTree]);
 
 	useEffect(() => {
 		void getSiteHomeConfigAction().then((cfg) => {
@@ -49,6 +62,19 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 				setItems(cfg.categorySpotlightRail);
 			}
 		});
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		setCategoriesLoading(true);
+		void listShopCategoryTreeAction().then((tree) => {
+			if (cancelled) return;
+			setCategoryTree(Array.isArray(tree) ? tree : []);
+			setCategoriesLoading(false);
+		});
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
 	const updateItem = useCallback((index: number, partial: Partial<CategorySpotlightRailItem>) => {
@@ -124,6 +150,7 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 	}, [items]);
 
 	const resetDefaults = useCallback(() => {
+		setPickForceCustom({});
 		const d = getDefaultCategorySpotlightRail();
 		setItems(d);
 		setActiveIdx(0);
@@ -165,7 +192,14 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 		});
 	}, []);
 
-	const slide = items[activeIdx];
+	const slide = items[activeIdx] ?? null;
+
+	const spotPickId = useMemo(() => {
+		if (!slide) return CUSTOM_CATALOG_LINK_ID;
+		if (pickForceCustom[activeIdx]) return CUSTOM_CATALOG_LINK_ID;
+		return matchSpotlightSubPickId(slide, subPicks);
+	}, [slide, activeIdx, pickForceCustom, subPicks]);
+
 	if (!slide) return null;
 
 	return (
@@ -245,19 +279,47 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 
 					<div className="space-y-3">
 						<div className="space-y-2">
-							<Label htmlFor={`csr-slug-${activeIdx}`} style={{ fontFamily: sans }}>
-								Slug interno (sin espacios; coincide con filtro de catálogo si usás la misma categoría)
+							<Label htmlFor={`csr-subpick-${activeIdx}`} style={{ fontFamily: sans }}>
+								Subcategoría (una por tipo, todas las categorías)
 							</Label>
-							<Input
-								id={`csr-slug-${activeIdx}`}
-								value={slide.slug}
-								onChange={(e) =>
-									updateItem(activeIdx, { slug: e.target.value.trim().toLowerCase() })
-								}
-								className="bg-white/90 font-mono text-sm"
-								style={{ fontFamily: sans }}
-								autoComplete="off"
-							/>
+							<select
+								id={`csr-subpick-${activeIdx}`}
+								className={catalogAdminSelectClass}
+								style={{ fontFamily: sans, fontWeight: 400 }}
+								disabled={categoriesLoading}
+								value={spotPickId}
+								onChange={(e) => {
+									const id = e.target.value;
+									if (id === CUSTOM_CATALOG_LINK_ID) {
+										setPickForceCustom((prev) => ({ ...prev, [activeIdx]: true }));
+										return;
+									}
+									setPickForceCustom((prev) => {
+										const next = { ...prev };
+										delete next[activeIdx];
+										return next;
+									});
+									const pick = subPicks.find((p) => p.id === id);
+									if (pick) {
+										updateItem(activeIdx, {
+											slug: pick.slug,
+											href: pick.href,
+											label: pick.subName,
+										});
+									}
+								}}
+							>
+								{subPicks.map((p) => (
+									<option key={p.id} value={p.id}>
+										{p.label}
+									</option>
+								))}
+								<option value={CUSTOM_CATALOG_LINK_ID}>Otro (slug y enlace manual)…</option>
+							</select>
+							<p className="text-[0.7rem] leading-snug text-[#8a7a68]" style={{ fontFamily: sans, fontWeight: 300 }}>
+								Cada opción es única: por ejemplo un solo «Pantalones» reúne italiano, nacional, etc. No se
+								repite por cada categoría padre.
+							</p>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor={`csr-label-${activeIdx}`} style={{ fontFamily: sans }}>
@@ -271,30 +333,77 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 								style={{ fontFamily: sans }}
 							/>
 						</div>
-						<div className="space-y-2">
-							<Label htmlFor={`csr-href-${activeIdx}`} style={{ fontFamily: sans }}>
-								Enlace al hacer clic
-							</Label>
-							<Input
-								id={`csr-href-${activeIdx}`}
-								value={slide.href}
-								onChange={(e) => updateItem(activeIdx, { href: e.target.value })}
-								placeholder="/catalogo?categoria=remeras"
-								className="bg-white/90"
-								style={{ fontFamily: sans }}
-							/>
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								className="h-8 px-2 text-xs text-[#6b6156]"
-								onClick={() =>
-									updateItem(activeIdx, { href: defaultHrefForCategorySlug(slide.slug) })
-								}
-							>
-								Sugerir enlace según slug
-							</Button>
-						</div>
+						{spotPickId === CUSTOM_CATALOG_LINK_ID ? (
+							<>
+								<div className="space-y-2">
+									<Label htmlFor={`csr-slug-${activeIdx}`} style={{ fontFamily: sans }}>
+										Slug interno (minúsculas y guiones; debe coincidir con el filtro del catálogo)
+									</Label>
+									<Input
+										id={`csr-slug-${activeIdx}`}
+										value={slide.slug}
+										onChange={(e) => {
+											const raw = e.target.value.trim().toLowerCase();
+											updateItem(activeIdx, { slug: raw });
+											const matched = matchSpotlightSubPickId({ slug: raw, href: slide.href }, subPicks);
+											if (matched !== CUSTOM_CATALOG_LINK_ID) {
+												setPickForceCustom((prev) => {
+													const next = { ...prev };
+													delete next[activeIdx];
+													return next;
+												});
+											}
+										}}
+										className="bg-white/90 font-mono text-sm"
+										style={{ fontFamily: sans }}
+										autoComplete="off"
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor={`csr-href-${activeIdx}`} style={{ fontFamily: sans }}>
+										Enlace al hacer clic
+									</Label>
+									<Input
+										id={`csr-href-${activeIdx}`}
+										value={slide.href}
+										onChange={(e) => {
+											const href = e.target.value;
+											updateItem(activeIdx, { href });
+											const matched = matchSpotlightSubPickId({ slug: slide.slug, href }, subPicks);
+											if (matched !== CUSTOM_CATALOG_LINK_ID) {
+												setPickForceCustom((prev) => {
+													const next = { ...prev };
+													delete next[activeIdx];
+													return next;
+												});
+											}
+										}}
+										placeholder="/catalogo?categoria=remeras"
+										className="bg-white/90"
+										style={{ fontFamily: sans }}
+									/>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										className="h-8 px-2 text-xs text-[#6b6156]"
+										onClick={() =>
+											updateItem(activeIdx, { href: defaultHrefForCategorySlug(slide.slug) })
+										}
+									>
+										Sugerir enlace según slug
+									</Button>
+								</div>
+							</>
+						) : (
+							<div className="rounded-md border border-[#b8956a]/20 bg-[#faf8f7] px-3 py-2 text-xs text-[#6b6156]" style={{ fontFamily: sans }}>
+								<span className="font-medium text-[#1a1410]">Slug:</span>{' '}
+								<code className="text-[#b8956a]">{slide.slug}</code>
+								{' · '}
+								<span className="font-medium text-[#1a1410]">Enlace:</span>{' '}
+								<code className="break-all text-[11px]">{slide.href}</code>
+							</div>
+						)}
 					</div>
 
 					<div className="border-t border-[#b8956a]/20 pt-4">

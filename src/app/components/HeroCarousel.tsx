@@ -267,13 +267,13 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                   aria-hidden
                 />
 
-                <div className="absolute inset-0 z-20 md:hidden">
+                <div className="pointer-events-none absolute inset-0 z-20 md:hidden">
                   {slide.hotspots.map((h) => (
                     <button
                       key={`${h.id}-sm`}
                       type="button"
                       onClick={(e) => openHotspot(h, e.currentTarget)}
-                      className="absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
+                      className="pointer-events-auto absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
                       style={{
                         top: h.topMobile ?? h.top,
                         left: h.leftMobile ?? h.left,
@@ -284,13 +284,13 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                     </button>
                   ))}
                 </div>
-                <div className="absolute inset-0 z-20 hidden md:block">
+                <div className="pointer-events-none absolute inset-0 z-20 hidden md:block">
                   {slide.hotspots.map((h) => (
                     <button
                       key={`${h.id}-md`}
                       type="button"
                       onClick={(e) => openHotspot(h, e.currentTarget)}
-                      className="absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
+                      className="pointer-events-auto absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
                       style={{ top: h.top, left: h.left }}
                       aria-label={`Ver ${h.productName}`}
                     >

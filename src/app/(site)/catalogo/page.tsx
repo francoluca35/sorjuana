@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { CatalogoPage } from '@/app/pages/CatalogoPage';
-import { fetchRecentProducts } from '@/lib/data/recentProducts';
+import { fetchStorefrontCatalogRows } from '@/lib/data/recentProducts';
 import { PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
 import { getCanonicalUrl } from '@/lib/seo';
 
@@ -41,8 +41,21 @@ function CatalogoFallback() {
 	);
 }
 
-export default async function Page() {
-	const rows = await fetchRecentProducts(500);
+function firstSearchParam(v: string | string[] | undefined): string | undefined {
+	if (Array.isArray(v)) return v[0];
+	return v;
+}
+
+export default async function Page({
+	searchParams,
+}: {
+	searchParams: Promise<{ categoria?: string | string[]; filter?: string | string[] }>;
+}) {
+	const sp = await searchParams;
+	const rows = await fetchStorefrontCatalogRows({
+		categoria: firstSearchParam(sp.categoria),
+		filter: firstSearchParam(sp.filter),
+	});
 	const products = rows.map((row) => {
 		const p = productRowToCatalogProduct(row);
 		return {
