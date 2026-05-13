@@ -3,27 +3,30 @@ import { Suspense } from 'react';
 import { CatalogoPage } from '@/app/pages/CatalogoPage';
 import { fetchStorefrontCatalogRows } from '@/lib/data/recentProducts';
 import { PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
-import { getCanonicalUrl } from '@/lib/seo';
+import { SITE_NAME, getCanonicalUrl, getDefaultOgImageUrl } from '@/lib/seo';
 
 const canonicalUrl = getCanonicalUrl('/catalogo');
+const catalogTitle = 'Catálogo de moda femenina';
+const catalogDescription =
+	'Explorá el catálogo de Sor Juana con prendas italianas y francesas. Novedades, precios y disponibilidad actualizada.';
+const ogImage = getDefaultOgImageUrl();
 
 export const metadata: Metadata = {
-	title: 'Catálogo de moda femenina',
-	description:
-		'Explorá el catálogo de Sor Juana con prendas italianas y francesas. Novedades, precios y disponibilidad actualizada.',
+	title: catalogTitle,
+	description: catalogDescription,
 	alternates: {
 		canonical: '/catalogo',
 	},
 	openGraph: {
 		url: '/catalogo',
-		title: 'Catálogo de moda femenina | Sor Juana',
-		description:
-			'Explorá el catálogo de Sor Juana con prendas italianas y francesas. Novedades, precios y disponibilidad actualizada.',
+		title: `${catalogTitle} | ${SITE_NAME}`,
+		description: catalogDescription,
+		images: [{ url: ogImage, alt: `${catalogTitle} | ${SITE_NAME}` }],
 	},
 	twitter: {
-		title: 'Catálogo de moda femenina | Sor Juana',
-		description:
-			'Explorá el catálogo de Sor Juana con prendas italianas y francesas. Novedades, precios y disponibilidad actualizada.',
+		title: `${catalogTitle} | ${SITE_NAME}`,
+		description: catalogDescription,
+		images: [ogImage],
 	},
 };
 
@@ -93,6 +96,19 @@ export default async function Page({
 				sku: product.product_code || undefined,
 				image: product.image ? [product.image] : undefined,
 				description: product.description || undefined,
+				offers:
+					product.price > 0
+						? {
+								'@type': 'Offer',
+								price: product.price,
+								priceCurrency: 'ARS',
+								availability:
+									product.stock > 0
+										? 'https://schema.org/InStock'
+										: 'https://schema.org/OutOfStock',
+								url: canonicalUrl,
+							}
+						: undefined,
 			},
 		})),
 	};

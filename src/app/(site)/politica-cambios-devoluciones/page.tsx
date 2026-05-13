@@ -1,23 +1,28 @@
 import type { Metadata } from 'next';
 import { PoliticaCambiosDevolucionesPage } from '@/app/pages/PoliticaCambiosDevolucionesPage';
+import { SITE_NAME, getDefaultOgImageUrl } from '@/lib/seo';
+
+const policyTitle = 'Política de cambios y devoluciones';
+const policyDescription =
+	'Condiciones de cambios y devoluciones en Sor Juana Liberté: plazos, modalidad, envíos y contacto por WhatsApp.';
+const ogImage = getDefaultOgImageUrl();
 
 export const metadata: Metadata = {
-	title: 'Política de cambios y devoluciones',
-	description:
-		'Condiciones de cambios y devoluciones en Sor Juana Liberté: plazos, modalidad, envíos y contacto por WhatsApp.',
+	title: policyTitle,
+	description: policyDescription,
 	alternates: {
 		canonical: '/politica-cambios-devoluciones',
 	},
 	openGraph: {
 		url: '/politica-cambios-devoluciones',
-		title: 'Política de cambios y devoluciones | Sor Juana',
-		description:
-			'Condiciones de cambios y devoluciones en Sor Juana Liberté: plazos, modalidad, envíos y contacto por WhatsApp.',
+		title: `${policyTitle} | ${SITE_NAME}`,
+		description: policyDescription,
+		images: [{ url: ogImage, alt: `${policyTitle} | ${SITE_NAME}` }],
 	},
 	twitter: {
-		title: 'Política de cambios y devoluciones | Sor Juana',
-		description:
-			'Condiciones de cambios y devoluciones en Sor Juana Liberté: plazos, modalidad, envíos y contacto por WhatsApp.',
+		title: `${policyTitle} | ${SITE_NAME}`,
+		description: policyDescription,
+		images: [ogImage],
 	},
 };
 
