@@ -1,4 +1,4 @@
-import { getAdminCategories } from '@/lib/data/productCatalog';
+import { CLIENT_CATEGORY_SPOTLIGHTS } from '@/lib/clientCategoryDefaults';
 
 export type CategorySpotlightRailItem = {
 	slug: string;
@@ -7,34 +7,14 @@ export type CategorySpotlightRailItem = {
 	href: string;
 };
 
-const FALLBACK_IMAGE_BY_SLUG: Record<string, string> = {
-	remeras:
-		'https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&fit=crop&w=400&q=80',
-	pantalones:
-		'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=400&q=80',
-	vestidos:
-		'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=400&q=80',
-	abrigos:
-		'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?auto=format&fit=crop&w=400&q=80',
-	accesorios:
-		'https://images.unsplash.com/photo-1617038220319-276d3cfab638?auto=format&fit=crop&w=400&q=80',
-};
-
 export function defaultHrefForCategorySlug(slug: string): string {
 	const s = slug.trim();
 	return `/catalogo?categoria=${encodeURIComponent(s)}`;
 }
 
-/** Misma base que el rail antes de publicar overrides (etiquetas admin + fotos stock). */
+/** Rail de categorías en círculos (valores por defecto de la clienta). */
 export function getDefaultCategorySpotlightRail(): CategorySpotlightRailItem[] {
-	return getAdminCategories().map(({ slug, label }) => ({
-		slug,
-		label,
-		imageUrl:
-			FALLBACK_IMAGE_BY_SLUG[slug] ??
-			'https://images.unsplash.com/photo-1562157873-818bc0726f68?auto=format&fit=crop&w=400&q=80',
-		href: defaultHrefForCategorySlug(slug),
-	}));
+	return CLIENT_CATEGORY_SPOTLIGHTS.map((item) => ({ ...item }));
 }
 
 function normalizeHref(slug: string, raw: unknown): string {

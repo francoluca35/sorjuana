@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ShoppingCart } from 'lucide-react';
+import { Search, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ProductDetailModal,
@@ -25,6 +25,7 @@ import {
   getPrimaryDiscountedPrice,
 } from '@/lib/formatPrice';
 import type { SizeInventoryRow } from '@/lib/data/productSizes';
+import { CLIENT_CATEGORY_SPOTLIGHTS, marketingCategoryLabel } from '@/lib/clientCategoryDefaults';
 
 type CatalogProduct = {
   id: string;
@@ -68,6 +69,8 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   const filterParam = searchParams.get('filter');
   const categoriaParam = searchParams.get('categoria');
   const subcategoriaParam = searchParams.get('subcategoria');
+  const qParam = (searchParams.get('q') ?? '').trim();
+  const [searchQuery, setSearchQuery] = useState(qParam);
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [selectedSubSlug, setSelectedSubSlug] = useState<string>('all');
   const [priceRange, setPriceRange] = useState<string>('all');
@@ -78,11 +81,21 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     [],
   );
 
+  const marketingSlugSet = useMemo(
+    () => new Set<string>(CLIENT_CATEGORY_SPOTLIGHTS.map((c) => c.slug)),
+    [],
+  );
+
+  useEffect(() => {
+    setSearchQuery(qParam);
+  }, [qParam]);
+
   const replaceCatalogQuery = useCallback(
     (updates: {
       filter?: string | null;
       subcategoria?: string | null;
       categoria?: string | null;
+      q?: string | null;
     }) => {
       const params = new URLSearchParams(searchParams.toString());
       if (updates.filter !== undefined) {
@@ -99,6 +112,11 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
       if (updates.categoria !== undefined) {
         if (!updates.categoria?.trim()) params.delete('categoria');
         else params.set('categoria', updates.categoria.trim());
+      }
+      if (updates.q !== undefined) {
+        const term = updates.q?.trim() ?? '';
+        if (!term) params.delete('q');
+        else params.set('q', term);
       }
       const q = params.toString();
       router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
@@ -160,8 +178,28 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     if (!categoriaParamNorm || lineSlugFromCategoriaParam) return null;
     if (allSubSlugsInCatalog.has(categoriaParamNorm)) return categoriaParamNorm;
     if (adminTipoSlugSet.has(categoriaParamNorm)) return categoriaParamNorm;
+    const pathMatch = productRows.some((p) =>
+      categoryDbHasSubSlugSegment(p.category_db, categoriaParamNorm),
+    );
+    if (pathMatch) return categoriaParamNorm;
+    if (marketingSlugSet.has(categoriaParamNorm)) return categoriaParamNorm;
     return null;
-  }, [categoriaParamNorm, lineSlugFromCategoriaParam, allSubSlugsInCatalog, adminTipoSlugSet]);
+  }, [
+    categoriaParamNorm,
+    lineSlugFromCategoriaParam,
+    allSubSlugsInCatalog,
+    adminTipoSlugSet,
+    productRows,
+    marketingSlugSet,
+  ]);
+
+  const catalogHeadingLabel = useMemo(() => {
+    if (selectedFilter !== 'all') return displayCategoryLabel(selectedFilter);
+    if (globalTipoSlug) {
+      return marketingCategoryLabel(globalTipoSlug) ?? displayCategoryLabel(globalTipoSlug);
+    }
+    return 'Colección completa';
+  }, [selectedFilter, globalTipoSlug]);
 
   useEffect(() => {
     const fromFilter = filterParam?.trim().toLowerCase() ?? '';
@@ -209,6 +247,8 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     setSelectedSubSlug(valid ? raw : 'all');
   }, [subcategoriaParam, selectedFilter, subcategoryOptions]);
 
+  const searchNorm = searchQuery.trim().toLowerCase();
+
   const filteredProducts = productRows.filter((product) => {
     const categoryMatch = selectedFilter === 'all' || product.adminCategory === selectedFilter;
     const tipoMatch =
@@ -216,6 +256,17 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     const subMatch =
       selectedSubSlug === 'all' ||
       parseSubcategorySlugFromDb(product.category_db) === selectedSubSlug;
+
+    const searchMatch =
+      !searchNorm ||
+      [
+        product.name,
+        product.product_code,
+        product.description,
+        product.color,
+        product.category_db,
+        displayCategoryLabel(product.category_db),
+      ].some((field) => field?.trim().toLowerCase().includes(searchNorm));
 
     const refPrice = product.garment_cost > 0 ? product.garment_cost : product.price;
     let priceMatch = true;
@@ -227,7 +278,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
       priceMatch = refPrice >= 300;
     }
 
-    return categoryMatch && tipoMatch && subMatch && priceMatch;
+    return categoryMatch && tipoMatch && subMatch && priceMatch && searchMatch;
   });
 
   const groupedPublications = useMemo(() => {
@@ -435,7 +486,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   );
 
   return (
-    <div className="min-h-screen w-full min-w-0 bg-[#f5f2ed] pt-40 pb-20 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen w-full min-w-0 bg-[#f5f2ed] px-4 pt-[calc(var(--site-nav-height)+1.75rem+env(safe-area-inset-top,0px))] pb-20 sm:px-6 lg:px-8 lg:pt-36">
       <div className="mx-auto w-full min-w-0 max-w-7xl">
         {/* Header */}
         <motion.div 
@@ -474,11 +525,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
               letterSpacing: '0.05em'
             }}
           >
-            {selectedFilter !== 'all'
-              ? displayCategoryLabel(selectedFilter)
-              : globalTipoSlug
-                ? displayCategoryLabel(globalTipoSlug)
-                : 'Colección completa'}
+            {catalogHeadingLabel}
           </h1>
 
           <p
@@ -501,6 +548,42 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
           </div>
 
           <div className="min-w-0 lg:col-span-3">
+            <div className="mb-6">
+              <form
+                className="relative max-w-xl"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  replaceCatalogQuery({ q: searchQuery.trim() || null });
+                }}
+              >
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8b6f47]"
+                  strokeWidth={1.5}
+                  aria-hidden
+                />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por nombre, código o categoría…"
+                  className="w-full rounded-md border border-[#b8956a]/35 bg-white py-2.5 pr-10 pl-10 text-sm text-[#1a1410] placeholder:text-[#8a7a68] focus:border-[#b8956a] focus:outline-none focus:ring-1 focus:ring-[#b8956a]/40"
+                  style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+                  aria-label="Buscar en el catálogo"
+                />
+                {searchQuery.trim() ? (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs tracking-wider text-[#8b6f47] hover:text-[#1a1410]"
+                    onClick={() => {
+                      setSearchQuery('');
+                      replaceCatalogQuery({ q: null });
+                    }}
+                  >
+                    Limpiar
+                  </button>
+                ) : null}
+              </form>
+            </div>
             <div className="mb-8 flex items-center justify-between">
               <p
                 className="text-[#6b6156]"
@@ -509,6 +592,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                 {filteredProducts.length}{' '}
                 {filteredProducts.length === 1 ? 'variante' : 'variantes'} · {groupedPublications.length}{' '}
                 {groupedPublications.length === 1 ? 'publicación' : 'publicaciones'}
+                {searchNorm ? ` · búsqueda: «${searchQuery.trim()}»` : ''}
               </p>
             </div>
 

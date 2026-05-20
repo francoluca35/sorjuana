@@ -9,7 +9,11 @@ export function FloatingWhatsApp() {
       href={siteWhatsAppUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="fixed bottom-5 right-5 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg ring-2 ring-white/30 transition hover:scale-105 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#25D366]"
+      className="fixed z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] text-white shadow-lg ring-2 ring-white/30 transition hover:scale-105 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#25D366] sm:h-14 sm:w-14"
+      style={{
+        bottom: 'max(1rem, env(safe-area-inset-bottom))',
+        right: 'max(1rem, env(safe-area-inset-right))',
+      }}
       aria-label="Escribinos por WhatsApp"
     >
       <svg

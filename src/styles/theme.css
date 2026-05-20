@@ -49,6 +49,20 @@
   --vintage-black: #1a1410;
   --vintage-sepia: #a89080;
 
+  /* Altura barra fija (mobile-first) */
+  --site-nav-height: 4.25rem;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --site-nav-height: 5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --site-nav-height: 6.25rem;
+  }
 }
 
 .dark {
@@ -134,9 +148,18 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    font-size: var(--font-size);
+    scroll-behavior: smooth;
+    overflow-x: clip;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow-x: clip;
+    max-width: 100%;
+    min-width: 0;
   }
 
   /**
@@ -144,9 +167,9 @@
   * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
   */
 
-  html {
-    font-size: var(--font-size);
-    scroll-behavior: smooth;
+  img,
+  video {
+    max-width: 100%;
   }
 
   h1 {

@@ -39,6 +39,7 @@ const PANEL_LABELS = [
 	'Segunda franja',
 	'Tercera franja',
 	'Cuarta franja',
+	'Quinta franja',
 ];
 
 export function MapaPaginaFashionCategoriesPanel() {

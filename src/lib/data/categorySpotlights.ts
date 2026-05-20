@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server';
-import type { AdminCategorySlug } from '@/lib/data/productCatalog';
 import {
 	getDefaultCategorySpotlightRail,
 	parseCategorySpotlightRailFromJson,
@@ -19,6 +18,22 @@ function pickImage(row: Record<string, unknown>): string | null {
 	return null;
 }
 
+/** Primera imagen de producto cuya ruta `category` contiene el slug de marketing. */
+function findProductImageForSlug(
+	data: { category?: string }[],
+	slug: string,
+): string | null {
+	const needle = slug.trim().toLowerCase();
+	if (!needle) return null;
+	for (const row of data) {
+		const cat = String(row.category ?? '').trim().toLowerCase();
+		if (!cat.includes(needle)) continue;
+		const img = pickImage(row as Record<string, unknown>);
+		if (img) return img;
+	}
+	return null;
+}
+
 /**
  * Imágenes por categoría para el rail: override publicado en `site_home_config`, o primera foto de producto por slug.
  */
@@ -31,11 +46,9 @@ export async function fetchCategorySpotlights(): Promise<CategorySpotlight[]> {
 	]);
 
 	const published = parseCategorySpotlightRailFromJson(cfgRow?.category_spotlight_rail);
-	if (published?.length) {
-		return published;
-	}
-
-	const base = getDefaultCategorySpotlightRail();
+	const usesClientDefaults =
+		!published?.length || !published.some((item) => item.slug === 'chic-europeo');
+	const base = usesClientDefaults ? getDefaultCategorySpotlightRail() : published;
 	const data = productsQuery.data;
 	const error = productsQuery.error;
 
@@ -43,22 +56,8 @@ export async function fetchCategorySpotlights(): Promise<CategorySpotlight[]> {
 		return base;
 	}
 
-	const bySlug = new Map<AdminCategorySlug, string>();
-	for (const slug of base.map((b) => b.slug as AdminCategorySlug)) {
-		const row = data.find(
-			(r) =>
-				String((r as { category?: string }).category ?? '')
-					.trim()
-					.toLowerCase() === slug,
-		);
-		if (row) {
-			const img = pickImage(row as Record<string, unknown>);
-			if (img) bySlug.set(slug, img);
-		}
-	}
-
 	return base.map((item) => ({
 		...item,
-		imageUrl: bySlug.get(item.slug as AdminCategorySlug) ?? item.imageUrl,
+		imageUrl: findProductImageForSlug(data, item.slug) ?? item.imageUrl,
 	}));
 }

@@ -12,6 +12,8 @@ type Breakpoint = 'mobile' | 'tablet' | 'desktop';
 
 type Props = {
 	items: CategorySpotlight[];
+	/** Menos padding cuando va justo debajo del hero. */
+	compact?: boolean;
 };
 
 function thresholdFor(bp: Breakpoint): number {
@@ -25,15 +27,12 @@ function thresholdFor(bp: Breakpoint): number {
 	}
 }
 
-/** Más separación con pocas categorías; se agrupa un poco más al crecer el listado. */
+/** Separación en fila estática (sin carrusel). */
 function gapClasses(count: number): string {
-	if (count <= 4) {
-		return 'gap-12 sm:gap-14 md:gap-16';
+	if (count <= 5) {
+		return 'gap-10 sm:gap-12 md:gap-14 lg:gap-16';
 	}
-	if (count <= 6) {
-		return 'gap-10 sm:gap-12 md:gap-14';
-	}
-	if (count <= 10) {
+	if (count <= 8) {
 		return 'gap-8 sm:gap-10 md:gap-12';
 	}
 	return 'gap-6 sm:gap-8 md:gap-10';
@@ -46,23 +45,23 @@ function readBreakpoint(): Breakpoint {
 	return 'mobile';
 }
 
-function CategoryTile({ item }: { item: CategorySpotlight }) {
+function CategoryTile({ item, inCarousel = false }: { item: CategorySpotlight; inCarousel?: boolean }) {
 	const isExternal = /^https?:\/\//i.test(item.href);
 	const innerClass =
-		'group flex w-full flex-col items-center gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b8956a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#e8e3db]';
+		'group flex w-full flex-col items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#b8956a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f5f2ed]';
 	const media = (
 		<>
-				<span className="relative block aspect-square w-full overflow-hidden rounded-full bg-[#f5f2ed] ring-2 ring-[#b8956a]/35 ring-offset-2 ring-offset-[#e8e3db] transition duration-300 group-hover:ring-[#b8956a]/70">
+				<span className="relative mx-auto block aspect-square w-[4.5rem] shrink-0 overflow-hidden rounded-full bg-[#f5f2ed] ring-2 ring-[#b8956a]/35 ring-offset-2 ring-offset-[#f5f2ed] transition duration-300 group-hover:ring-[#b8956a]/70 sm:w-[5.25rem]">
 					<Image
 						src={item.imageUrl}
 						alt={item.label}
 						fill
-						sizes="(max-width: 640px) 76px, 100px"
+						sizes="(max-width: 640px) 84px, 100px"
 						className="object-cover transition duration-500 group-hover:scale-105"
 					/>
 				</span>
 				<span
-					className="w-full truncate text-center text-xs font-medium text-[#1a1410] sm:text-[0.8rem]"
+					className="line-clamp-2 min-h-[2.6em] w-full px-0.5 text-center text-[10px] leading-snug font-medium text-[#1a1410] sm:min-h-[2.75em] sm:text-[11px]"
 					style={{ fontFamily: 'Montserrat, sans-serif' }}
 					title={item.label}
 				>
@@ -71,7 +70,14 @@ function CategoryTile({ item }: { item: CategorySpotlight }) {
 		</>
 	);
 	return (
-		<li className="flex w-[4.75rem] shrink-0 flex-col items-center sm:w-[5.5rem] md:w-[6.25rem]">
+		<li
+			className={cn(
+				'flex shrink-0 flex-col items-center',
+				inCarousel
+					? 'w-[6.75rem] basis-[6.75rem] pr-8 sm:w-[7.5rem] sm:basis-[7.5rem] sm:pr-10'
+					: 'w-[6.75rem] sm:w-[7.25rem] md:w-[7.75rem]',
+			)}
+		>
 			{isExternal ? (
 				<a
 					href={item.href}
@@ -106,18 +112,25 @@ function CategoryRailStatic({
 	);
 }
 
-function CategoryRailCarousel({
-	items,
-	gap,
-}: {
-	items: CategorySpotlight[];
-	gap: string;
-}) {
+const CATEGORY_RAIL_AUTOPLAY_MS = 4000;
+
+function CategoryRailCarousel({ items }: { items: CategorySpotlight[] }) {
+	const [autoplayPaused, setAutoplayPaused] = useState(false);
+	const [reducedMotion, setReducedMotion] = useState(false);
+
+	useEffect(() => {
+		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+		const apply = () => setReducedMotion(mq.matches);
+		apply();
+		mq.addEventListener('change', apply);
+		return () => mq.removeEventListener('change', apply);
+	}, []);
+
 	const [emblaRef, emblaApi] = useEmblaCarousel({
 		align: 'start',
-		loop: false,
-		containScroll: 'trimSnaps',
+		loop: true,
 		dragFree: false,
+		duration: 20,
 	});
 
 	const [canPrev, setCanPrev] = useState(false);
@@ -141,18 +154,29 @@ function CategoryRailCarousel({
 	}, [emblaApi, onSelect]);
 
 	useEffect(() => {
-		emblaApi?.reInit();
-	}, [emblaApi, gap, items.length]);
+		if (!emblaApi) return;
+		emblaApi.reInit({ loop: items.length > 1 });
+	}, [emblaApi, items.length]);
+
+	useEffect(() => {
+		if (!emblaApi || autoplayPaused || reducedMotion || items.length < 2) return;
+		const id = window.setInterval(() => emblaApi.scrollNext(), CATEGORY_RAIL_AUTOPLAY_MS);
+		return () => window.clearInterval(id);
+	}, [emblaApi, autoplayPaused, reducedMotion, items.length]);
 
 	const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
 	const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
 
 	return (
-		<div className="relative px-10 sm:px-12 md:px-14">
-			<div className="overflow-hidden pb-1" ref={emblaRef}>
-				<ul className={cn('flex', gap)}>
+		<div
+			className="relative px-8 sm:px-12 md:px-14"
+			onMouseEnter={() => setAutoplayPaused(true)}
+			onMouseLeave={() => setAutoplayPaused(false)}
+		>
+			<div className="overflow-hidden pb-2" ref={emblaRef}>
+				<ul className="flex touch-pan-y">
 					{items.map((item) => (
-						<CategoryTile key={item.slug} item={item} />
+						<CategoryTile key={item.slug} item={item} inCarousel />
 					))}
 				</ul>
 			</div>
@@ -178,7 +202,7 @@ function CategoryRailCarousel({
 	);
 }
 
-export function AdminCategorySpotlightRail({ items }: Props) {
+export function AdminCategorySpotlightRail({ items, compact = false }: Props) {
 	const [bp, setBp] = useState<Breakpoint | null>(null);
 	const gap = gapClasses(items.length);
 
@@ -196,16 +220,22 @@ export function AdminCategorySpotlightRail({ items }: Props) {
 
 	return (
 		<section
-			className="border-y border-[#b8956a]/25 bg-[#e8e3db]"
+			id="categorias"
+			className="scroll-mt-28 border-b border-[#b8956a]/20 bg-[#f5f2ed]"
 			aria-labelledby="admin-category-rail-heading"
 		>
-			<div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+			<div
+				className={cn(
+					'mx-auto max-w-7xl px-4 sm:px-6 lg:px-8',
+					compact ? 'py-6 sm:py-8' : 'py-10',
+				)}
+			>
 				<h2
 					id="admin-category-rail-heading"
-					className="mb-8 text-center text-[#1a1410]"
+					className={cn('text-center text-[#1a1410]', compact ? 'mb-5' : 'mb-8')}
 					style={{
 						fontFamily: '"Cormorant Garamond", serif',
-						fontSize: 'clamp(1.35rem, 2.5vw, 1.85rem)',
+						fontSize: compact ? 'clamp(1.15rem, 2vw, 1.5rem)' : 'clamp(1.35rem, 2.5vw, 1.85rem)',
 						fontWeight: 500,
 						letterSpacing: '0.08em',
 					}}
@@ -214,7 +244,7 @@ export function AdminCategorySpotlightRail({ items }: Props) {
 				</h2>
 
 				{carouselActive ? (
-					<CategoryRailCarousel items={items} gap={gap} />
+					<CategoryRailCarousel items={items} />
 				) : (
 					<CategoryRailStatic items={items} gap={gap} />
 				)}

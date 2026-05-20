@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-const FALLBACK_SITE_URL = 'https://sorjuanaliberte.com';
+const FALLBACK_SITE_URL = 'https://www.sorjuanaliberte.com.ar';
 const DEFAULT_GOOGLE_VERIFICATION = 'T43hwfD8hsRYQSuHv-wXm6qjFv9MGYZNbjM-Me3R5j0';
 
 export const SITE_NAME = 'Sor Juana';

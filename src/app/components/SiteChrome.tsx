@@ -21,7 +21,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
     <>
       {!hideNavbar && <Navbar />}
       {!hideNavbar && <CartSheet />}
-      {children}
+      <div className="min-w-0 overflow-x-clip">{children}</div>
       {!hideSiteFooter && <Footer />}
       {!hideSiteFooter && <FloatingWhatsApp />}
     </>

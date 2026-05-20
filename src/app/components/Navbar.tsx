@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { ShoppingBag, Menu, X, Instagram, User } from 'lucide-react';
+import { CatalogSearchTrigger } from '@/app/components/CatalogSearchTrigger';
 import { useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/app/components/ui/utils';
@@ -51,6 +52,15 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   const linkClass = cn(
     'relative text-xs tracking-widest uppercase transition-colors duration-300 lg:text-sm',
     barSolid
@@ -60,7 +70,7 @@ export function Navbar() {
   );
 
   const iconBtnClass = cn(
-    'flex h-9 w-9 items-center justify-center rounded-sm transition-colors duration-300',
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-sm transition-colors duration-300 sm:h-11 sm:w-11',
     barSolid
       ? 'text-[#e8e3db] hover:text-[#b8956a]'
       : 'text-[#f5f2ed] drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)] hover:text-[#b8956a]',
@@ -90,33 +100,34 @@ export function Navbar() {
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: [0.43, 0.13, 0.23, 0.96] }}
       className={cn(
-        'fixed top-0 right-0 left-0 z-50 transition-all duration-500',
+        'fixed top-0 right-0 left-0 z-50 w-full max-w-[100vw] transition-all duration-500',
         barSolid
           ? 'border-b border-[#b8956a]/20 bg-[#1a1410] shadow-2xl lg:bg-[#1a1410]/95 lg:backdrop-blur-md'
           : 'bg-transparent shadow-none',
       )}
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
-      <div className="h-1 bg-gradient-to-r from-transparent via-[#b8956a] to-transparent opacity-50" />
+      <div className="h-0.5 bg-gradient-to-r from-transparent via-[#b8956a] to-transparent opacity-50 sm:h-1" />
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-24 items-center justify-between gap-4">
+      <div className="mx-auto w-full max-w-7xl px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:px-5 lg:px-8">
+        <div className="flex h-[var(--site-nav-height)] min-h-[4.25rem] max-h-24 items-center justify-between gap-2 sm:gap-3">
           <Link
             href="/"
             aria-label="Sor Juana Liberté, inicio"
-            className="group relative flex shrink-0 items-center"
+            className="group relative flex min-w-0 max-w-[46%] shrink items-center sm:max-w-none sm:shrink-0"
           >
             <motion.div
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.03 }}
               transition={{ duration: 0.3 }}
-              className="relative h-14 w-[13.5rem] sm:h-[4.25rem] sm:w-[15.5rem] md:h-[5rem] md:w-[17.5rem]"
+              className="relative h-9 w-[8.25rem] max-w-full sm:h-11 sm:w-[11.5rem] md:h-12 md:w-[13.5rem] lg:h-14 lg:w-[15.5rem] xl:h-16 xl:w-[17.5rem]"
             >
               <Image
                 src="/Assets/logo-b.png"
                 alt=""
                 fill
-                sizes="(max-width: 640px) 216px, (max-width: 768px) 248px, 280px"
+                sizes="(max-width: 640px) 132px, (max-width: 1024px) 184px, 280px"
                 className={cn(
-                  'object-contain object-center transition-[filter] duration-300',
+                  'object-contain object-left transition-[filter] duration-300',
                   !barSolid && 'drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]',
                 )}
                 priority
@@ -135,6 +146,12 @@ export function Navbar() {
                 </Link>
               </motion.div>
               <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                <Link href="/#categorias" className={cn(linkClass, 'group relative')} style={navLinkFont}>
+                  Categorías
+                  {underline}
+                </Link>
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
                 <Link href="/#coleccion" className={cn(linkClass, 'group relative')} style={navLinkFont}>
                   Colección
                   {underline}
@@ -158,6 +175,9 @@ export function Navbar() {
                   Contacto
                   {underline}
                 </Link>
+              </motion.div>
+              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+                <CatalogSearchTrigger className={iconBtnClass} syncWithCatalogQuery />
               </motion.div>
               <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
                 <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
@@ -219,6 +239,7 @@ export function Navbar() {
               >
                 <TikTokIcon className="h-5 w-5" />
               </a>
+              <CatalogSearchTrigger className={iconBtnClass} syncWithCatalogQuery />
               <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
                 <User className="h-5 w-5" strokeWidth={1.5} />
               </Link>
@@ -239,39 +260,40 @@ export function Navbar() {
             </div>
           )}
 
-          <div className="flex items-center gap-3 lg:hidden">
-            <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
-              <User className="h-5 w-5" strokeWidth={1.5} />
-            </Link>
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 lg:hidden">
+            <CatalogSearchTrigger
+              className={iconBtnClass}
+              syncWithCatalogQuery={isCatalog}
+              preferCatalogOnMobile
+            />
             <motion.button
-              whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.95 }}
               type="button"
-              className={cartClass}
-              aria-label="Carrito"
+              className={cn(iconBtnClass, 'relative')}
+              aria-label={`Carrito, ${totalCount} productos`}
               aria-expanded={isCartOpen}
               onClick={toggleCart}
             >
               <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
-              <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                ({totalCount})
-              </span>
+              {totalCount > 0 ? (
+                <span
+                  className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#b8956a] px-0.5 text-[9px] font-semibold leading-none text-[#1a1410]"
+                  style={{ fontFamily: 'Montserrat, sans-serif' }}
+                  aria-hidden
+                >
+                  {totalCount > 9 ? '9+' : totalCount}
+                </span>
+              ) : null}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.9 }}
               type="button"
               onClick={() => setIsOpen((o) => !o)}
-              className={cn(
-                'flex items-center transition-colors duration-300',
-                barSolid
-                  ? 'text-[#e8e3db]'
-                  : 'text-[#f5f2ed] drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]',
-                'hover:text-[#b8956a]',
-              )}
+              className={cn(iconBtnClass, barSolid ? 'text-[#e8e3db]' : 'text-[#f5f2ed]')}
               aria-expanded={isOpen}
               aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
             >
-              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              {isOpen ? <X className="h-6 w-6" strokeWidth={1.5} /> : <Menu className="h-6 w-6" strokeWidth={1.5} />}
             </motion.button>
           </div>
         </div>
@@ -283,13 +305,18 @@ export function Navbar() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.4, ease: [0.43, 0.13, 0.23, 0.96] }}
-              className="overflow-hidden border-t border-[#b8956a]/20 lg:hidden"
+              className="max-h-[min(70vh,28rem)] overflow-y-auto border-t border-[#b8956a]/20 lg:hidden"
             >
-              <div className="space-y-1 bg-[#1a1410] py-6 lg:bg-[#1a1410]/95 lg:backdrop-blur-md">
+              <div
+                className="space-y-1 bg-[#1a1410] py-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:bg-[#1a1410]/95 lg:backdrop-blur-md"
+              >
                 {!isCatalog && (
                   <>
                     <MobileLink href="/" onNavigate={() => setIsOpen(false)}>
                       Inicio
+                    </MobileLink>
+                    <MobileLink href="/#categorias" onNavigate={() => setIsOpen(false)}>
+                      Categorías
                     </MobileLink>
                     <MobileLink href="/#coleccion" onNavigate={() => setIsOpen(false)}>
                       Colección
@@ -379,7 +406,7 @@ function MobileLink({
       href={href}
       onClick={onNavigate}
       className={cn(
-        'block px-4 py-2.5 text-sm tracking-widest text-[#e8e3db] uppercase transition-colors hover:text-[#b8956a] sm:px-6',
+        'block px-[max(1rem,env(safe-area-inset-left))] py-3 text-sm tracking-widest text-[#e8e3db] uppercase transition-colors hover:text-[#b8956a] sm:px-6',
         indent && 'pl-10 sm:pl-12',
       )}
       style={navLinkFont}
