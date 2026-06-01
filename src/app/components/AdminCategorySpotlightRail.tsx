@@ -2,9 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { CategorySpotlight } from '@/lib/data/categorySpotlights';
 import { cn } from '@/app/components/ui/utils';
 
@@ -133,26 +132,6 @@ function CategoryRailCarousel({ items }: { items: CategorySpotlight[] }) {
 		duration: 20,
 	});
 
-	const [canPrev, setCanPrev] = useState(false);
-	const [canNext, setCanNext] = useState(false);
-
-	const onSelect = useCallback(() => {
-		if (!emblaApi) return;
-		setCanPrev(emblaApi.canScrollPrev());
-		setCanNext(emblaApi.canScrollNext());
-	}, [emblaApi]);
-
-	useEffect(() => {
-		if (!emblaApi) return;
-		onSelect();
-		emblaApi.on('select', onSelect);
-		emblaApi.on('reInit', onSelect);
-		return () => {
-			emblaApi.off('select', onSelect);
-			emblaApi.off('reInit', onSelect);
-		};
-	}, [emblaApi, onSelect]);
-
 	useEffect(() => {
 		if (!emblaApi) return;
 		emblaApi.reInit({ loop: items.length > 1 });
@@ -164,12 +143,8 @@ function CategoryRailCarousel({ items }: { items: CategorySpotlight[] }) {
 		return () => window.clearInterval(id);
 	}, [emblaApi, autoplayPaused, reducedMotion, items.length]);
 
-	const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
-	const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
-
 	return (
 		<div
-			className="relative px-8 sm:px-12 md:px-14"
 			onMouseEnter={() => setAutoplayPaused(true)}
 			onMouseLeave={() => setAutoplayPaused(false)}
 		>
@@ -180,24 +155,6 @@ function CategoryRailCarousel({ items }: { items: CategorySpotlight[] }) {
 					))}
 				</ul>
 			</div>
-			<button
-				type="button"
-				onClick={scrollPrev}
-				disabled={!canPrev}
-				className="absolute top-1/2 left-0 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#b8956a]/50 bg-white text-[#1a1410] shadow-sm transition hover:bg-[#f5f2ed] disabled:pointer-events-none disabled:opacity-30"
-				aria-label="Categorías anteriores"
-			>
-				<ChevronLeft className="h-5 w-5" strokeWidth={1.5} />
-			</button>
-			<button
-				type="button"
-				onClick={scrollNext}
-				disabled={!canNext}
-				className="absolute top-1/2 right-0 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#b8956a]/50 bg-white text-[#1a1410] shadow-sm transition hover:bg-[#f5f2ed] disabled:pointer-events-none disabled:opacity-30"
-				aria-label="Siguientes categorías"
-			>
-				<ChevronRight className="h-5 w-5" strokeWidth={1.5} />
-			</button>
 		</div>
 	);
 }

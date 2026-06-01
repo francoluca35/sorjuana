@@ -3,7 +3,6 @@
 import * as React from 'react';
 import Link from 'next/link';
 import useEmblaCarousel from 'embla-carousel-react';
-import { ChevronLeft, ChevronRight, ShoppingCart } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { ProductDetailModal, productRowToDetailModalProduct } from '@/app/components/ProductDetailModal';
@@ -17,7 +16,6 @@ import type { ProductRow } from '@/lib/data/productCatalog';
 import {
 	CARD_INSTALLMENTS_NO_INTEREST,
 	computeDiscountPercent,
-	formatCuotaAr,
 	formatPrecioListaAr,
 	getPrimaryDiscountedPrice,
 } from '@/lib/formatPrice';
@@ -65,9 +63,6 @@ export function HomeFeaturedCarousel({
 		dragFree: false,
 		duration: 22,
 	});
-
-	const [canPrev, setCanPrev] = React.useState(false);
-	const [canNext, setCanNext] = React.useState(false);
 
 	React.useEffect(() => {
 		setSelectionRaw(bestSellersIdsJson);
@@ -134,23 +129,6 @@ export function HomeFeaturedCarousel({
 		return row ? productRowToDetailModalProduct(row) : null;
 	}, [detailProductId, displayRows]);
 
-	const onSelect = React.useCallback(() => {
-		if (!emblaApi) return;
-		setCanPrev(emblaApi.canScrollPrev());
-		setCanNext(emblaApi.canScrollNext());
-	}, [emblaApi]);
-
-	React.useEffect(() => {
-		if (!emblaApi) return;
-		onSelect();
-		emblaApi.on('select', onSelect);
-		emblaApi.on('reInit', onSelect);
-		return () => {
-			emblaApi.off('select', onSelect);
-			emblaApi.off('reInit', onSelect);
-		};
-	}, [emblaApi, onSelect]);
-
 	React.useEffect(() => {
 		if (!emblaApi) return;
 		emblaApi.reInit({ loop: carouselProducts.length > 1 });
@@ -207,37 +185,17 @@ export function HomeFeaturedCarousel({
 					</Link>
 				</div>
 
-				<div className="relative px-10 sm:px-12">
-					<div className="overflow-hidden" ref={emblaRef}>
-						<ul className="flex gap-4 sm:gap-5">
-							{carouselProducts.map((product) => (
-								<FeaturedProductSlide
-									key={product.id}
-									product={product}
-									reducedMotion={reducedMotion}
-									onOpen={() => setDetailProductId(product.id)}
-								/>
-							))}
-						</ul>
-					</div>
-					<button
-						type="button"
-						onClick={() => emblaApi?.scrollPrev()}
-						disabled={!canPrev}
-						className="absolute top-[38%] left-0 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#b8956a]/50 bg-white text-[#1a1410] shadow-sm transition hover:bg-[#ebe6df] disabled:pointer-events-none disabled:opacity-30"
-						aria-label="Productos anteriores"
-					>
-						<ChevronLeft className="h-5 w-5" strokeWidth={1.5} />
-					</button>
-					<button
-						type="button"
-						onClick={() => emblaApi?.scrollNext()}
-						disabled={!canNext}
-						className="absolute top-[38%] right-0 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#b8956a]/50 bg-white text-[#1a1410] shadow-sm transition hover:bg-[#ebe6df] disabled:pointer-events-none disabled:opacity-30"
-						aria-label="Siguientes productos"
-					>
-						<ChevronRight className="h-5 w-5" strokeWidth={1.5} />
-					</button>
+				<div className="overflow-hidden" ref={emblaRef}>
+					<ul className="flex gap-5 sm:gap-6">
+						{carouselProducts.map((product) => (
+							<FeaturedProductSlide
+								key={product.id}
+								product={product}
+								reducedMotion={reducedMotion}
+								onOpen={() => setDetailProductId(product.id)}
+							/>
+						))}
+					</ul>
 				</div>
 			</div>
 
@@ -265,7 +223,7 @@ function FeaturedProductSlide({
 	const publicationStock = getPublicationTotalStock(product.sizeInventory, product.stock);
 
 	return (
-		<li className="min-w-0 flex-[0_0_72%] sm:flex-[0_0_48%] md:flex-[0_0_32%] lg:flex-[0_0_24%]">
+		<li className="min-w-0 flex-[0_0_88%] sm:flex-[0_0_52%] md:flex-[0_0_44%] lg:flex-[0_0_38%]">
 			<motion.article
 				role="button"
 				tabIndex={0}
@@ -289,49 +247,71 @@ function FeaturedProductSlide({
 							SIN STOCK
 						</span>
 					) : null}
-					<div className="absolute inset-0 flex items-center justify-center bg-[#1a1410]/75 opacity-0 transition group-hover:opacity-100">
-						<span className="flex items-center gap-2 bg-white px-3 py-2 text-xs tracking-[0.12em] text-[#1a1410]">
-							<ShoppingCart className="h-4 w-4" strokeWidth={1.7} />
-							VER
+					{hasDiscount ? (
+						<span
+							className="absolute bottom-3 left-3 z-10 rounded-sm bg-[#d4c4a8]/95 px-2.5 py-1 text-[11px] tracking-wide text-[#1a1410]"
+							style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+						>
+							{discountPercent}% OFF
 						</span>
-					</div>
+					) : null}
 				</div>
-				<div className="flex flex-1 flex-col px-3 py-3 text-center">
-					<p
-						className="mb-1 truncate text-[10px] tracking-wider text-[#8b6f47]"
-						style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
-					>
-						{product.category}
-					</p>
+				<div className="flex flex-1 flex-col px-4 py-4 text-center">
 					<h3
-						className="mb-2 line-clamp-2 min-h-[2.5rem] text-sm text-[#1a1410]"
-						style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 400 }}
+						className="mb-3 line-clamp-2 min-h-[2.75rem] text-[#8b6f47]"
+						style={{
+							fontFamily: 'Montserrat, sans-serif',
+							fontSize: 'clamp(0.8rem, 1.6vw, 0.95rem)',
+							fontWeight: 400,
+						}}
 					>
 						{product.name}
 					</h3>
-					<div className="mt-auto space-y-0.5">
+					<div className="mt-auto space-y-1">
 						{hasDiscount ? (
-							<p
-								className="text-[10px] text-[#6b6156] line-through"
+							<div className="flex flex-wrap items-center justify-center gap-2">
+								<p
+									className="text-sm text-[#8b6f47] line-through"
+									style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+								>
+									{formatPrecioListaAr(listPrice)}
+								</p>
+								<SingleLineFitText
+									minFontSizePx={14}
+									maxFontSizePx={18}
+									className="font-semibold text-[#8b6f47]"
+									style={{ fontFamily: 'Montserrat, sans-serif' }}
+								>
+									{formatPrecioListaAr(discountedPrice)}
+								</SingleLineFitText>
+							</div>
+						) : (
+							<SingleLineFitText
+								minFontSizePx={14}
+								maxFontSizePx={18}
+								className="font-semibold text-[#8b6f47]"
 								style={{ fontFamily: 'Montserrat, sans-serif' }}
 							>
-								{formatPrecioListaAr(listPrice)}
-							</p>
-						) : null}
-						<SingleLineFitText
-							minFontSizePx={11}
-							maxFontSizePx={14}
-							className="font-medium text-[#1a1410]"
-							style={{ fontFamily: 'Montserrat, sans-serif' }}
-						>
-							{formatPrecioListaAr(discountedPrice)}
-						</SingleLineFitText>
+								{formatPrecioListaAr(discountedPrice)}
+							</SingleLineFitText>
+						)}
 						<p
-							className="text-[10px] text-[#8b6f47]"
-							style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
+							className="text-xs text-[#8b6f47]"
+							style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
 						>
-							{CARD_INSTALLMENTS_NO_INTEREST} cuotas · {formatCuotaAr(discountedPrice, CARD_INSTALLMENTS_NO_INTEREST)}
+							{CARD_INSTALLMENTS_NO_INTEREST} cuotas sin interés
 						</p>
+						<button
+							type="button"
+							onClick={(e) => {
+								e.stopPropagation();
+								onOpen();
+							}}
+							className="mt-3 w-full rounded-sm bg-[#b8956a] px-4 py-2.5 text-xs tracking-[0.18em] text-white transition hover:bg-[#8b6f47]"
+							style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+						>
+							COMPRAR
+						</button>
 					</div>
 				</div>
 			</motion.article>

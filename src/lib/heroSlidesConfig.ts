@@ -17,6 +17,9 @@ export type HeroSlide = {
 	title: string;
 	image: string;
 	imageMobile?: string;
+	/** Gráfico promocional 2:1 (cuotas, 2x1, etc.) superpuesto sobre el fondo. */
+	promoImage?: string;
+	promoImageMobile?: string;
 	filter: 'all' | 'italiana' | 'francesa';
 	hotspots: HeroHotspot[];
 	objectPositionMobile?: string;
@@ -30,7 +33,7 @@ export const HERO_SLIDES_UPDATED_EVENT = 'sj-hero-slides-updated';
 export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
 	{
 		id: 1,
-		title: 'ALTA COSTURA FRANCESA',
+		title: 'Ropa pensada para tu mejor *momento.*',
 		image:
 			'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=3840&q=90',
 		objectPositionMobile: 'center 20%',
@@ -59,7 +62,7 @@ export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
 	},
 	{
 		id: 2,
-		title: 'MODA ITALIANA 26',
+		title: 'Moda italiana con *estilo atemporal.*',
 		image:
 			'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=3840&q=90',
 		objectPositionMobile: 'center 24%',
@@ -88,7 +91,7 @@ export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
 	},
 	{
 		id: 3,
-		title: 'COSTURA FRANCESA 26',
+		title: 'Alta costura francesa, *hecha para vos.*',
 		image:
 			'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=3840&q=90',
 		objectPositionMobile: 'center 26%',
@@ -117,7 +120,7 @@ export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
 	},
 	{
 		id: 4,
-		title: 'DOLCE VITA',
+		title: 'Dolce vita en cada *prenda.*',
 		image:
 			'https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=3840&q=90',
 		objectPositionMobile: 'center 22%',
@@ -178,6 +181,11 @@ function parseSlide(raw: unknown): HeroSlide | null {
 	const filter = o.filter;
 	if (!title || !image || !isFilter(filter) || Number.isNaN(id)) return null;
 	const imageMobile = typeof o.imageMobile === 'string' ? o.imageMobile : undefined;
+	const promoImage = typeof o.promoImage === 'string' && o.promoImage.trim() ? o.promoImage.trim() : undefined;
+	const promoImageMobile =
+		typeof o.promoImageMobile === 'string' && o.promoImageMobile.trim()
+			? o.promoImageMobile.trim()
+			: undefined;
 	const objectPositionMobile =
 		typeof o.objectPositionMobile === 'string' ? o.objectPositionMobile : undefined;
 	const objectPositionDesktop =
@@ -195,6 +203,8 @@ function parseSlide(raw: unknown): HeroSlide | null {
 		title,
 		image,
 		imageMobile,
+		promoImage,
+		promoImageMobile,
 		filter,
 		hotspots,
 		objectPositionMobile,

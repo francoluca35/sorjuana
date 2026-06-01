@@ -1,5 +1,6 @@
 'use server';
 
+import { v2 as cloudinary } from 'cloudinary';
 import { createClient } from '@/lib/supabase/server';
 import {
 	SORJUANA_BUCKET,
@@ -106,4 +107,80 @@ async function uploadSorjuanaMediaInner(formData: FormData): Promise<UploadSorju
 
 	const { data: pub } = supabase.storage.from(SORJUANA_BUCKET).getPublicUrl(path);
 	return { ok: true, publicUrl: pub.publicUrl, path };
+}
+
+/**
+ * Sube una imagen a Cloudinary (público) sin depender del storage de Supabase.
+ * Pensado para el hero: solo requiere sesión iniciada (la auth de la app funciona)
+ * y las credenciales de Cloudinary ya configuradas en el entorno.
+ * Enviar FormData con `file` (File de imagen).
+ */
+export async function uploadHeroImageToCloudinary(
+	formData: FormData,
+): Promise<UploadSorjuanaResult> {
+	try {
+		const file = formData.get('file');
+		if (!file || typeof file === 'string' || !(file instanceof File) || file.size === 0) {
+			return { ok: false, message: 'No se recibió ninguna imagen válida.' };
+		}
+
+		const mime = (file.type || '').toLowerCase();
+		if (file.size > MAX_IMAGE_BYTES) {
+			return { ok: false, message: 'La imagen supera el límite de 12 MB.' };
+		}
+
+		const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+		const imageExts = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
+		const okMime = !mime || IMAGE_TYPES.has(mime);
+		const okExt = imageExts.has(ext);
+		if (!okMime && !okExt) {
+			return { ok: false, message: 'Formato de imagen no permitido (JPEG, PNG, WebP o GIF).' };
+		}
+
+		const supabase = await createClient();
+		const {
+			data: { user },
+			error: userErr,
+		} = await supabase.auth.getUser();
+		if (userErr || !user) {
+			return { ok: false, message: 'Tenés que iniciar sesión para subir imágenes.' };
+		}
+
+		const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+		const apiKey = process.env.CLOUDINARY_API_KEY;
+		const apiSecret = process.env.CLOUDINARY_API_SECRET;
+		if (!cloudName || !apiKey || !apiSecret) {
+			return { ok: false, message: 'Faltan las credenciales de Cloudinary en el servidor.' };
+		}
+
+		cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
+
+		const buffer = Buffer.from(await file.arrayBuffer());
+		const result = await new Promise<{ secure_url: string; public_id: string }>(
+			(resolve, reject) => {
+				cloudinary.uploader
+					.upload_stream(
+						{
+							folder: 'modern-fashion-store/hero',
+							resource_type: 'image',
+							overwrite: true,
+							invalidate: true,
+						},
+						(error, res) => {
+							if (error || !res) {
+								reject(error ?? new Error('Cloudinary no devolvió respuesta.'));
+							} else {
+								resolve(res as { secure_url: string; public_id: string });
+							}
+						},
+					)
+					.end(buffer);
+			},
+		);
+
+		return { ok: true, publicUrl: result.secure_url, path: result.public_id };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al subir la imagen a Cloudinary.';
+		return { ok: false, message: msg };
+	}
 }

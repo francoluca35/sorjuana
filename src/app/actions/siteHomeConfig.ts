@@ -7,7 +7,15 @@ import { BEST_SELLERS_MAX } from '@/lib/bestSellersSelection';
 import type { CategorySpotlightRailItem } from '@/lib/categorySpotlightRailConfig';
 import type { FashionCategoryPanel } from '@/lib/fashionCategoryPanelsConfig';
 import type { HeroSlide } from '@/lib/heroSlidesConfig';
+import {
+	normalizeHeroContent,
+	type HeroContentConfig,
+} from '@/lib/heroContentConfig';
 import { parseStoredProductIds, RECENT_ARRIVALS_MAX } from '@/lib/recentArrivalsSelection';
+import {
+	normalizeReturnPolicy,
+	type ReturnPolicyConfig,
+} from '@/lib/returnPolicyConfig';
 
 async function requireAuthUser() {
 	const supabase = await createClient();
@@ -21,6 +29,11 @@ async function requireAuthUser() {
 
 function revalidateHome() {
 	revalidatePath('/');
+	revalidatePath('/app/mapa-pagina');
+}
+
+function revalidateReturnPolicy() {
+	revalidatePath('/politica-cambios-devoluciones');
 	revalidatePath('/app/mapa-pagina');
 }
 
@@ -69,6 +82,49 @@ export async function saveHeroSlidesAction(slides: HeroSlide[]): Promise<{ ok: b
 		return { ok: true };
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Error al guardar el hero.';
+		return { ok: false, message: msg };
+	}
+}
+
+export async function saveHeroContentAction(
+	content: HeroContentConfig,
+): Promise<{ ok: boolean; message?: string }> {
+	const auth = await requireAuthUser();
+	if (!auth.ok) return auth;
+
+	const normalized = normalizeHeroContent(content);
+
+	try {
+		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
+		const { data, error } = await auth.supabase
+			.from('site_home_config')
+			.update({
+				hero_content: payload,
+				updated_at: new Date().toISOString(),
+			})
+			.eq('id', 1)
+			.select('id');
+
+		if (error) {
+			return {
+				ok: false,
+				message:
+					error.message.includes('hero_content') || error.code === '42703'
+						? 'Falta la columna en la base: ejecutá la migración `20260531140000_site_home_hero_content.sql`.'
+						: error.message,
+			};
+		}
+		if (!data?.length) {
+			return {
+				ok: false,
+				message:
+					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
+			};
+		}
+		revalidateHome();
+		return { ok: true };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al guardar los textos del hero.';
 		return { ok: false, message: msg };
 	}
 }
@@ -202,4 +258,47 @@ export async function clearBestSellersIdsAction(): Promise<{ ok: boolean; messag
 
 export async function clearRecentArrivalsIdsAction(): Promise<{ ok: boolean; message?: string }> {
 	return saveRecentArrivalsIdsAction([]);
+}
+
+export async function saveReturnPolicyAction(
+	policy: ReturnPolicyConfig,
+): Promise<{ ok: boolean; message?: string }> {
+	const auth = await requireAuthUser();
+	if (!auth.ok) return auth;
+
+	const normalized = normalizeReturnPolicy(policy);
+
+	try {
+		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
+		const { data, error } = await auth.supabase
+			.from('site_home_config')
+			.update({
+				return_policy: payload,
+				updated_at: new Date().toISOString(),
+			})
+			.eq('id', 1)
+			.select('id');
+
+		if (error) {
+			return {
+				ok: false,
+				message:
+					error.message.includes('return_policy') || error.code === '42703'
+						? 'Falta la columna en la base: ejecutá la migración `20260531120000_site_home_return_policy.sql`.'
+						: error.message,
+			};
+		}
+		if (!data?.length) {
+			return {
+				ok: false,
+				message:
+					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
+			};
+		}
+		revalidateReturnPolicy();
+		return { ok: true };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al guardar la política.';
+		return { ok: false, message: msg };
+	}
 }

@@ -61,38 +61,12 @@ export function Navbar() {
     };
   }, [isOpen]);
 
-  const linkClass = cn(
-    'relative text-xs tracking-widest uppercase transition-colors duration-300 lg:text-sm',
-    barSolid
-      ? 'text-[#e8e3db]'
-      : 'text-[#f5f2ed] drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]',
-    'hover:text-[#b8956a]',
-  );
-
   const iconBtnClass = cn(
-    'flex h-10 w-10 shrink-0 items-center justify-center rounded-sm transition-colors duration-300 sm:h-11 sm:w-11',
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-sm transition-colors duration-300 lg:h-9 lg:w-9',
     barSolid
       ? 'text-[#e8e3db] hover:text-[#b8956a]'
       : 'text-[#f5f2ed] drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)] hover:text-[#b8956a]',
   );
-
-  const cartClass = cn(
-    'flex items-center space-x-2 transition-colors duration-300',
-    barSolid
-      ? 'text-[#e8e3db]'
-      : 'text-[#f5f2ed] drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)]',
-    'hover:text-[#b8956a]',
-  );
-
-  const underline = (
-    <span className="absolute -bottom-1 left-0 h-px w-0 bg-[#b8956a] transition-all duration-500 group-hover:w-full" />
-  );
-
-  const dropdownContentClass =
-    'min-w-[10rem] border border-[#b8956a]/30 bg-[#1a1410] text-[#e8e3db]';
-
-  const dropdownItemClass =
-    'cursor-pointer uppercase tracking-widest focus:bg-[#b8956a]/20 focus:text-[#f5f2ed]';
 
   return (
     <motion.nav
@@ -110,163 +84,55 @@ export function Navbar() {
       <div className="h-0.5 bg-gradient-to-r from-transparent via-[#b8956a] to-transparent opacity-50 sm:h-1" />
 
       <div className="mx-auto w-full max-w-7xl px-[max(0.75rem,env(safe-area-inset-left))] pr-[max(0.75rem,env(safe-area-inset-right))] sm:px-5 lg:px-8">
-        <div className="flex h-[var(--site-nav-height)] min-h-[4.25rem] max-h-24 items-center justify-between gap-2 sm:gap-3">
+        <div className="grid h-[var(--site-nav-height)] grid-cols-3 items-center">
+          <div className="flex items-center justify-start gap-0.5 sm:gap-1">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              type="button"
+              onClick={() => setIsOpen((o) => !o)}
+              className={cn(iconBtnClass, barSolid ? 'text-[#e8e3db]' : 'text-[#f5f2ed]')}
+              aria-expanded={isOpen}
+              aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
+            >
+              {isOpen ? <X className="h-5 w-5" strokeWidth={1.5} /> : <Menu className="h-5 w-5" strokeWidth={1.5} />}
+            </motion.button>
+            <CatalogSearchTrigger
+              className={iconBtnClass}
+              syncWithCatalogQuery={isCatalog}
+              preferCatalogOnMobile={isCatalog}
+            />
+          </div>
+
           <Link
             href="/"
             aria-label="Sor Juana Liberté, inicio"
-            className="group relative flex min-w-0 max-w-[46%] shrink items-center sm:max-w-none sm:shrink-0"
+            className="group flex items-center justify-center"
           >
             <motion.div
               whileHover={{ scale: 1.03 }}
               transition={{ duration: 0.3 }}
-              className="relative h-9 w-[8.25rem] max-w-full sm:h-11 sm:w-[11.5rem] md:h-12 md:w-[13.5rem] lg:h-14 lg:w-[15.5rem] xl:h-16 xl:w-[17.5rem]"
+              className="relative h-[3.25rem] w-[11rem] sm:h-[4.25rem] sm:w-[15rem] lg:h-[4.5rem] lg:w-[17rem]"
             >
               <Image
                 src="/Assets/logo-b.png"
                 alt=""
                 fill
-                sizes="(max-width: 640px) 132px, (max-width: 1024px) 184px, 280px"
+                sizes="(max-width: 640px) 208px, 272px"
                 className={cn(
-                  'object-contain object-left transition-[filter] duration-300',
+                  'object-contain object-center transition-[filter] duration-300',
                   !barSolid && 'drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]',
                 )}
                 priority
               />
-              <div className="pointer-events-none absolute -bottom-1 right-0 left-0 h-px bg-gradient-to-r from-transparent via-[#b8956a] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
             </motion.div>
           </Link>
 
-          {/* Desktop: landing */}
-          {!isCatalog && (
-            <div className="hidden flex-wrap items-center justify-end gap-x-6 gap-y-2 lg:flex xl:gap-x-8">
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-                <Link href="/" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                  Inicio
-                  {underline}
-                </Link>
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                <Link href="/#categorias" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                  Categorías
-                  {underline}
-                </Link>
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
-                <Link href="/#coleccion" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                  Colección
-                  {underline}
-                </Link>
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-                <Link href="/#quienes-somos" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                  Quiénes somos
-                  {underline}
-                </Link>
-              </motion.div>
-           
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-                <Link href="/catalogo" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                  Catálogo
-                  {underline}
-                </Link>
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-                <Link href="/#contacto" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                  Contacto
-                  {underline}
-                </Link>
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
-                <CatalogSearchTrigger className={iconBtnClass} syncWithCatalogQuery />
-              </motion.div>
-              <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
-                <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
-                  <User className="h-5 w-5" strokeWidth={1.5} />
-                </Link>
-              </motion.div>
-              <motion.button
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.95 }}
-                type="button"
-                className={cartClass}
-                aria-label="Carrito"
-                aria-expanded={isCartOpen}
-                onClick={toggleCart}
-              >
-                <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
-                <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  ({totalCount})
-                </span>
-              </motion.button>
-            </div>
-          )}
-
-          {/* Desktop: catálogo */}
-          {isCatalog && (
-            <div className="hidden items-center justify-end gap-6 lg:flex xl:gap-8">
-              <Link href="/" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                Inicio
-                {underline}
-              </Link>
-              <Link href="/catalogo" className={cn(linkClass, 'group relative')} style={navLinkFont}>
-                Catálogo
-                {underline}
-              </Link>
-              <a
-                href={SOCIAL.whatsapp}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={iconBtnClass}
-                aria-label="WhatsApp"
-              >
-                <WhatsAppIcon className="h-5 w-5" />
-              </a>
-              <a
-                href={SOCIAL.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={iconBtnClass}
-                aria-label="Instagram"
-              >
-                <Instagram className="h-5 w-5" strokeWidth={1.5} />
-              </a>
-              <a
-                href={SOCIAL.tiktok}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={iconBtnClass}
-                aria-label="TikTok"
-              >
-                <TikTokIcon className="h-5 w-5" />
-              </a>
-              <CatalogSearchTrigger className={iconBtnClass} syncWithCatalogQuery />
-              <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
-                <User className="h-5 w-5" strokeWidth={1.5} />
-              </Link>
-              <motion.button
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.95 }}
-                type="button"
-                className={cartClass}
-                aria-label="Carrito"
-                aria-expanded={isCartOpen}
-                onClick={toggleCart}
-              >
-                <ShoppingBag className="h-5 w-5" strokeWidth={1.5} />
-                <span className="text-sm" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  ({totalCount})
-                </span>
-              </motion.button>
-            </div>
-          )}
-
-          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1 lg:hidden">
-            <CatalogSearchTrigger
-              className={iconBtnClass}
-              syncWithCatalogQuery={isCatalog}
-              preferCatalogOnMobile
-            />
+          <div className="flex items-center justify-end gap-0.5 sm:gap-1">
+            <Link href="/login" className={iconBtnClass} aria-label="Iniciar sesión">
+              <User className="h-5 w-5" strokeWidth={1.5} />
+            </Link>
             <motion.button
+              whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.95 }}
               type="button"
               className={cn(iconBtnClass, 'relative')}
@@ -285,16 +151,6 @@ export function Navbar() {
                 </span>
               ) : null}
             </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              type="button"
-              onClick={() => setIsOpen((o) => !o)}
-              className={cn(iconBtnClass, barSolid ? 'text-[#e8e3db]' : 'text-[#f5f2ed]')}
-              aria-expanded={isOpen}
-              aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
-            >
-              {isOpen ? <X className="h-6 w-6" strokeWidth={1.5} /> : <Menu className="h-6 w-6" strokeWidth={1.5} />}
-            </motion.button>
           </div>
         </div>
 
@@ -305,11 +161,9 @@ export function Navbar() {
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.4, ease: [0.43, 0.13, 0.23, 0.96] }}
-              className="max-h-[min(70vh,28rem)] overflow-y-auto border-t border-[#b8956a]/20 lg:hidden"
+              className="max-h-[min(70vh,28rem)] overflow-y-auto border-t border-[#b8956a]/20"
             >
-              <div
-                className="space-y-1 bg-[#1a1410] py-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:bg-[#1a1410]/95 lg:backdrop-blur-md"
-              >
+              <div className="space-y-1 bg-[#1a1410] py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md">
                 {!isCatalog && (
                   <>
                     <MobileLink href="/" onNavigate={() => setIsOpen(false)}>
