@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'motion/react';
+import { siteAddressLines, sitePhoneDisplay, siteWhatsAppUrl } from '@/app/config/contact';
 
 export function Footer() {
   return (
@@ -139,7 +140,14 @@ export function Footer() {
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
                 <span className="text-[#b8956a] mr-2">•</span>
-                +54 9 11 1234 5678
+                <a
+                  href={siteWhatsAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="transition hover:text-[#b8956a]"
+                >
+                  {sitePhoneDisplay}
+                </a>
               </li>
               <li
                 className="text-[#b8956a] flex items-start font-semibold"
@@ -160,8 +168,12 @@ export function Footer() {
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}
               >
                 <span className="text-[#b8956a] mr-2">•</span>
-                Merlo, Buenos Aires<br />
-                <span className="ml-4">Argentina</span>
+                {siteAddressLines.map((line, i) => (
+                  <span key={line}>
+                    {i > 0 ? <br /> : null}
+                    {i > 0 ? <span className="ml-4">{line}</span> : line}
+                  </span>
+                ))}
               </li>
             </ul>
           </motion.div>

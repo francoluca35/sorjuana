@@ -8,9 +8,15 @@ import {
 export type { ProductRow } from '@/lib/data/productCatalog';
 
 const PANEL_SELECT =
-	'id,name,category,price,compare_at_price,image_url,created_at,kind,stock,cost,base_price,transfer_price,final_transfer_price,cash_discount_percent,transfer_discount_percent,tax_applies,tax_percent,description,color,product_code,image_urls,video_url,min_order_qty,max_order_qty,size_inventory';
+	'id,name,category,price,compare_at_price,image_url,created_at,kind,stock,cost,base_price,transfer_price,final_transfer_price,cash_discount_percent,transfer_discount_percent,tax_applies,tax_percent,description,color,product_code,image_urls,video_url,min_order_qty,max_order_qty,size_inventory,is_hidden';
 
 const PANEL_SELECT_LEGACY =
+	'id,name,category,price,compare_at_price,image_url,created_at,kind,stock,cost,base_price,tax_applies,tax_percent,description,color,product_code,image_urls,video_url,min_order_qty,max_order_qty,size_inventory,is_hidden';
+
+const PANEL_SELECT_NO_HIDDEN =
+	'id,name,category,price,compare_at_price,image_url,created_at,kind,stock,cost,base_price,transfer_price,final_transfer_price,cash_discount_percent,transfer_discount_percent,tax_applies,tax_percent,description,color,product_code,image_urls,video_url,min_order_qty,max_order_qty,size_inventory';
+
+const PANEL_SELECT_LEGACY_NO_HIDDEN =
 	'id,name,category,price,compare_at_price,image_url,created_at,kind,stock,cost,base_price,tax_applies,tax_percent,description,color,product_code,image_urls,video_url,min_order_qty,max_order_qty,size_inventory';
 
 function missingColorColumn(message: string): boolean {
@@ -41,6 +47,36 @@ function missingDiscountSnapshotColumns(message: string): boolean {
 		message.includes('column "transfer_discount_percent" does not exist') ||
 		message.includes("Could not find the 'transfer_discount_percent' column of 'products' in the schema cache")
 	);
+}
+
+function missingHiddenColumn(message: string): boolean {
+	return (
+		message.includes('column products.is_hidden does not exist') ||
+		message.includes('column "is_hidden" does not exist') ||
+		message.includes("Could not find the 'is_hidden' column of 'products' in the schema cache")
+	);
+}
+
+function stripHiddenFromSelect(selectStr: string): string {
+	return selectStr.replace(',is_hidden', '');
+}
+
+function selectHasHiddenColumn(selectStr: string): boolean {
+	return selectStr.includes('is_hidden');
+}
+
+type StorefrontQueryOptions = {
+	/** Panel admin: incluye productos ocultos */
+	includeHidden?: boolean;
+};
+
+function applyStorefrontVisibility<T extends { eq: (col: string, val: boolean) => T }>(
+	query: T,
+	selectStr: string,
+	options?: StorefrontQueryOptions,
+): T {
+	if (options?.includeHidden || !selectHasHiddenColumn(selectStr)) return query;
+	return query.eq('is_hidden', false);
 }
 
 /** Resuelve la lista de columnas compatible con el esquema actual (migraciones progresivas). */
@@ -77,8 +113,24 @@ async function resolvePanelSelectString(): Promise<string | null> {
 		const withoutSnapshots = PANEL_SELECT.replace(',cash_discount_percent,transfer_discount_percent', '');
 		const { error: e5 } = await probe(withoutSnapshots);
 		if (!e5) return withoutSnapshots;
-		console.error('[resolvePanelSelectString]', e5.message);
-		return null;
+		error = e5;
+	}
+
+	if (missingHiddenColumn(error.message)) {
+		const withoutHidden = stripHiddenFromSelect(PANEL_SELECT);
+		const { error: e6 } = await probe(withoutHidden);
+		if (!e6) return withoutHidden;
+		if (missingColorColumn(e6.message)) {
+			const withoutBoth = stripHiddenFromSelect(PANEL_SELECT).replace(',color', '');
+			const { error: e7 } = await probe(withoutBoth);
+			if (!e7) return withoutBoth;
+		}
+		if (missingNewPriceColumns(e6.message)) {
+			const legacyNoHidden = PANEL_SELECT_LEGACY_NO_HIDDEN;
+			const { error: e8 } = await probe(legacyNoHidden);
+			if (!e8) return legacyNoHidden;
+		}
+		error = e6;
 	}
 
 	console.error('[resolvePanelSelectString]', error.message);
@@ -147,17 +199,20 @@ const SUBSLUG_SCAN_MAX_ROWS = 50_000;
 async function fetchProductsMatchingSubslugPaginated(
 	selectStr: string,
 	tipoSlug: string,
+	options?: StorefrontQueryOptions,
 ): Promise<ProductRow[]> {
 	const supabase = await createClient();
 	const out: ProductRow[] = [];
 	let from = 0;
 	for (;;) {
 		if (from >= SUBSLUG_SCAN_MAX_ROWS) break;
-		const { data, error } = await supabase
+		let query = supabase
 			.from('products')
 			.select(selectStr)
 			.order('created_at', { ascending: false })
 			.range(from, from + SUBSLUG_SCAN_PAGE - 1);
+		query = applyStorefrontVisibility(query, selectStr, options);
+		const { data, error } = await query;
 		if (error) {
 			console.error('[fetchProductsMatchingSubslugPaginated]', error.message);
 			break;
@@ -209,12 +264,14 @@ export async function fetchStorefrontCatalogRows(params: {
 		}
 
 		if (lineSlug && tipoSlug) {
-			const { data, error } = await supabase
+			let query = supabase
 				.from('products')
 				.select(selectStr)
 				.or(`category.eq.${lineSlug}/${tipoSlug},category.ilike.${lineSlug}/${tipoSlug}/%`)
 				.order('created_at', { ascending: false })
 				.limit(STOREFRONT_CATALOG_FILTERED_CAP);
+			query = applyStorefrontVisibility(query, selectStr);
+			const { data, error } = await query;
 			if (error) {
 				console.error('[fetchStorefrontCatalogRows]', error.message);
 				return [];
@@ -223,12 +280,14 @@ export async function fetchStorefrontCatalogRows(params: {
 		}
 
 		if (lineSlug) {
-			const { data, error } = await supabase
+			let query = supabase
 				.from('products')
 				.select(selectStr)
 				.or(`category.eq.${lineSlug},category.ilike.${lineSlug}/%`)
 				.order('created_at', { ascending: false })
 				.limit(STOREFRONT_CATALOG_FILTERED_CAP);
+			query = applyStorefrontVisibility(query, selectStr);
+			const { data, error } = await query;
 			if (error) {
 				console.error('[fetchStorefrontCatalogRows]', error.message);
 				return [];
@@ -251,17 +310,22 @@ export async function fetchStorefrontCatalogRows(params: {
  * Productos más recientes primero (por `created_at` descendente).
  * Solo importar este módulo desde Server Components o Server Actions (usa `next/headers`).
  */
-export async function fetchRecentProducts(limit = 12): Promise<ProductRow[]> {
+export async function fetchRecentProducts(
+	limit = 12,
+	options?: StorefrontQueryOptions,
+): Promise<ProductRow[]> {
 	try {
 		const selectStr = await resolvePanelSelectString();
 		if (!selectStr) return [];
 		const supabase = await createClient();
 		const normalizedLimit = Math.min(Math.max(limit, 1), 500);
-		const { data, error } = await supabase
+		let query = supabase
 			.from('products')
 			.select(selectStr)
 			.order('created_at', { ascending: false })
 			.limit(normalizedLimit);
+		query = applyStorefrontVisibility(query, selectStr, options);
+		const { data, error } = await query;
 		if (error) {
 			console.error('[fetchRecentProducts]', error.message);
 			return [];
@@ -287,11 +351,13 @@ export async function fetchAllProductsForPanel(): Promise<ProductRow[]> {
 		const all: ProductRow[] = [];
 		let from = 0;
 		for (;;) {
-			const { data, error } = await supabase
+			let query = supabase
 				.from('products')
 				.select(selectStr)
 				.order('created_at', { ascending: false })
 				.range(from, from + ALL_PRODUCTS_PAGE - 1);
+			query = applyStorefrontVisibility(query, selectStr, { includeHidden: true });
+			const { data, error } = await query;
 			if (error) {
 				console.error('[fetchAllProductsForPanel]', error.message);
 				break;
@@ -310,14 +376,19 @@ export async function fetchAllProductsForPanel(): Promise<ProductRow[]> {
 }
 
 /** Filas por id (p. ej. selección «Recién llegados» que no entró en el lote reciente del SSR). */
-export async function fetchProductsByIds(ids: string[]): Promise<ProductRow[]> {
+export async function fetchProductsByIds(
+	ids: string[],
+	options?: StorefrontQueryOptions,
+): Promise<ProductRow[]> {
 	const uniq = [...new Set(ids.map((x) => String(x).trim()).filter(Boolean))];
 	if (uniq.length === 0) return [];
 	try {
 		const selectStr = await resolvePanelSelectString();
 		if (!selectStr) return [];
 		const supabase = await createClient();
-		const { data, error } = await supabase.from('products').select(selectStr).in('id', uniq);
+		let query = supabase.from('products').select(selectStr).in('id', uniq);
+		query = applyStorefrontVisibility(query, selectStr, options);
+		const { data, error } = await query;
 		if (error) {
 			console.error('[fetchProductsByIds]', error.message);
 			return [];

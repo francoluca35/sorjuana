@@ -34,6 +34,8 @@ export type ProductRow = {
 	max_order_qty: number | null;
 	/** Talles y cantidades; vacío si solo se usa `stock` legacy */
 	size_inventory: SizeInventoryRow[];
+	/** No visible en inicio / catálogo público */
+	is_hidden: boolean;
 };
 
 export type CatalogProduct = {
@@ -66,6 +68,7 @@ export type CatalogProduct = {
 	min_order_qty: number | null;
 	max_order_qty: number | null;
 	size_inventory: SizeInventoryRow[];
+	is_hidden: boolean;
 };
 
 export const PLACEHOLDER_IMG =
@@ -191,6 +194,7 @@ export function normalizeProductRow(raw: Record<string, unknown>): ProductRow {
 				? null
 				: Math.max(0, Math.floor(toNum(raw.max_order_qty))),
 		size_inventory: parseSizeInventoryFromDb(raw.size_inventory),
+		is_hidden: toBool(raw.is_hidden, false),
 	};
 }
 
@@ -231,5 +235,6 @@ export function productRowToCatalogProduct(row: ProductRow): CatalogProduct {
 		min_order_qty: row.min_order_qty,
 		max_order_qty: row.max_order_qty,
 		size_inventory: row.size_inventory.length ? [...row.size_inventory] : [],
+		is_hidden: row.is_hidden,
 	};
 }

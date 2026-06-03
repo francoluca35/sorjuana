@@ -693,3 +693,39 @@ export async function deleteProductsBulkAction(
 	revalidatePath('/app/productos');
 	return { ok: true, deleted: uniq.length };
 }
+
+export async function setProductsHiddenAction(
+	ids: string[],
+	hidden: boolean,
+): Promise<{ ok: true; updated: number } | { ok: false; message: string }> {
+	const uniq = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
+	if (uniq.length === 0) {
+		return { ok: false, message: 'No hay productos seleccionados.' };
+	}
+	const supabase = await createClient();
+	const {
+		data: { user },
+		error: userErr,
+	} = await supabase.auth.getUser();
+	if (userErr || !user) {
+		return { ok: false, message: 'Iniciá sesión para ocultar o mostrar productos.' };
+	}
+
+	let result = await supabase.from('products').update({ is_hidden: hidden }).in('id', uniq);
+	if (result.error?.message?.includes('column products.is_hidden does not exist')) {
+		return {
+			ok: false,
+			message:
+				'Falta la columna `is_hidden` en products. Ejecutá la migración `20260603120000_products_is_hidden.sql` en Supabase.',
+		};
+	}
+	if (result.error) {
+		return { ok: false, message: result.error.message };
+	}
+
+	revalidatePath('/');
+	revalidatePath('/catalogo');
+	revalidatePath('/app/productos');
+	revalidatePath('/app/mapa-pagina');
+	return { ok: true, updated: uniq.length };
+}

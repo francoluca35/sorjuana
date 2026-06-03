@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import {
   ChevronDown,
   Copy,
+  Eye,
+  EyeOff,
   Filter,
   Plus,
   Search,
@@ -33,6 +35,7 @@ import {
   deleteProductAction,
   deleteProductsBulkAction,
   insertProductAction,
+  setProductsHiddenAction,
   updateProductAction,
 } from '@/app/actions/products';
 import { getPriceSettingsAction } from '@/app/actions/priceSettings';
@@ -337,6 +340,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       primary: CatalogProduct;
       ids: string[];
       variantsCount: number;
+      isHidden: boolean;
     };
     const byName = new Map<string, CatalogProduct[]>();
     for (const p of displayed) {
@@ -358,6 +362,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
         primary,
         ids: rows.map((x) => x.id),
         variantsCount: rows.length,
+        isHidden: rows.every((x) => x.is_hidden),
       });
     }
     out.sort((a, b) => a.name.localeCompare(b.name));
@@ -794,6 +799,39 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     router.refresh();
   }
 
+  async function setHiddenForIds(ids: string[], hidden: boolean) {
+    const res = await setProductsHiddenAction(ids, hidden);
+    if (!res.ok) {
+      toast.error(res.message);
+      return;
+    }
+    setProducts((prev) => prev.map((p) => (ids.includes(p.id) ? { ...p, is_hidden: hidden } : p)));
+    setDraft((cur) => (cur && ids.includes(cur.id) ? { ...cur, is_hidden: hidden } : cur));
+    toast.success(hidden ? 'Producto oculto en la tienda.' : 'Producto visible en la tienda.');
+    router.refresh();
+  }
+
+  async function hideSelectedBulk() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    await setHiddenForIds(ids, true);
+    clearSelection();
+  }
+
+  async function showSelectedBulk() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    await setHiddenForIds(ids, false);
+    clearSelection();
+  }
+
+  async function toggleDraftHidden() {
+    if (!draft) return;
+    const ids = editingVariantIds.length > 0 ? editingVariantIds : [draft.id];
+    const allHidden = ids.every((id) => products.find((p) => p.id === id)?.is_hidden);
+    await setHiddenForIds(ids, !allHidden);
+  }
+
   async function duplicateProduct() {
     if (!draft) return;
     const baseCode = draft.code === '—' ? `cpy-${Date.now()}` : draft.code;
@@ -1084,6 +1122,26 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                   <span className="text-xs font-medium text-slate-700">{selectedIds.size} seleccionado(s)</span>
                   <Button
                     type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => void hideSelectedBulk()}
+                  >
+                    <EyeOff className="mr-1 h-3.5 w-3.5" />
+                    Ocultar en tienda
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => void showSelectedBulk()}
+                  >
+                    <Eye className="mr-1 h-3.5 w-3.5" />
+                    Mostrar en tienda
+                  </Button>
+                  <Button
+                    type="button"
                     variant="destructive"
                     size="sm"
                     className="h-8 text-xs"
@@ -1132,7 +1190,14 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                       <Image src={g.image} alt="" fill className="object-cover" sizes="64px" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-900">{g.name}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-medium text-slate-900">{g.name}</p>
+                        {g.isHidden ? (
+                          <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
+                            Oculto
+                          </span>
+                        ) : null}
+                      </div>
                       {mainTab === 'items' ? (
                         <p className="truncate text-xs text-slate-500">
                           {g.code} · {g.category}
@@ -1180,6 +1245,16 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                     </Button>
                     <Button type="button" variant="ghost" size="icon" className="h-9 w-9" aria-label="Duplicar" onClick={duplicateProduct}>
                       <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      aria-label={draft.is_hidden ? 'Mostrar en tienda' : 'Ocultar en tienda'}
+                      onClick={() => void toggleDraftHidden()}
+                    >
+                      {draft.is_hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                     </Button>
                     <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-600" aria-label="Eliminar" onClick={deleteProduct}>
                       <Trash2 className="h-4 w-4" />
