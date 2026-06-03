@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { ReturnPolicyConfig } from '@/lib/returnPolicyConfig';
+import type { LegalPageConfig } from '@/lib/legalPageConfig';
 
 const serif = "'Cormorant Garamond', serif";
 const sans = 'Montserrat, sans-serif';
@@ -31,7 +31,7 @@ function renderInlineText(text: string, whatsappHref: string, whatsappLabel: str
 	});
 }
 
-export function ReturnPolicyContent({ policy }: { policy: ReturnPolicyConfig }) {
+export function ReturnPolicyContent({ policy }: { policy: LegalPageConfig }) {
 	return (
 		<div className="space-y-10 text-[0.95rem] leading-relaxed sm:text-base" style={{ fontFamily: sans, fontWeight: 300 }}>
 			<p className="text-[#2a2520]">{policy.intro}</p>

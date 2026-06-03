@@ -21,6 +21,10 @@ import {
 	parseReturnPolicyFromJson,
 	type ReturnPolicyConfig,
 } from '@/lib/returnPolicyConfig';
+import {
+	parseTermsConditionsFromJson,
+	type TermsConditionsConfig,
+} from '@/lib/termsConditionsConfig';
 import { RECENT_ARRIVALS_MAX, serializeProductIds } from '@/lib/recentArrivalsSelection';
 
 export type SiteHomeConfigDTO = {
@@ -31,6 +35,7 @@ export type SiteHomeConfigDTO = {
 	bestSellersIdsJson: string;
 	recentArrivalsIdsJson: string;
 	returnPolicy: ReturnPolicyConfig | null;
+	termsConditions: TermsConditionsConfig | null;
 };
 
 function asStringArray(v: unknown): string[] {
@@ -46,6 +51,7 @@ const EMPTY_SITE_HOME: SiteHomeConfigDTO = {
 	bestSellersIdsJson: serializeProductIds([], BEST_SELLERS_MAX),
 	recentArrivalsIdsJson: serializeProductIds([], RECENT_ARRIVALS_MAX),
 	returnPolicy: null,
+	termsConditions: null,
 };
 
 /** Lee la config del inicio (Server Components / RSC). */
@@ -90,6 +96,16 @@ export async function fetchSiteHomeConfig(): Promise<SiteHomeConfigDTO> {
 		returnPolicyParsed = parseReturnPolicyFromJson(returnPolicyRes.data.return_policy);
 	}
 
+	let termsConditionsParsed: TermsConditionsConfig | null = null;
+	const termsRes = await supabase
+		.from('site_home_config')
+		.select('terms_conditions')
+		.eq('id', 1)
+		.maybeSingle();
+	if (!termsRes.error && termsRes.data) {
+		termsConditionsParsed = parseTermsConditionsFromJson(termsRes.data.terms_conditions);
+	}
+
 	const heroParsed = parseHeroSlidesFromJson(data.hero_slides);
 	const fashionParsed = parseFashionCategoryPanelsFromJson(data.fashion_category_panels);
 	const categoryRailParsed = parseCategorySpotlightRailFromJson(data.category_spotlight_rail);
@@ -104,5 +120,6 @@ export async function fetchSiteHomeConfig(): Promise<SiteHomeConfigDTO> {
 		bestSellersIdsJson: serializeProductIds(bestArr, BEST_SELLERS_MAX),
 		recentArrivalsIdsJson: serializeProductIds(recentArr, RECENT_ARRIVALS_MAX),
 		returnPolicy: returnPolicyParsed,
+		termsConditions: termsConditionsParsed,
 	};
 }

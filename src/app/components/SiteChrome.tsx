@@ -12,11 +12,13 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
   const hideNavbar =
     pathname.startsWith('/login') ||
     pathname.startsWith('/app') ||
-    pathname.startsWith('/politica-cambios-devoluciones');
+    pathname.startsWith('/politica-cambios-devoluciones') ||
+    pathname.startsWith('/terminos-y-condiciones');
   const hideSiteFooter =
     pathname.startsWith('/login') ||
     pathname.startsWith('/app') ||
-    pathname.startsWith('/politica-cambios-devoluciones');
+    pathname.startsWith('/politica-cambios-devoluciones') ||
+    pathname.startsWith('/terminos-y-condiciones');
 
   return (
     <>

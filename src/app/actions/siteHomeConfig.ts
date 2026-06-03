@@ -22,6 +22,11 @@ import {
 	type ReturnPolicyConfig,
 } from '@/lib/returnPolicyConfig';
 
+import {
+	normalizeTermsConditions,
+	type TermsConditionsConfig,
+} from '@/lib/termsConditionsConfig';
+
 async function requireAuthUser() {
 	const supabase = await createClient();
 	const {
@@ -39,6 +44,11 @@ function revalidateHome() {
 
 function revalidateReturnPolicy() {
 	revalidatePath('/politica-cambios-devoluciones');
+	revalidatePath('/app/mapa-pagina');
+}
+
+function revalidateTermsConditions() {
+	revalidatePath('/terminos-y-condiciones');
 	revalidatePath('/app/mapa-pagina');
 }
 
@@ -326,6 +336,49 @@ export async function saveReturnPolicyAction(
 		return { ok: true };
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Error al guardar la política.';
+		return { ok: false, message: msg };
+	}
+}
+
+export async function saveTermsConditionsAction(
+	terms: TermsConditionsConfig,
+): Promise<{ ok: boolean; message?: string }> {
+	const auth = await requireAuthUser();
+	if (!auth.ok) return auth;
+
+	const normalized = normalizeTermsConditions(terms);
+
+	try {
+		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
+		const { data, error } = await auth.supabase
+			.from('site_home_config')
+			.update({
+				terms_conditions: payload,
+				updated_at: new Date().toISOString(),
+			})
+			.eq('id', 1)
+			.select('id');
+
+		if (error) {
+			return {
+				ok: false,
+				message:
+					error.message.includes('terms_conditions') || error.code === '42703'
+						? 'Falta la columna en la base: ejecutá la migración `20260603130000_site_home_terms_conditions.sql`.'
+						: error.message,
+			};
+		}
+		if (!data?.length) {
+			return {
+				ok: false,
+				message:
+					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
+			};
+		}
+		revalidateTermsConditions();
+		return { ok: true };
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al guardar los términos.';
 		return { ok: false, message: msg };
 	}
 }

@@ -247,7 +247,14 @@ function FeaturedProductSlide({
 							SIN STOCK
 						</span>
 					) : null}
-					
+					{hasDiscount ? (
+						<span
+							className="absolute bottom-3 left-3 z-10 rounded-sm bg-[#d4c4a8]/95 px-2.5 py-1 text-[11px] tracking-wide text-[#1a1410]"
+							style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+						>
+							{discountPercent}% OFF
+						</span>
+					) : null}
 				</div>
 				<div className="flex flex-1 flex-col px-4 py-4 text-center">
 					<h3
@@ -262,31 +269,23 @@ function FeaturedProductSlide({
 					</h3>
 					<div className="mt-auto space-y-1">
 						{hasDiscount ? (
-	<div className="flex flex-col items-center gap-1">
-		<span
-			className="rounded-sm bg-red-600 px-3 py-1 text-[11px] font-semibold tracking-wide text-white"
-			style={{ fontFamily: 'Montserrat, sans-serif' }}
-		>
-			{discountPercent}% OFF
-		</span>
-
-		<p
-			className="text-sm text-[#8b6f47] line-through"
-			style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
-		>
-			{formatPrecioListaAr(listPrice)}
-		</p>
-
-		<SingleLineFitText
-			minFontSizePx={14}
-			maxFontSizePx={18}
-			className="font-semibold text-[#8b6f47]"
-			style={{ fontFamily: 'Montserrat, sans-serif' }}
-		>
-			{formatPrecioListaAr(discountedPrice)}
-		</SingleLineFitText>
-	</div>
-) : (
+							<div className="flex flex-wrap items-center justify-center gap-2">
+								<p
+									className="text-sm text-[#8b6f47] line-through"
+									style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 400 }}
+								>
+									{formatPrecioListaAr(listPrice)}
+								</p>
+								<SingleLineFitText
+									minFontSizePx={14}
+									maxFontSizePx={18}
+									className="font-semibold text-[#8b6f47]"
+									style={{ fontFamily: 'Montserrat, sans-serif' }}
+								>
+									{formatPrecioListaAr(discountedPrice)}
+								</SingleLineFitText>
+							</div>
+						) : (
 							<SingleLineFitText
 								minFontSizePx={14}
 								maxFontSizePx={18}
