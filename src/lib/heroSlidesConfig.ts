@@ -216,7 +216,7 @@ function parseSlide(raw: unknown): HeroSlide | null {
 	const title = typeof o.title === 'string' ? o.title : '';
 	const image = typeof o.image === 'string' ? o.image : '';
 	const filter = o.filter;
-	if (!title || !image || !isFilter(filter) || Number.isNaN(id)) return null;
+	if (!image || !isFilter(filter) || Number.isNaN(id)) return null;
 	const imageMobile = typeof o.imageMobile === 'string' ? o.imageMobile : undefined;
 	const promoImage = typeof o.promoImage === 'string' && o.promoImage.trim() ? o.promoImage.trim() : undefined;
 	const promoImageMobile =

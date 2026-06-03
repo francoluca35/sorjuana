@@ -286,19 +286,21 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                   }}
                 >
                   <div className="max-w-[min(100%,20rem)] pb-8 sm:pb-16 md:pl-2 lg:pl-4">
-                    <h1
-                      className="mb-0 text-balance text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)] sm:mb-4"
-                      style={{
-                        fontFamily: 'Montserrat, sans-serif',
-                        fontWeight: 700,
-                        fontSize:
-                          'clamp(1.35rem, calc(0.35rem + 3.8vw), 3rem)',
-                        lineHeight: 1.05,
-                        letterSpacing: '0.06em',
-                      }}
-                    >
-                      {slide.title}
-                    </h1>
+                    {slide.title.trim() ? (
+                      <h1
+                        className="mb-0 text-balance text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)] sm:mb-4"
+                        style={{
+                          fontFamily: 'Montserrat, sans-serif',
+                          fontWeight: 700,
+                          fontSize:
+                            'clamp(1.35rem, calc(0.35rem + 3.8vw), 3rem)',
+                          lineHeight: 1.05,
+                          letterSpacing: '0.06em',
+                        }}
+                      >
+                        {slide.title}
+                      </h1>
+                    ) : null}
                     <div className="pointer-events-auto hidden md:block">
                       <Link
                         href={catalogHref(slide.filter)}

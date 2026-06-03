@@ -66,31 +66,45 @@ export async function saveHeroSlidesAction(slides: HeroSlide[]): Promise<{ ok: b
 	try {
 		const normalized = normalizeHeroSlidesForPublish(slides);
 		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
-		const { data, error } = await auth.supabase
+		const updatedAt = new Date().toISOString();
+		const { data: updatedRow, error: updateError } = await auth.supabase
 			.from('site_home_config')
 			.update({
 				hero_slides: payload,
-				updated_at: new Date().toISOString(),
+				updated_at: updatedAt,
 			})
 			.eq('id', 1)
-			.select('id');
+			.select('id')
+			.maybeSingle();
 
-		if (error) {
+		if (updateError) {
 			return {
 				ok: false,
 				message:
-					error.message.includes('row') || error.code === 'PGRST116'
+					updateError.message.includes('row') || updateError.code === 'PGRST116'
 						? 'No se encontró la fila de configuración. Ejecutá las migraciones de Supabase (site_home_config).'
-						: error.message,
+						: updateError.message,
 			};
 		}
-		if (!data?.length) {
-			return {
-				ok: false,
-				message:
-					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
-			};
+
+		if (!updatedRow) {
+			const { error: upsertError } = await auth.supabase.from('site_home_config').upsert(
+				{
+					id: 1,
+					hero_slides: payload,
+					updated_at: updatedAt,
+				},
+				{ onConflict: 'id' },
+			);
+			if (upsertError) {
+				return {
+					ok: false,
+					message:
+						'No se pudo guardar el hero (¿existe `site_home_config` con id=1?). Ejecutá las migraciones de Supabase.',
+				};
+			}
 		}
+
 		revalidateHome();
 		return { ok: true };
 	} catch (e) {
