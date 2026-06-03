@@ -260,6 +260,14 @@ export function parseHeroSlidesFromJson(data: unknown): HeroSlide[] | null {
 	return resizeHeroSlides(out, clampHeroSlideCount(out.length));
 }
 
+/** Una sola imagen publicada en todos los dispositivos (sin foto móvil separada). */
+export function normalizeHeroSlidesForPublish(slides: HeroSlide[]): HeroSlide[] {
+	return resizeHeroSlides(slides, slides.length).map((slide) => {
+		const { imageMobile: _m, promoImageMobile: _pm, ...rest } = slide;
+		return rest;
+	});
+}
+
 export function readHeroSlidesFromStorage(): HeroSlide[] | null {
 	if (typeof window === 'undefined') return null;
 	try {

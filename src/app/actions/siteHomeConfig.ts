@@ -10,7 +10,7 @@ import type { HeroSlide } from '@/lib/heroSlidesConfig';
 import {
 	HERO_SLIDES_MAX,
 	HERO_SLIDES_MIN,
-	resizeHeroSlides,
+	normalizeHeroSlidesForPublish,
 } from '@/lib/heroSlidesConfig';
 import {
 	normalizeHeroContent,
@@ -64,7 +64,7 @@ export async function saveHeroSlidesAction(slides: HeroSlide[]): Promise<{ ok: b
 	}
 
 	try {
-		const normalized = resizeHeroSlides(slides, slides.length);
+		const normalized = normalizeHeroSlidesForPublish(slides);
 		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
 		const { data, error } = await auth.supabase
 			.from('site_home_config')

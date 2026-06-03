@@ -18,7 +18,6 @@ import {
   HERO_SLIDES_UPDATED_EVENT,
   type HeroHotspot,
   type HeroSlide,
-  readHeroSlidesFromStorage,
 } from '@/lib/heroSlidesConfig';
 
 const HERO_AUTOPLAY_MS_DESKTOP = 8000;
@@ -87,19 +86,14 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
         const cfg = await getSiteHomeConfigAction();
         if (cfg.heroSlides?.length) {
           setSlides(cfg.heroSlides);
-          return;
         }
       } catch {
-        /* ignore */
+        /* Mantener initialSlides del servidor */
       }
-      const stored = readHeroSlidesFromStorage();
-      setSlides(stored?.length ? stored : DEFAULT_HERO_SLIDES);
     };
     void load();
-    window.addEventListener('storage', load);
     window.addEventListener(HERO_SLIDES_UPDATED_EVENT, load);
     return () => {
-      window.removeEventListener('storage', load);
       window.removeEventListener(HERO_SLIDES_UPDATED_EVENT, load);
     };
   }, []);
@@ -243,10 +237,13 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                       sizes="100vw"
                       className="object-contain object-center"
                       style={{
-                        objectPosition:
-                          slide.objectPositionDesktop ??
-                          slide.objectPositionMobile ??
-                          'center center',
+                        objectPosition: isCompact
+                          ? slide.objectPositionMobile ??
+                            slide.objectPositionDesktop ??
+                            'center center'
+                          : slide.objectPositionDesktop ??
+                            slide.objectPositionMobile ??
+                            'center center',
                       }}
                     />
                   </div>

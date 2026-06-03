@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { BEST_SELLERS_MAX } from '@/lib/bestSellersSelection';
 import {
@@ -39,6 +40,7 @@ function asStringArray(v: unknown): string[] {
 
 /** Lee la config del inicio (Server Components / RSC). */
 export async function fetchSiteHomeConfig(): Promise<SiteHomeConfigDTO> {
+	noStore();
 	const supabase = await createClient();
 	const { data, error } = await supabase
 		.from('site_home_config')

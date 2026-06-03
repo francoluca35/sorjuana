@@ -20,8 +20,6 @@ import {
 	resizeHeroSlides,
 	type HeroHotspot,
 	type HeroSlide,
-	readHeroSlidesFromStorage,
-	writeHeroSlidesToStorage,
 } from '@/lib/heroSlidesConfig';
 import { productRowToCatalogProduct, type ProductRow } from '@/lib/data/productCatalog';
 import { formatPrecioListaAr } from '@/lib/formatPrice';
@@ -118,10 +116,7 @@ export function MapaPaginaHeroEditor() {
 		void getSiteHomeConfigAction().then((cfg) => {
 			if (cfg.heroSlides?.length) {
 				setSlides(resizeHeroSlides(cfg.heroSlides, cfg.heroSlides.length));
-				return;
 			}
-			const fromLs = readHeroSlidesFromStorage();
-			if (fromLs?.length) setSlides(resizeHeroSlides(fromLs, fromLs.length));
 		});
 	}, []);
 
@@ -297,8 +292,11 @@ export function MapaPaginaHeroEditor() {
 					return;
 				}
 				if (field === 'image') {
-					updateSlide({ image: res.publicUrl });
-					toast.success('Imagen escritorio subida; queda guardada al pulsar Guardar en el sitio.');
+					updateSlide({
+						image: res.publicUrl,
+						imageMobile: undefined,
+					});
+					toast.success('Imagen subida; pulsar Guardar en el sitio para publicar en todos los dispositivos.');
 				} else {
 					updateSlide({ imageMobile: res.publicUrl });
 					toast.success(
@@ -318,7 +316,6 @@ export function MapaPaginaHeroEditor() {
 				toast.error(res.message ?? 'No se pudo guardar el carrusel. Si las imágenes son muy pesadas, probá otras más livianas.');
 				return;
 			}
-			writeHeroSlidesToStorage(slides);
 			broadcastHeroSlidesUpdated();
 			toast.success('Carrusel guardado en el sitio (visible para todos los visitantes).');
 		});
@@ -336,7 +333,6 @@ export function MapaPaginaHeroEditor() {
 				toast.error(res.message ?? 'No se pudo guardar el predeterminado.');
 				return;
 			}
-			writeHeroSlidesToStorage(DEFAULT_HERO_SLIDES);
 			broadcastHeroSlidesUpdated();
 			toast.message('Restaurado al contenido por defecto y guardado en el sitio');
 		});
@@ -1037,8 +1033,8 @@ export function MapaPaginaHeroEditor() {
 						</div>
 					</div>
 					<p className="text-xs text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-						Guardá para publicar en el inicio. En el sitio real, escritorio y teléfono usan las imágenes y
-						coordenadas que definiste en cada vista.
+						Guardá para publicar en el inicio. La misma imagen de escritorio se muestra en todos los
+						dispositivos; podés ajustar el encuadre por vista.
 					</p>
 				</div>
 			</div>
