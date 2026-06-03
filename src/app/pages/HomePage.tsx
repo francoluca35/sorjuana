@@ -19,7 +19,6 @@ import { fetchRecentProducts } from '@/lib/data/recentProducts';
 import { fetchCategorySpotlights } from '@/lib/data/categorySpotlights';
 
 import { fetchSiteHomeConfig } from '@/lib/data/siteHomeConfig';
-import { DEFAULT_HERO_CONTENT } from '@/lib/heroContentConfig';
 
 
 
@@ -41,10 +40,7 @@ export async function HomePage() {
 
 		<>
 
-			<HeroCarouselClient
-				initialSlides={siteHome.heroSlides}
-				initialHeroContent={siteHome.heroContent ?? DEFAULT_HERO_CONTENT}
-			/>
+			<HeroCarouselClient initialSlides={siteHome.heroSlides} />
 
 			<AdminCategorySpotlightRail items={categorySpotlights} compact />
 
