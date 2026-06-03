@@ -15,6 +15,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/app/components/ui/ta
 import {
 	broadcastHeroSlidesUpdated,
 	DEFAULT_HERO_SLIDES,
+	HERO_SLIDES_MAX,
+	HERO_SLIDES_MIN,
+	resizeHeroSlides,
 	type HeroHotspot,
 	type HeroSlide,
 	readHeroSlidesFromStorage,
@@ -114,12 +117,21 @@ export function MapaPaginaHeroEditor() {
 	useEffect(() => {
 		void getSiteHomeConfigAction().then((cfg) => {
 			if (cfg.heroSlides?.length) {
-				setSlides(cfg.heroSlides);
+				setSlides(resizeHeroSlides(cfg.heroSlides, cfg.heroSlides.length));
 				return;
 			}
 			const fromLs = readHeroSlidesFromStorage();
-			if (fromLs?.length) setSlides(fromLs);
+			if (fromLs?.length) setSlides(resizeHeroSlides(fromLs, fromLs.length));
 		});
+	}, []);
+
+	const setSlideCount = useCallback((count: number) => {
+		setSlides((prev) => resizeHeroSlides(prev, count));
+		setSlideIndex((cur) => Math.min(cur, count - 1));
+		setPlacementHotspotId(null);
+		setPlacementTarget(null);
+		setPreviewMode('desktop');
+		setDataEditTab('desktop');
 	}, []);
 
 	const slide = slides[slideIndex];
@@ -353,6 +365,30 @@ export function MapaPaginaHeroEditor() {
 					Guardá para publicar.
 				</p>
 
+				<div className="mt-4 flex flex-wrap items-end gap-3">
+					<div className="space-y-1.5">
+						<Label htmlFor="hero-slide-count" style={{ fontFamily: sans }}>
+							Slides en el carrusel
+						</Label>
+						<select
+							id="hero-slide-count"
+							className="h-10 min-w-[5.5rem] rounded-md border border-[#b8956a]/30 bg-white px-3 text-sm text-[#1a1410]"
+							style={{ fontFamily: sans, fontWeight: 400 }}
+							value={slides.length}
+							onChange={(e) => setSlideCount(Number(e.target.value))}
+						>
+							{Array.from({ length: HERO_SLIDES_MAX }, (_, i) => i + HERO_SLIDES_MIN).map((n) => (
+								<option key={n} value={n}>
+									{n} {n === 1 ? 'slide' : 'slides'}
+								</option>
+							))}
+						</select>
+					</div>
+					<p className="pb-2 text-xs text-[#8a7a68]" style={{ fontFamily: sans, fontWeight: 300 }}>
+						Mínimo {HERO_SLIDES_MIN} · máximo {HERO_SLIDES_MAX}
+					</p>
+				</div>
+
 				<div className="mt-4 flex flex-wrap gap-2">
 					{slides.map((s, i) => (
 						<button
@@ -381,9 +417,14 @@ export function MapaPaginaHeroEditor() {
 
 			<div className="grid gap-8 lg:grid-cols-2">
 				<div className="space-y-4 rounded-xl border border-[#b8956a]/25 bg-white/70 p-4 shadow-sm backdrop-blur-sm sm:p-6">
-					<h3 className="text-sm font-medium uppercase tracking-[0.2em] text-[#8a7a68]" style={{ fontFamily: sans }}>
-						Datos del slide
-					</h3>
+					<div className="flex flex-wrap items-center justify-between gap-2">
+						<h3 className="text-sm font-medium uppercase tracking-[0.2em] text-[#8a7a68]" style={{ fontFamily: sans }}>
+							Datos del slide
+						</h3>
+						<p className="text-xs text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
+							Slide {slideIndex + 1} de {slides.length}
+						</p>
+					</div>
 
 					<div className="space-y-4 rounded-lg border border-[#b8956a]/18 bg-[#faf8f5]/90 p-4">
 						<p className="text-xs leading-relaxed text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>

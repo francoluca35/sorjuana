@@ -30,6 +30,9 @@ export const HERO_SLIDES_STORAGE_KEY = 'sj-hero-slides-v1';
 
 export const HERO_SLIDES_UPDATED_EVENT = 'sj-hero-slides-updated';
 
+export const HERO_SLIDES_MIN = 1;
+export const HERO_SLIDES_MAX = 5;
+
 export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
 	{
 		id: 1,
@@ -149,6 +152,40 @@ export const DEFAULT_HERO_SLIDES: HeroSlide[] = [
 	},
 ];
 
+function nextSlideId(slides: HeroSlide[]): number {
+	return slides.reduce((max, s) => Math.max(max, s.id), 0) + 1;
+}
+
+/** Slide nuevo basado en plantillas predeterminadas (para ampliar el carrusel). */
+export function createBlankHeroSlide(id: number): HeroSlide {
+	const template = DEFAULT_HERO_SLIDES[(id - 1) % DEFAULT_HERO_SLIDES.length] ?? DEFAULT_HERO_SLIDES[0];
+	return {
+		...template,
+		id,
+		title: template.title,
+		hotspots: template.hotspots.map((h, i) => ({
+			...h,
+			id: `hero-h${id}-${String.fromCharCode(97 + i)}`,
+		})),
+	};
+}
+
+/** Ajusta la cantidad de slides del carrusel (entre 1 y 5). */
+export function resizeHeroSlides(slides: HeroSlide[], targetCount: number): HeroSlide[] {
+	const count = Math.min(HERO_SLIDES_MAX, Math.max(HERO_SLIDES_MIN, Math.trunc(targetCount)));
+	if (slides.length === count) return slides;
+	if (slides.length > count) return slides.slice(0, count);
+	const next = [...slides];
+	while (next.length < count) {
+		next.push(createBlankHeroSlide(nextSlideId(next)));
+	}
+	return next;
+}
+
+export function clampHeroSlideCount(count: number): number {
+	return Math.min(HERO_SLIDES_MAX, Math.max(HERO_SLIDES_MIN, Math.trunc(count)));
+}
+
 function isFilter(v: unknown): v is HeroSlide['filter'] {
 	return v === 'all' || v === 'italiana' || v === 'francesa';
 }
@@ -219,7 +256,8 @@ export function parseHeroSlidesFromJson(data: unknown): HeroSlide[] | null {
 		const s = parseSlide(item);
 		if (s) out.push(s);
 	}
-	return out.length ? out : null;
+	if (!out.length) return null;
+	return resizeHeroSlides(out, clampHeroSlideCount(out.length));
 }
 
 export function readHeroSlidesFromStorage(): HeroSlide[] | null {

@@ -5,6 +5,7 @@ import { Navbar } from '@/app/components/Navbar';
 import { Footer } from '@/app/components/Footer';
 import { FloatingWhatsApp } from '@/app/components/FloatingWhatsApp';
 import { CartSheet } from '@/app/components/CartSheet';
+import { cn } from '@/app/components/ui/utils';
 
 export function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -21,7 +22,14 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
     <>
       {!hideNavbar && <Navbar />}
       {!hideNavbar && <CartSheet />}
-      <div className="min-w-0 overflow-x-clip">{children}</div>
+      <div
+        className={cn(
+          'min-w-0 overflow-x-clip',
+          !hideNavbar && 'pt-[var(--site-nav-offset)]',
+        )}
+      >
+        {children}
+      </div>
       {!hideSiteFooter && <Footer />}
       {!hideSiteFooter && <FloatingWhatsApp />}
     </>

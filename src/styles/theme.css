@@ -51,6 +51,8 @@
 
   /* Altura barra fija (mobile-first) */
   --site-nav-height: 4.25rem;
+  /* Navbar fijo + líneas decorativas + safe area (padding del contenido) */
+  --site-nav-offset: calc(var(--site-nav-height) + env(safe-area-inset-top, 0px) + 0.3125rem);
 }
 
 @media (min-width: 640px) {

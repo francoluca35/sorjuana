@@ -21,6 +21,17 @@ function fmtInt(n: number) {
 	return n.toLocaleString('es-AR');
 }
 
+/** Ticks de eje Y sin valores repetidos (p. ej. max=1 → [0,1], no [0,1,1]). */
+function chartYTicks(max: number, includeHalf = true): number[] {
+	const half = includeHalf ? Math.ceil(max / 2) : null;
+	const raw = half === null ? [0, max] : [0, half, max];
+	return chartYTicksRaw(...raw);
+}
+
+function chartYTicksRaw(...values: number[]): number[] {
+	return [...new Set(values)].sort((a, b) => a - b);
+}
+
 /** Mini línea dorada (sparkline) */
 function SparklineGold({ points, gradId }: { points: number[]; gradId: string }) {
 	const w = 120;
@@ -147,8 +158,8 @@ function WeeklyGlassChart({
 		}
 	}
 
-	const yTicksV = [0, Math.ceil(maxV / 2), maxV];
-	const yTicksG = [0, maxG / 2, maxG];
+	const yTicksV = chartYTicks(maxV);
+	const yTicksG = chartYTicksRaw(0, maxG / 2, maxG);
 
 	let peakIdx = 0;
 	let peakVal = 0;
@@ -194,10 +205,10 @@ function WeeklyGlassChart({
 						</filter>
 					</defs>
 
-					{yTicksV.map((t) => {
+					{yTicksV.map((t, i) => {
 						const y = yAtV(t);
 						return (
-							<g key={`v-${t}`}>
+							<g key={`weekly-v-grid-${i}`}>
 								<line x1={padL - 6} y1={y} x2={chartW - padR} y2={y} stroke="rgba(42,38,36,0.06)" strokeWidth={1} />
 								<text x={padL - 10} y={y + 4} textAnchor="end" className="fill-[#9c9590] text-[9px]" style={{ fontFamily: sans }}>
 									{t}
@@ -210,7 +221,7 @@ function WeeklyGlassChart({
 						const y = yAtG(t);
 						return (
 							<text
-								key={`g-${i}`}
+								key={`weekly-g-label-${i}`}
 								x={chartW - padR + 8}
 								y={y + 4}
 								textAnchor="start"

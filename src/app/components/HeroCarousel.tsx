@@ -212,89 +212,70 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
 
   return (
     <section
-      className={cn(
-        'relative isolate w-full overflow-hidden bg-[#1a1410]',
-        /* Viewport completo (móvil sin tocar; en desktop ya no hay recorte ni hueco con la sección de abajo) */
-        'min-h-[100dvh] h-[100dvh]',
-      )}
+      className="relative isolate w-full bg-[#f5f2ed]"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       aria-roledescription="carrusel"
     >
       <div
-        ref={emblaRef}
-        className="h-full min-h-0 overflow-hidden"
+        className="relative w-full overflow-hidden bg-[#f5f2ed]"
+        style={{
+          height:
+            'min(calc(100vw * 9 / 16), calc(100dvh - var(--site-nav-offset) - 12rem))',
+        }}
       >
-        <div className="flex h-full">
-          {slides.map((slide, index) => (
-            <div
-              key={slide.id}
-              className="relative h-full min-h-0 min-w-0 shrink-0 grow-0 basis-full"
-            >
-              <div className="relative h-full w-full">
-                {/* Capa imagen — móvil / escritorio optimizados */}
-                <div className="absolute inset-0">
-                  <Image
-                    src={slide.imageMobile ?? slide.image}
-                    alt={slide.title}
-                    fill
-                    priority={index === 0}
-                    quality={82}
-                    sizes="100vw"
-                    className="object-cover md:hidden"
-                    style={{
-                      objectPosition:
-                        slide.objectPositionMobile ?? 'center 22%',
-                    }}
-                  />
-                  <Image
-                    src={slide.image}
-                    alt={slide.title}
-                    fill
-                    priority={index === 0}
-                    quality={85}
-                    sizes="100vw"
-                    className="hidden object-cover md:block"
-                    style={{
-                      objectPosition:
-                        slide.objectPositionDesktop ?? 'center center',
-                    }}
-                  />
-                </div>
+        <div ref={emblaRef} className="absolute inset-0 overflow-hidden">
+          <div className="flex h-full">
+            {slides.map((slide, index) => (
+              <div
+                key={slide.id}
+                className="relative h-full min-w-0 shrink-0 grow-0 basis-full"
+              >
+                <div className="relative h-full w-full">
+                  {/* Misma proporción apaisada en móvil y PC; contain para no recortar */}
+                  <div className="absolute inset-0">
+                    <Image
+                      src={slide.image}
+                      alt={slide.title}
+                      fill
+                      priority={index === 0}
+                      quality={85}
+                      sizes="100vw"
+                      className="object-contain object-center"
+                      style={{
+                        objectPosition:
+                          slide.objectPositionDesktop ??
+                          slide.objectPositionMobile ??
+                          'center center',
+                      }}
+                    />
+                  </div>
 
                 <div
                   className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/15"
                   aria-hidden
                 />
 
-                <div className="pointer-events-none absolute inset-0 z-20 md:hidden">
+                <Link
+                  href={catalogHref(slide.filter)}
+                  className="absolute inset-0 z-[5] md:hidden"
+                  aria-label="Ver catálogo"
+                />
+
+                <div className="pointer-events-none absolute inset-0 z-20">
                   {slide.hotspots.map((h) => (
                     <button
-                      key={`${h.id}-sm`}
+                      key={h.id}
                       type="button"
                       onClick={(e) => openHotspot(h, e.currentTarget)}
-                      className="pointer-events-auto absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
+                      className="pointer-events-auto absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95 sm:h-10 sm:w-10"
                       style={{
                         top: h.topMobile ?? h.top,
                         left: h.leftMobile ?? h.left,
                       }}
                       aria-label={`Ver ${h.productName}`}
                     >
-                      <Plus className="h-5 w-5" strokeWidth={2.25} />
-                    </button>
-                  ))}
-                </div>
-                <div className="pointer-events-none absolute inset-0 z-20 hidden md:block">
-                  {slide.hotspots.map((h) => (
-                    <button
-                      key={`${h.id}-md`}
-                      type="button"
-                      onClick={(e) => openHotspot(h, e.currentTarget)}
-                      className="pointer-events-auto absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
-                      style={{ top: h.top, left: h.left }}
-                      aria-label={`Ver ${h.productName}`}
-                    >
-                      <Plus className="h-[1.35rem] w-[1.35rem]" strokeWidth={2.25} />
+                      <Plus className="h-5 w-5 sm:h-[1.35rem] sm:w-[1.35rem]" strokeWidth={2.25} />
                     </button>
                   ))}
                 </div>
@@ -307,9 +288,9 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                     paddingRight: 'max(1rem, env(safe-area-inset-right))',
                   }}
                 >
-                  <div className="max-w-[min(100%,22rem)] pb-20 sm:max-w-xl sm:pb-24 md:pb-28 md:pl-2 lg:pl-4">
+                  <div className="max-w-[min(100%,20rem)] pb-8 sm:pb-16 md:pl-2 lg:pl-4">
                     <h1
-                      className="mb-3 text-balance text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)] sm:mb-4"
+                      className="mb-0 text-balance text-white drop-shadow-[0_2px_20px_rgba(0,0,0,0.55)] sm:mb-4"
                       style={{
                         fontFamily: 'Montserrat, sans-serif',
                         fontWeight: 700,
@@ -321,10 +302,10 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                     >
                       {slide.title}
                     </h1>
-                    <div className="pointer-events-auto">
+                    <div className="pointer-events-auto hidden md:block">
                       <Link
                         href={catalogHref(slide.filter)}
-                        className="group inline-flex max-w-full items-center gap-2.5 rounded-full bg-white px-4 py-2.5 text-[#1a1410] shadow-md transition hover:bg-[#f5f2ed] sm:gap-3 sm:px-6 sm:py-3"
+                        className="group mt-3 inline-flex max-w-full items-center gap-2.5 rounded-full bg-white px-4 py-2.5 text-[#1a1410] shadow-md transition hover:bg-[#f5f2ed] sm:gap-3 sm:px-6 sm:py-3"
                         style={{
                           fontFamily: 'Montserrat, sans-serif',
                           fontWeight: 600,
@@ -342,16 +323,16 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                 </div>
               </div>
             </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Paginación */}
-      <div
-        className="pointer-events-auto absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-0 right-0 z-30 flex justify-center gap-3 px-4 md:bottom-8"
-        role="tablist"
-        aria-label="Slides del hero"
-      >
+        {/* Paginación */}
+        <div
+          className="pointer-events-auto absolute inset-x-0 bottom-2 z-30 flex justify-center gap-3 px-4 sm:bottom-3"
+          role="tablist"
+          aria-label="Slides del hero"
+        >
         {slides.map((s, i) => (
           <button
             key={s.id}
@@ -372,16 +353,16 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
             />
           </button>
         ))}
-      </div>
+        </div>
 
-      <div
-        className={cn(
-          'absolute bottom-[max(1rem,env(safe-area-inset-bottom))] right-20 z-30 flex items-center gap-2 transition-all duration-300 md:bottom-8 md:right-24',
-          hideHeroSocialIcons
-            ? 'pointer-events-none translate-y-2 opacity-0'
-            : 'pointer-events-auto translate-y-0 opacity-100',
-        )}
-      >
+        <div
+          className={cn(
+            'absolute right-3 bottom-2 z-30 flex items-center gap-1 transition-all duration-300 sm:right-5 sm:bottom-3',
+            hideHeroSocialIcons
+              ? 'pointer-events-none translate-y-2 opacity-0'
+              : 'pointer-events-auto translate-y-0 opacity-100',
+          )}
+        >
         <a
           href={INSTAGRAM_URL}
           target="_blank"
@@ -400,6 +381,7 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
         >
           <TikTokIcon className="h-5 w-5" />
         </a>
+        </div>
       </div>
 
       {activeHotspot && modalPos ? (

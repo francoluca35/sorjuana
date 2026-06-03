@@ -486,7 +486,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   );
 
   return (
-    <div className="min-h-screen w-full min-w-0 bg-[#f5f2ed] px-4 pt-[calc(var(--site-nav-height)+1.75rem+env(safe-area-inset-top,0px))] pb-20 sm:px-6 lg:px-8 lg:pt-36">
+    <div className="min-h-screen w-full min-w-0 bg-[#f5f2ed] px-4 pt-7 pb-20 sm:px-6 lg:px-8 lg:pt-20">
       <div className="mx-auto w-full min-w-0 max-w-7xl">
         {/* Header */}
         <motion.div 

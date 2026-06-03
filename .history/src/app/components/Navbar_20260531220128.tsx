@@ -43,7 +43,7 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  const barElevated = scrolled || isCatalog;
+  const barSolid = scrolled || isCatalog;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -61,8 +61,12 @@ export function Navbar() {
     };
   }, [isOpen]);
 
-  const iconBtnClass =
-    'flex h-10 w-10 shrink-0 items-center justify-center rounded-sm text-[#e8e3db] transition-colors duration-300 hover:text-[#b8956a] lg:h-9 lg:w-9';
+  const iconBtnClass = cn(
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-sm transition-colors duration-300 lg:h-9 lg:w-9',
+    barSolid
+      ? 'text-[#e8e3db] hover:text-[#b8956a]'
+      : 'text-[#f5f2ed] drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)] hover:text-[#b8956a]',
+  );
 
   return (
     <motion.nav
@@ -70,8 +74,10 @@ export function Navbar() {
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: [0.43, 0.13, 0.23, 0.96] }}
       className={cn(
-        'fixed top-0 right-0 left-0 z-50 w-full max-w-[100vw] border-b border-[#b8956a]/25 bg-[#1a1410] transition-shadow duration-500',
-        barElevated && 'shadow-lg shadow-black/25',
+        'fixed top-0 right-0 left-0 z-50 w-full max-w-[100vw] transition-all duration-500',
+        barSolid
+          ? 'border-b border-[#b8956a]/50 bg-[#1a1410] shadow-2xl lg:bg-[#1a1410]/95 lg:backdrop-blur-md'
+          : 'bg-transparent shadow-none',
       )}
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
@@ -84,7 +90,7 @@ export function Navbar() {
               whileTap={{ scale: 0.9 }}
               type="button"
               onClick={() => setIsOpen((o) => !o)}
-              className={iconBtnClass}
+              className={cn(iconBtnClass, barSolid ? 'text-[#e8e3db]' : 'text-[#f5f2ed]')}
               aria-expanded={isOpen}
               aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
             >
@@ -112,7 +118,10 @@ export function Navbar() {
                 alt=""
                 fill
                 sizes="(max-width: 640px) 208px, 272px"
-                className="object-contain object-center transition-[filter] duration-300"
+                className={cn(
+                  'object-contain object-center transition-[filter] duration-300',
+                  !barSolid && 'drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]',
+                )}
                 priority
               />
             </motion.div>

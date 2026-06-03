@@ -62,7 +62,7 @@ export function Navbar() {
   }, [isOpen]);
 
   const iconBtnClass =
-    'flex h-10 w-10 shrink-0 items-center justify-center rounded-sm text-[#e8e3db] transition-colors duration-300 hover:text-[#b8956a] lg:h-9 lg:w-9';
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-sm text-[#1a1410] transition-colors duration-300 hover:text-[#8b6f47] lg:h-9 lg:w-9';
 
   return (
     <motion.nav
@@ -70,8 +70,8 @@ export function Navbar() {
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: [0.43, 0.13, 0.23, 0.96] }}
       className={cn(
-        'fixed top-0 right-0 left-0 z-50 w-full max-w-[100vw] border-b border-[#b8956a]/25 bg-[#1a1410] transition-shadow duration-500',
-        barElevated && 'shadow-lg shadow-black/25',
+        'fixed top-0 right-0 left-0 z-50 w-full max-w-[100vw] border-b border-[#b8956a]/20 bg-[#2C2317]/30 backdrop-blur-md transition-all duration-500',
+        barElevated && 'shadow-md',
       )}
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >

@@ -8,6 +8,11 @@ import type { CategorySpotlightRailItem } from '@/lib/categorySpotlightRailConfi
 import type { FashionCategoryPanel } from '@/lib/fashionCategoryPanelsConfig';
 import type { HeroSlide } from '@/lib/heroSlidesConfig';
 import {
+	HERO_SLIDES_MAX,
+	HERO_SLIDES_MIN,
+	resizeHeroSlides,
+} from '@/lib/heroSlidesConfig';
+import {
 	normalizeHeroContent,
 	type HeroContentConfig,
 } from '@/lib/heroContentConfig';
@@ -51,8 +56,16 @@ export async function saveHeroSlidesAction(slides: HeroSlide[]): Promise<{ ok: b
 	const auth = await requireAuthUser();
 	if (!auth.ok) return auth;
 
+	if (slides.length < HERO_SLIDES_MIN || slides.length > HERO_SLIDES_MAX) {
+		return {
+			ok: false,
+			message: `El carrusel debe tener entre ${HERO_SLIDES_MIN} y ${HERO_SLIDES_MAX} slides.`,
+		};
+	}
+
 	try {
-		const payload = JSON.parse(JSON.stringify(slides)) as unknown;
+		const normalized = resizeHeroSlides(slides, slides.length);
+		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
 		const { data, error } = await auth.supabase
 			.from('site_home_config')
 			.update({
