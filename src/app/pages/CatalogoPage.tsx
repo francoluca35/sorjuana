@@ -4,19 +4,25 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { fetchProductsByIdsAction } from '@/app/actions/products';
 import {
   ProductDetailModal,
   ProductMediaCarousel,
   buildProductForDetailModal,
+  type ProductForDetailModal,
   type ProductVariantForDetailModal,
 } from '@/app/components/ProductDetailModal';
+import { ProductShareButton } from '@/app/components/ProductShareButton';
 import { SingleLineFitText } from '@/app/components/SingleLineFitText';
 import {
 	ADMIN_CATEGORY_SLUGS,
 	displayCategoryLabel,
 	parseCategoryPathSegments,
 	parseSubcategorySlugFromDb,
+	PLACEHOLDER_IMG,
+	productRowToCatalogProduct,
 } from '@/lib/data/productCatalog';
+import { PRODUCT_QUERY_PARAM } from '@/lib/productShare';
 import {
   CARD_INSTALLMENTS_NO_INTEREST,
   computeDiscountPercent,
@@ -62,6 +68,99 @@ function categoryDbHasSubSlugSegment(category_db: string | null, slug: string): 
 	return parts.slice(1).some((seg) => seg === slug);
 }
 
+type CatalogProductRow = CatalogProduct & { adminCategory: string | null };
+
+type GroupedCatalogPublication = Omit<CatalogProductRow, 'adminCategory'> & {
+	variants: ProductVariantForDetailModal[];
+};
+
+function groupCatalogProductRows(rows: CatalogProductRow[]): GroupedCatalogPublication[] {
+	const byName = new Map<string, CatalogProductRow[]>();
+	for (const row of rows) {
+		const key = row.name.trim().toLowerCase();
+		const bucket = byName.get(key);
+		if (bucket) bucket.push(row);
+		else byName.set(key, [row]);
+	}
+
+	const out: GroupedCatalogPublication[] = [];
+
+	for (const groupRows of byName.values()) {
+		if (groupRows.length === 0) continue;
+		const base = groupRows[0]!;
+		const variants: ProductVariantForDetailModal[] = groupRows.map((row) => ({
+			id: row.id,
+			color: row.color?.trim() || null,
+			size_inventory: row.size_inventory,
+			stock: row.stock,
+			price: row.price,
+			image: row.image,
+		}));
+		const stock = groupRows.reduce((sum, row) => sum + Math.max(0, row.stock), 0);
+		const withMedia = groupRows.find((row) => row.gallery_image_urls.length > 0 || row.video_url?.trim());
+		const withPrice = groupRows.find((row) => row.garment_cost > 0) ?? base;
+		const withCategory = groupRows.find((row) => row.category_db?.trim()) ?? base;
+		const withDescription = groupRows.find((row) => row.description.trim().length > 0) ?? base;
+		const withCode = groupRows.find((row) => row.product_code?.trim()) ?? base;
+		out.push({
+			id: base.id,
+			name: base.name,
+			product_code: withCode.product_code?.trim() || base.product_code || '',
+			color: base.color,
+			garment_cost: withPrice.garment_cost,
+			price: withPrice.price,
+			transfer_price: withPrice.transfer_price,
+			final_transfer_price: withPrice.final_transfer_price,
+			cash_discount_percent: withPrice.cash_discount_percent,
+			transfer_discount_percent: withPrice.transfer_discount_percent,
+			image: (withMedia ?? base).image,
+			category_db: withCategory.category_db,
+			gallery_image_urls: (withMedia ?? base).gallery_image_urls,
+			video_url: (withMedia ?? base).video_url,
+			description: withDescription.description,
+			size_inventory: [],
+			stock,
+			variants,
+		});
+	}
+	return out;
+}
+
+function findGroupedPublicationById(
+	publications: ProductForDetailModal[],
+	productId: string,
+): ProductForDetailModal | null {
+	const trimmed = productId.trim();
+	if (!trimmed) return null;
+	for (const publication of publications) {
+		if (publication.id === trimmed) return publication;
+		if (publication.variants?.some((variant) => variant.id === trimmed)) return publication;
+	}
+	return null;
+}
+
+function catalogProductFromFetchedRow(row: ReturnType<typeof productRowToCatalogProduct>): CatalogProduct {
+	return {
+		id: row.id,
+		name: row.name,
+		product_code: row.code === '—' ? '' : row.code.trim(),
+		color: row.color,
+		garment_cost: row.base_price,
+		price: row.price,
+		transfer_price: row.transfer_price,
+		final_transfer_price: row.final_transfer_price,
+		cash_discount_percent: row.cash_discount_percent,
+		transfer_discount_percent: row.transfer_discount_percent,
+		image: row.image || PLACEHOLDER_IMG,
+		category_db: row.category_db,
+		gallery_image_urls: row.gallery_image_urls,
+		video_url: row.video_url,
+		description: row.description,
+		size_inventory: row.size_inventory,
+		stock: row.stock,
+	};
+}
+
 export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -70,11 +169,13 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   const categoriaParam = searchParams.get('categoria');
   const subcategoriaParam = searchParams.get('subcategoria');
   const qParam = (searchParams.get('q') ?? '').trim();
+  const productoParam = (searchParams.get(PRODUCT_QUERY_PARAM) ?? '').trim();
   const [searchQuery, setSearchQuery] = useState(qParam);
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [selectedSubSlug, setSelectedSubSlug] = useState<string>('all');
   const [priceRange, setPriceRange] = useState<string>('all');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [deepLinkProduct, setDeepLinkProduct] = useState<ProductForDetailModal | null>(null);
 
   const adminTipoSlugSet = useMemo(
     () => new Set<string>(ADMIN_CATEGORY_SLUGS as readonly string[]),
@@ -96,6 +197,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
       subcategoria?: string | null;
       categoria?: string | null;
       q?: string | null;
+      producto?: string | null;
     }) => {
       const params = new URLSearchParams(searchParams.toString());
       if (updates.filter !== undefined) {
@@ -117,6 +219,11 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
         const term = updates.q?.trim() ?? '';
         if (!term) params.delete('q');
         else params.set('q', term);
+      }
+      if (updates.producto !== undefined) {
+        const id = updates.producto?.trim() ?? '';
+        if (!id) params.delete(PRODUCT_QUERY_PARAM);
+        else params.set(PRODUCT_QUERY_PARAM, id);
       }
       const q = params.toString();
       router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
@@ -281,62 +388,15 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     return categoryMatch && tipoMatch && subMatch && priceMatch && searchMatch;
   });
 
-  const groupedPublications = useMemo(() => {
-    type RowWithAdmin = (typeof filteredProducts)[number];
-    const byName = new Map<string, RowWithAdmin[]>();
-    for (const row of filteredProducts) {
-      const key = row.name.trim().toLowerCase();
-      const bucket = byName.get(key);
-      if (bucket) bucket.push(row);
-      else byName.set(key, [row]);
-    }
+  const groupedPublications = useMemo(
+    () => groupCatalogProductRows(filteredProducts),
+    [filteredProducts],
+  );
 
-    const out: Array<
-      Omit<RowWithAdmin, 'adminCategory'> & {
-        variants: ProductVariantForDetailModal[];
-      }
-    > = [];
-
-    for (const rows of byName.values()) {
-      if (rows.length === 0) continue;
-      const base = rows[0]!;
-      const variants: ProductVariantForDetailModal[] = rows.map((row) => ({
-        id: row.id,
-        color: row.color?.trim() || null,
-        size_inventory: row.size_inventory,
-        stock: row.stock,
-        price: row.price,
-        image: row.image,
-      }));
-      const stock = rows.reduce((sum, row) => sum + Math.max(0, row.stock), 0);
-      const withMedia = rows.find((row) => row.gallery_image_urls.length > 0 || row.video_url?.trim());
-      const withPrice = rows.find((row) => row.garment_cost > 0) ?? base;
-      const withCategory = rows.find((row) => row.category_db?.trim()) ?? base;
-      const withDescription = rows.find((row) => row.description.trim().length > 0) ?? base;
-      const withCode = rows.find((row) => row.product_code?.trim()) ?? base;
-      out.push({
-        id: base.id,
-        name: base.name,
-        product_code: withCode.product_code?.trim() || base.product_code || '',
-        color: base.color,
-        garment_cost: withPrice.garment_cost,
-        price: withPrice.price,
-        transfer_price: withPrice.transfer_price,
-        final_transfer_price: withPrice.final_transfer_price,
-        cash_discount_percent: withPrice.cash_discount_percent,
-        transfer_discount_percent: withPrice.transfer_discount_percent,
-        image: (withMedia ?? base).image,
-        category_db: withCategory.category_db,
-        gallery_image_urls: (withMedia ?? base).gallery_image_urls,
-        video_url: (withMedia ?? base).video_url,
-        description: withDescription.description,
-        size_inventory: [],
-        stock,
-        variants,
-      });
-    }
-    return out;
-  }, [filteredProducts]);
+  const allGroupedPublications = useMemo(
+    () => groupCatalogProductRows(productRows),
+    [productRows],
+  );
 
   const productsWithMedia = useMemo(
     () =>
@@ -346,17 +406,64 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
     [groupedPublications],
   );
 
-  const productById = useMemo(() => {
-    const m = new Map<string, (typeof productsWithMedia)[number]>();
-    for (const p of productsWithMedia) m.set(p.id, p);
-    return m;
-  }, [productsWithMedia]);
+  const allProductsWithMedia = useMemo(
+    () => allGroupedPublications.map((p) => buildProductForDetailModal(p)),
+    [allGroupedPublications],
+  );
 
-  const selectedProduct = selectedProductId ? productById.get(selectedProductId) ?? null : null;
+  const productById = useMemo(() => {
+    const m = new Map<string, ProductForDetailModal>();
+    for (const p of allProductsWithMedia) m.set(p.id, p);
+    return m;
+  }, [allProductsWithMedia]);
+
+  const selectedProduct =
+    (selectedProductId ? productById.get(selectedProductId) ?? deepLinkProduct : null) ??
+    (productoParam ? findGroupedPublicationById(allProductsWithMedia, productoParam) : null);
+
+  function openProductModal(productId: string) {
+    setSelectedProductId(productId);
+    replaceCatalogQuery({ producto: productId });
+  }
 
   function closeProductModal() {
     setSelectedProductId(null);
+    setDeepLinkProduct(null);
+    replaceCatalogQuery({ producto: null });
   }
+
+  useEffect(() => {
+    if (!productoParam) {
+      setSelectedProductId(null);
+      setDeepLinkProduct(null);
+      return;
+    }
+
+    const localMatch = findGroupedPublicationById(allProductsWithMedia, productoParam);
+    if (localMatch) {
+      setSelectedProductId(localMatch.id);
+      setDeepLinkProduct(null);
+      return;
+    }
+
+    let cancelled = false;
+    void fetchProductsByIdsAction([productoParam]).then((rows) => {
+      if (cancelled) return;
+      const row = rows[0];
+      if (!row) {
+        setSelectedProductId(null);
+        setDeepLinkProduct(null);
+        return;
+      }
+      const publication = buildProductForDetailModal(catalogProductFromFetchedRow(productRowToCatalogProduct(row)));
+      setSelectedProductId(publication.id);
+      setDeepLinkProduct(publication);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productoParam, allProductsWithMedia]);
 
   const filterSidebarBtn = (active: boolean) =>
     `w-full rounded-md border-l-2 px-3 py-2.5 text-left text-sm transition ${
@@ -608,11 +715,11 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                     className="group flex min-w-0 w-full cursor-pointer flex-col bg-white border-2 border-transparent text-left hover:border-[#b8956a]/30 transition-all duration-500"
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedProductId(product.id)}
+                    onClick={() => openProductModal(product.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        setSelectedProductId(product.id);
+                        openProductModal(product.id);
                       }
                     }}
                   >
@@ -624,6 +731,12 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                         autoPlay={false}
                       />
                       
+                      <ProductShareButton
+                        productId={product.id}
+                        productName={product.name}
+                        price={getPrimaryDiscountedPrice(product.price, product.transfer_price)}
+                      />
+
                       <div className="absolute top-3 left-3 w-10 h-10 border-t-2 border-l-2 border-[#b8956a] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20" />
                       <div className="absolute bottom-3 right-3 w-10 h-10 border-b-2 border-r-2 border-[#b8956a] opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20" />
                       
@@ -633,7 +746,7 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            setSelectedProductId(product.id);
+                            openProductModal(product.id);
                           }}
                           className="pointer-events-auto flex w-full items-center justify-center gap-2 border border-[#b8956a]/60 bg-[#1a1410] px-4 py-3 text-[#f5f2ed] transition-all duration-300 hover:bg-[#b8956a]"
                           style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}

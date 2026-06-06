@@ -7,6 +7,7 @@ import { ShoppingCart, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 
 import { ProductDetailModal, productRowToDetailModalProduct } from './ProductDetailModal';
+import { ProductShareButton } from '@/app/components/ProductShareButton';
 import { SingleLineFitText } from '@/app/components/SingleLineFitText';
 import { cn } from './ui/utils';
 import { displayCategoryLabel, type ProductRow } from '@/lib/data/productCatalog';
@@ -377,6 +378,13 @@ export function NewArrivals({
 											</span>
 										</div>
 									) : null}
+
+									<ProductShareButton
+										productId={product.id}
+										productName={product.name}
+										price={getPrimaryDiscountedPrice(product.price, product.transferPrice)}
+										className={product.oldPrice != null ? 'top-12' : undefined}
+									/>
 
 									<div className="absolute inset-0 z-20 flex items-center justify-center bg-[#1a1410]/80 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
 										<motion.button

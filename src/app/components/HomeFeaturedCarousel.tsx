@@ -6,6 +6,7 @@ import useEmblaCarousel from 'embla-carousel-react';
 import { motion } from 'motion/react';
 
 import { ProductDetailModal, productRowToDetailModalProduct } from '@/app/components/ProductDetailModal';
+import { ProductShareButton } from '@/app/components/ProductShareButton';
 import { SingleLineFitText } from '@/app/components/SingleLineFitText';
 import {
 	CardImageCarousel,
@@ -247,7 +248,11 @@ function FeaturedProductSlide({
 							SIN STOCK
 						</span>
 					) : null}
-					
+					<ProductShareButton
+						productId={product.id}
+						productName={product.name}
+						price={discountedPrice}
+					/>
 				</div>
 				<div className="flex flex-1 flex-col px-4 py-4 text-center">
 					<h3

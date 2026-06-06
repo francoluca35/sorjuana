@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { useCart } from '@/app/context/CartContext';
+import { ProductShareButton } from '@/app/components/ProductShareButton';
 import { displayCategoryLabel, PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
 import {
 	CARD_INSTALLMENTS_NO_INTEREST,
@@ -678,6 +679,13 @@ export function ProductDetailModal({ product, onClose }: ProductDetailModalProps
 						>
 							<X className="h-6 w-6 md:h-5 md:w-5" strokeWidth={2} />
 						</button>
+						<ProductShareButton
+							variant="modal"
+							productId={product.id}
+							productName={product.name}
+							price={getPrimaryDiscountedPrice(product.price, product.transfer_price)}
+							className="absolute right-[max(4.25rem,calc(env(safe-area-inset-right)+3.5rem))] top-[max(0.75rem,env(safe-area-inset-top))] z-30 md:right-[4.75rem] md:top-4"
+						/>
 						<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:grid lg:max-h-[88vh] lg:grid-cols-[minmax(0,1fr)_380px]">
 							<div className="relative shrink-0 bg-[#111] lg:min-h-0 lg:max-h-[88vh]">
 								<ProductMediaCarousel
