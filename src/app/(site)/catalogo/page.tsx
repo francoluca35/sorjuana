@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { CatalogoPage } from '@/app/pages/CatalogoPage';
-import { fetchStorefrontCatalogRows } from '@/lib/data/recentProducts';
+import { fetchStorefrontCatalogRows, STOREFRONT_CATALOG_PAGE_SIZE } from '@/lib/data/recentProducts';
 import { PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
 import { SITE_NAME, getCanonicalUrl, getDefaultOgImageUrl } from '@/lib/seo';
 
@@ -59,6 +59,10 @@ export default async function Page({
 		categoria: firstSearchParam(sp.categoria),
 		filter: firstSearchParam(sp.filter),
 	});
+	const initialHasMore =
+		!firstSearchParam(sp.categoria)?.trim() &&
+		!firstSearchParam(sp.filter)?.trim() &&
+		rows.length >= STOREFRONT_CATALOG_PAGE_SIZE;
 	const products = rows.map((row) => {
 		const p = productRowToCatalogProduct(row);
 		return {
@@ -120,7 +124,7 @@ export default async function Page({
 				dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
 			/>
 			<Suspense fallback={<CatalogoFallback />}>
-				<CatalogoPage products={products} />
+				<CatalogoPage products={products} initialHasMore={initialHasMore} />
 			</Suspense>
 		</>
 	);

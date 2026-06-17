@@ -28,7 +28,7 @@ const TABS: { id: Seccion; label: string }[] = [
 	{ id: 'recien', label: 'Recién llegados' },
 	{ id: 'masvendidos', label: 'Más vendidos' },
 	{ id: 'politica', label: 'Política de cambios' },
-	{ id: 'terminos', label: 'Términos' },
+	{ id: 'terminos', label: 'Términos y condiciones' },
 ];
 
 export function MapaPaginaContent() {

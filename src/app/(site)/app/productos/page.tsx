@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
 import { ProductosCatalog } from '@/app/components/app/ProductosCatalog';
 import { cn } from '@/app/components/ui/utils';
-import { productRowToCatalogProduct } from '@/lib/data/productCatalog';
-import { fetchAllProductsForPanel } from '@/lib/data/recentProducts';
 
 export const metadata: Metadata = {
   title: 'Lista de productos — Sor Juana',
@@ -13,13 +11,13 @@ const shellBleed = cn(
   'min-h-dvh bg-slate-50',
 );
 
-export default async function Page() {
-  const rows = await fetchAllProductsForPanel();
-  const initialProducts = rows.map(productRowToCatalogProduct);
+/** Evita serializar todo el catálogo en el HTML inicial (QuotaExceeded / cache storage). */
+export const dynamic = 'force-dynamic';
 
+export default function Page() {
   return (
     <div className={shellBleed}>
-      <ProductosCatalog initialProducts={initialProducts} />
+      <ProductosCatalog initialProducts={[]} />
     </div>
   );
 }

@@ -34,6 +34,7 @@ import { Checkbox } from '@/app/components/ui/checkbox';
 import {
   deleteProductAction,
   deleteProductsBulkAction,
+  fetchProductsByIdsAction,
   insertProductAction,
   setProductsHiddenAction,
   updateProductAction,
@@ -44,7 +45,7 @@ import { uploadSorjuanaMedia } from '@/app/actions/storage';
 import { SizeInventoryEditor } from '@/app/components/app/SizeInventoryEditor';
 import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
 import type { CatalogProduct } from '@/lib/data/productCatalog';
-import { displayCategoryLabel, PLACEHOLDER_IMG } from '@/lib/data/productCatalog';
+import { displayCategoryLabel, PLACEHOLDER_IMG, productRowToCatalogProduct } from '@/lib/data/productCatalog';
 import type { ShopCategoryTree } from '@/lib/data/shopCategories';
 import { normalizeSizeInventoryForDb, sumSizeInventoryQty, type SizeInventoryRow } from '@/lib/data/productSizes';
 import { MAX_PRODUCT_GALLERY_IMAGES } from '@/lib/productMediaLimits';
@@ -180,10 +181,36 @@ function isProductKind(v: string): v is 'producto' | 'combo' | 'ofertas' {
 export function ProductosCatalog({ initialProducts }: { initialProducts: CatalogProduct[] }) {
   const router = useRouter();
   const [products, setProducts] = useState<CatalogProduct[]>(initialProducts);
+  const [productsLoading, setProductsLoading] = useState(initialProducts.length === 0);
 
   useEffect(() => {
     setProducts(initialProducts);
   }, [initialProducts]);
+
+  useEffect(() => {
+    if (initialProducts.length > 0) {
+      setProductsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setProductsLoading(true);
+      try {
+        const { fetchAllProductsForPanelAction } = await import('@/app/actions/products');
+        const rows = await fetchAllProductsForPanelAction();
+        if (cancelled) return;
+        const { productRowToCatalogProduct } = await import('@/lib/data/productCatalog');
+        setProducts(rows.map(productRowToCatalogProduct));
+      } catch {
+        if (!cancelled) toast.error('No se pudo cargar la lista de productos.');
+      } finally {
+        if (!cancelled) setProductsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialProducts.length]);
   const [mainTab, setMainTab] = useState<MainTab>('items');
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -342,29 +369,18 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
       variantsCount: number;
       isHidden: boolean;
     };
-    const byName = new Map<string, CatalogProduct[]>();
-    for (const p of displayed) {
-      const key = p.name.trim().toLowerCase();
-      const bucket = byName.get(key);
-      if (bucket) bucket.push(p);
-      else byName.set(key, [p]);
-    }
-    const out: ProductGroup[] = [];
-    for (const [groupKey, rows] of byName) {
-      const primary = rows[0]!;
-      out.push({
-        groupKey,
-        name: primary.name,
-        code: primary.code,
-        category: primary.category,
-        stock: rows.reduce((sum, x) => sum + Math.max(0, x.stock), 0),
-        image: primary.image,
-        primary,
-        ids: rows.map((x) => x.id),
-        variantsCount: rows.length,
-        isHidden: rows.every((x) => x.is_hidden),
-      });
-    }
+    const out: ProductGroup[] = displayed.map((p) => ({
+      groupKey: p.id,
+      name: p.name,
+      code: p.code,
+      category: p.category,
+      stock: Math.max(0, p.stock),
+      image: p.image,
+      primary: p,
+      ids: [p.id],
+      variantsCount: 1,
+      isHidden: p.is_hidden,
+    }));
     out.sort((a, b) => a.name.localeCompare(b.name));
     if (mainTab === 'stock') {
       out.sort((a, b) => a.stock - b.stock || a.name.localeCompare(b.name));
@@ -538,25 +554,34 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
   function openProduct(p: CatalogProduct, variantIds?: string[]) {
     const ids = variantIds && variantIds.length > 0 ? variantIds : [p.id];
     setEditingVariantIds(ids);
-    const variants = products.filter((x) => ids.includes(x.id));
-    const baseDraft =
-      variants.length > 1
-        ? buildGroupedDraft(p, variants)
-        : { ...variants[0]! };
-    const forDrafts =
-      variants.length > 1 ? variants : splitProductDraftByInventoryColors(variants[0]!);
-    setGroupedVariantDrafts(forDrafts.map((v) => ({ ...v, size_inventory: v.size_inventory.map((r) => ({ ...r })) })));
-    setDraft(applyGarmentCostToDraft(baseDraft, baseDraft.base_price));
-    setDrawerTab('registro');
-    if (categoryTree.length > 0) {
-      const ids = idsFromCategoryDb(categoryTree, p.category_db);
-      setPanelCategoryId(ids.catId);
-      setPanelSubcategoryId(ids.subId);
-    } else {
-      setPanelCategoryId('');
-      setPanelSubcategoryId('');
-    }
-    setSheetOpen(true);
+    void (async () => {
+      let resolved = p;
+      try {
+        const rows = await fetchProductsByIdsAction([p.id], { includeHidden: true });
+        if (rows[0]) resolved = productRowToCatalogProduct(rows[0]);
+      } catch {
+        /* mantener fila de lista */
+      }
+      const variants = products.filter((x) => ids.includes(x.id));
+      const baseDraft =
+        variants.length > 1
+          ? buildGroupedDraft(resolved, variants)
+          : { ...resolved };
+      const forDrafts =
+        variants.length > 1 ? variants : splitProductDraftByInventoryColors({ ...resolved });
+      setGroupedVariantDrafts(forDrafts.map((v) => ({ ...v, size_inventory: v.size_inventory.map((r) => ({ ...r })) })));
+      setDraft(applyGarmentCostToDraft(baseDraft, baseDraft.base_price));
+      setDrawerTab('registro');
+      if (categoryTree.length > 0) {
+        const catIds = idsFromCategoryDb(categoryTree, resolved.category_db);
+        setPanelCategoryId(catIds.catId);
+        setPanelSubcategoryId(catIds.subId);
+      } else {
+        setPanelCategoryId('');
+        setPanelSubcategoryId('');
+      }
+      setSheetOpen(true);
+    })();
   }
 
   useEffect(() => {
@@ -576,49 +601,6 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
 
   async function saveDraft() {
     if (!draft) return;
-    if (editingVariantIds.length > 1) {
-      const variantsToSave = groupedVariantDrafts.length > 0 ? groupedVariantDrafts : editingVariants;
-      if (variantsToSave.length === 0) return;
-      const persistedVariants = variantsToSave.filter((v) => !String(v.id).startsWith('tmp-'));
-      const primary = persistedVariants[0] ?? variantsToSave[0]!;
-      const { mergedSizesNorm, mergedStock, mergedColors } = mergeStockFromColorVariants(variantsToSave);
-      const saveRes = await updateProductAction(primary.id, {
-        name: primary.name,
-        garment_cost: primary.base_price,
-        cash_discount_percent: primary.cash_discount_percent ?? globalCashDiscountPercent,
-        transfer_discount_percent: primary.transfer_discount_percent ?? globalTransferDiscountPercent,
-        compare_at_price: primary.promoPrice,
-        category: primary.category_db?.trim() || null,
-        description: primary.description,
-        color: mergedColors,
-        stock: mergedStock,
-        cost: primary.cost,
-        size_inventory: mergedSizesNorm,
-        image_urls: galleryList(primary).slice(0, MAX_PRODUCT_GALLERY_IMAGES),
-        video_url: primary.video_url != null ? primary.video_url.trim() || null : null,
-        cashPrice: primary.price,
-        transferPrice: primary.transfer_price,
-        cardPrice: primary.final_transfer_price,
-      });
-      if (!saveRes.ok) {
-        toast.error(saveRes.message);
-        return;
-      }
-      const idsToDelete = persistedVariants
-        .map((v) => v.id)
-        .filter((id) => id !== primary.id);
-      if (idsToDelete.length > 0) {
-        const delRes = await deleteProductsBulkAction(idsToDelete);
-        if (!delRes.ok) {
-          toast.error(delRes.message);
-          return;
-        }
-      }
-      toast.success('Publicación consolidada en una sola prenda con color/talle.');
-      router.refresh();
-      setSheetOpen(false);
-      return;
-    }
     const { cash, transfer } = effectiveDiscountPercents(draft);
     if (draft.kind === 'combo') {
       const sizesNormCombo = normalizeSizeInventoryForDb(draft.size_inventory);
@@ -737,7 +719,8 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     setProducts((prev) => prev.filter((x) => x.id !== draft.id));
     setSheetOpen(false);
     setDraft(null);
-    toast.success('Producto eliminado.');
+    toast.success('Producto eliminado de la base de datos.');
+    router.refresh();
   }
 
   const allDisplayedSelected =
@@ -795,7 +778,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     clearSelection();
     setSheetOpen(false);
     setDraft(null);
-    toast.success(`${res.deleted} producto(s) eliminado(s).`);
+    toast.success(`${res.deleted} producto(s) eliminado(s) de la base de datos.`);
     router.refresh();
   }
 
@@ -1159,7 +1142,12 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
 
           <div className="relative flex-1 overflow-y-auto bg-slate-50/80 pb-8">
             <ul className="divide-y divide-slate-200/80">
-              {displayed.length === 0 ? (
+              {productsLoading ? (
+                <li className="px-4 py-12 text-center text-sm text-slate-500 sm:px-6">
+                  Cargando productos…
+                </li>
+              ) : null}
+              {!productsLoading && displayed.length === 0 ? (
                 <li className="px-4 py-12 text-center text-sm text-slate-500 sm:px-6">
                   No hay productos. Cargá uno desde &quot;Nuevo producto&quot; o aplicá otro filtro de búsqueda.
                 </li>
@@ -1179,7 +1167,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                   </div>
                   <button
                     type="button"
-                    onClick={() => openProduct(g.primary, g.ids)}
+                    onClick={() => openProduct(g.primary)}
                     className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-3 text-left transition hover:bg-white sm:gap-4 sm:pr-6"
                   >
                     <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white sm:h-16 sm:w-16">
@@ -1656,9 +1644,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
                 ) : (
                   <div className="space-y-4">
                     <p className="text-xs text-slate-600">
-                      {editingVariantIds.length > 1
-                        ? `Al guardar se unifica en una publicación con todos los colores.`
-                        : `Por cada color: stock total y talles. Los talles se guardan con su color.`}
+                      Por cada color: stock total y talles. Los talles se guardan con su color.
                       {editingColorsSummary ? (
                         <>
                           {' '}

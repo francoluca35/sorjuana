@@ -131,9 +131,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
 		if (!hasHydrated) return;
 		try {
 			if (typeof window === 'undefined') return;
-			localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+			const compact = items.map(({ image: _image, ...line }) => line);
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(compact));
 		} catch {
-			/* ignore quota / private mode */
+			try {
+				if (typeof window !== 'undefined') localStorage.removeItem(STORAGE_KEY);
+			} catch {
+				/* ignore */
+			}
 		}
 	}, [items, hasHydrated]);
 

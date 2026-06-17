@@ -286,7 +286,11 @@ export function writeHeroSlidesToStorage(slides: HeroSlide[]): void {
 		window.localStorage.setItem(HERO_SLIDES_STORAGE_KEY, JSON.stringify(slides));
 		window.dispatchEvent(new CustomEvent(HERO_SLIDES_UPDATED_EVENT));
 	} catch {
-		/* ignore */
+		try {
+			window.localStorage.removeItem(HERO_SLIDES_STORAGE_KEY);
+		} catch {
+			/* ignore */
+		}
 	}
 }
 

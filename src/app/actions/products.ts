@@ -2,12 +2,17 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceRoleClient } from '@/lib/supabase/service';
 import type { ProductRow } from '@/lib/data/productCatalog';
 import {
 	fetchAllProductsForPanel,
 	fetchProductsByIds,
 	fetchRecentProducts,
+	fetchStorefrontCatalogPage,
+	STOREFRONT_CATALOG_PAGE_SIZE,
 } from '@/lib/data/recentProducts';
+import { BEST_SELLERS_MAX } from '@/lib/bestSellersSelection';
+import { RECENT_ARRIVALS_MAX } from '@/lib/recentArrivalsSelection';
 import * as XLSX from 'xlsx';
 import {
 	normalizeSizeInventoryForDb,
@@ -19,6 +24,119 @@ import {
 	revalidateShopCategoryPaths,
 } from '@/app/actions/shopCategories';
 import { MAX_PRODUCT_GALLERY_IMAGES } from '@/lib/productMediaLimits';
+
+const UUID_RE =
+	/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function filterValidProductIds(ids: string[]): string[] {
+	return [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))].filter((id) => UUID_RE.test(id));
+}
+
+async function requireAuthenticatedPanelUser() {
+	const supabase = await createClient();
+	const {
+		data: { user },
+		error: userErr,
+	} = await supabase.auth.getUser();
+	if (userErr || !user) {
+		return { ok: false as const, message: 'Iniciá sesión para continuar.' };
+	}
+	return { ok: true as const, supabase, user };
+}
+
+function filterStoredProductIds(raw: unknown, max: number, exclude: Set<string>): string[] {
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+		.map((x) => x.trim())
+		.filter((id) => !exclude.has(id))
+		.slice(0, max);
+}
+
+async function removeProductIdsFromSiteHomeConfig(removedIds: string[]): Promise<void> {
+	if (removedIds.length === 0) return;
+	const exclude = new Set(removedIds);
+	let supabase;
+	try {
+		supabase = createServiceRoleClient();
+	} catch {
+		const auth = await requireAuthenticatedPanelUser();
+		if (!auth.ok) return;
+		supabase = auth.supabase;
+	}
+
+	const { data } = await supabase
+		.from('site_home_config')
+		.select('best_sellers_product_ids, recent_arrivals_product_ids')
+		.eq('id', 1)
+		.maybeSingle();
+	if (!data) return;
+
+	const best = filterStoredProductIds(data.best_sellers_product_ids, BEST_SELLERS_MAX, exclude);
+	const recent = filterStoredProductIds(data.recent_arrivals_product_ids, RECENT_ARRIVALS_MAX, exclude);
+
+	await supabase
+		.from('site_home_config')
+		.update({
+			best_sellers_product_ids: best,
+			recent_arrivals_product_ids: recent,
+			updated_at: new Date().toISOString(),
+		})
+		.eq('id', 1);
+}
+
+async function deleteProductsFromDatabase(
+	ids: string[],
+): Promise<{ ok: true; deleted: number } | { ok: false; message: string }> {
+	const validIds = filterValidProductIds(ids);
+	if (validIds.length === 0) {
+		return { ok: false, message: 'ID de producto inválido.' };
+	}
+
+	const auth = await requireAuthenticatedPanelUser();
+	if (!auth.ok) return auth;
+
+	let deletedRows: { id: string }[] | null = null;
+	let lastError: string | null = null;
+
+	const userDelete = await auth.supabase.from('products').delete().in('id', validIds).select('id');
+	if (!userDelete.error && userDelete.data?.length) {
+		deletedRows = userDelete.data as { id: string }[];
+	} else {
+		if (userDelete.error) lastError = userDelete.error.message;
+		try {
+			const service = createServiceRoleClient();
+			const serviceDelete = await service.from('products').delete().in('id', validIds).select('id');
+			if (serviceDelete.error) {
+				lastError = serviceDelete.error.message;
+			} else if (serviceDelete.data?.length) {
+				deletedRows = serviceDelete.data as { id: string }[];
+			}
+		} catch {
+			lastError =
+				lastError ??
+				'No se pudo eliminar en la base. Verificá SUPABASE_SERVICE_ROLE_KEY y permisos RLS.';
+		}
+	}
+
+	if (!deletedRows?.length) {
+		return {
+			ok: false,
+			message:
+				lastError ??
+				'No se eliminó ningún producto. Puede que ya no exista o que falten permisos en Supabase.',
+		};
+	}
+
+	await removeProductIdsFromSiteHomeConfig(deletedRows.map((row) => row.id));
+
+	revalidatePath('/');
+	revalidatePath('/catalogo');
+	revalidatePath('/app/productos');
+	revalidatePath('/app/mapa-pagina');
+
+	return { ok: true, deleted: deletedRows.length };
+}
 
 function hasMissingPriceColumnsError(message: string): boolean {
 	return (
@@ -403,8 +521,19 @@ export async function fetchAllProductsForPanelAction(): Promise<ProductRow[]> {
 }
 
 /** Para la home: completar la selección guardada con productos que no vienen en el lote reciente. */
-export async function fetchProductsByIdsAction(ids: string[]): Promise<ProductRow[]> {
-	return fetchProductsByIds(ids);
+export async function fetchProductsByIdsAction(
+	ids: string[],
+	options?: { includeHidden?: boolean },
+): Promise<ProductRow[]> {
+	return fetchProductsByIds(ids, { includeHidden: options?.includeHidden ?? false });
+}
+
+export async function fetchStorefrontCatalogPageAction(
+	offset: number,
+	limit: number = STOREFRONT_CATALOG_PAGE_SIZE,
+): Promise<{ rows: ProductRow[]; hasMore: boolean }> {
+	const rows = await fetchStorefrontCatalogPage(offset, limit);
+	return { rows, hasMore: rows.length >= limit };
 }
 
 export type InsertProductInput = {
@@ -652,46 +781,15 @@ export async function updateProductAction(
 }
 
 export async function deleteProductAction(id: string): Promise<{ ok: true } | { ok: false; message: string }> {
-	const supabase = await createClient();
-	const {
-		data: { user },
-		error: userErr,
-	} = await supabase.auth.getUser();
-	if (userErr || !user) {
-		return { ok: false, message: 'Iniciá sesión para eliminar productos.' };
-	}
-
-	const { error } = await supabase.from('products').delete().eq('id', id);
-	if (error) {
-		return { ok: false, message: error.message };
-	}
-	revalidatePath('/');
-	revalidatePath('/app/productos');
+	const result = await deleteProductsFromDatabase([id]);
+	if (!result.ok) return result;
 	return { ok: true };
 }
 
 export async function deleteProductsBulkAction(
 	ids: string[],
 ): Promise<{ ok: true; deleted: number } | { ok: false; message: string }> {
-	const uniq = [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))];
-	if (uniq.length === 0) {
-		return { ok: false, message: 'No hay productos seleccionados.' };
-	}
-	const supabase = await createClient();
-	const {
-		data: { user },
-		error: userErr,
-	} = await supabase.auth.getUser();
-	if (userErr || !user) {
-		return { ok: false, message: 'Iniciá sesión para eliminar productos.' };
-	}
-	const { error } = await supabase.from('products').delete().in('id', uniq);
-	if (error) {
-		return { ok: false, message: error.message };
-	}
-	revalidatePath('/');
-	revalidatePath('/app/productos');
-	return { ok: true, deleted: uniq.length };
+	return deleteProductsFromDatabase(ids);
 }
 
 export async function setProductsHiddenAction(

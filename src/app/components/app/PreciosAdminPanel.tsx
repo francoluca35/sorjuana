@@ -90,7 +90,11 @@ export function PreciosAdminPanel() {
 				toast.error(result.message);
 				return;
 			}
-			toast.success('Descuentos guardados en la base de datos.');
+			toast.success(
+				result.updatedProducts > 0
+					? `Descuentos guardados. Se actualizaron ${result.updatedProducts} producto(s) en la base.`
+					: 'Descuentos guardados en la base de datos.',
+			);
 			notifyPriceSettingsUpdated();
 		} finally {
 			setSaving(false);
@@ -104,8 +108,8 @@ export function PreciosAdminPanel() {
 					Precios
 				</h1>
 				<p className="mt-2 text-sm text-[#6b6156]" style={{ fontFamily: sans }}>
-					Configurá los descuentos globales por medio de pago. Se guardan en base de datos y se usan para
-					calcular precio final desde un precio base.
+					Configurá los descuentos globales por medio de pago. Al guardar, se recalculan automáticamente los
+					precios de todas las prendas según su costo de prenda.
 				</p>
 			</header>
 

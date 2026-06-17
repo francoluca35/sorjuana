@@ -18,7 +18,7 @@ export default function Page() {
 			<p className="mb-8 text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
 				Elegí la sección: el hero se guarda en el sitio (Supabase) al pulsar Guardar; también se copia una copia local
 				por si necesitás recuperar. Más vendidos (hasta 4) y Recién llegados (hasta 6) eligen productos desde la
-				tabla.
+				tabla. En &quot;Términos y condiciones&quot; y &quot;Política de cambios&quot; editás el texto legal del sitio.
 			</p>
 			<MapaPaginaContent />
 		</AppPanel>

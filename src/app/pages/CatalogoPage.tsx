@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { fetchProductsByIdsAction } from '@/app/actions/products';
+import { fetchProductsByIdsAction, fetchStorefrontCatalogPageAction } from '@/app/actions/products';
 import {
   ProductDetailModal,
   ProductMediaCarousel,
@@ -161,7 +161,13 @@ function catalogProductFromFetchedRow(row: ReturnType<typeof productRowToCatalog
 	};
 }
 
-export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
+export function CatalogoPage({
+	products: initialProducts,
+	initialHasMore = false,
+}: {
+	products: CatalogProduct[];
+	initialHasMore?: boolean;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -170,12 +176,27 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   const subcategoriaParam = searchParams.get('subcategoria');
   const qParam = (searchParams.get('q') ?? '').trim();
   const productoParam = (searchParams.get(PRODUCT_QUERY_PARAM) ?? '').trim();
+  const [extraProducts, setExtraProducts] = useState<CatalogProduct[]>([]);
+  const [hasMoreProducts, setHasMoreProducts] = useState(initialHasMore);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
   const [searchQuery, setSearchQuery] = useState(qParam);
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
   const [selectedSubSlug, setSelectedSubSlug] = useState<string>('all');
   const [priceRange, setPriceRange] = useState<string>('all');
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [deepLinkProduct, setDeepLinkProduct] = useState<ProductForDetailModal | null>(null);
+
+  const products = useMemo(() => {
+    const byId = new Map<string, CatalogProduct>();
+    for (const p of initialProducts) byId.set(p.id, p);
+    for (const p of extraProducts) byId.set(p.id, p);
+    return [...byId.values()];
+  }, [initialProducts, extraProducts]);
+
+  useEffect(() => {
+    setExtraProducts([]);
+    setHasMoreProducts(initialHasMore);
+  }, [initialProducts, initialHasMore]);
 
   const adminTipoSlugSet = useMemo(
     () => new Set<string>(ADMIN_CATEGORY_SLUGS as readonly string[]),
@@ -355,6 +376,32 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
   }, [subcategoriaParam, selectedFilter, subcategoryOptions]);
 
   const searchNorm = searchQuery.trim().toLowerCase();
+
+  const canLoadMoreCatalog =
+    hasMoreProducts &&
+    !searchNorm &&
+    selectedFilter === 'all' &&
+    selectedSubSlug === 'all' &&
+    !globalTipoSlug;
+
+  async function loadMoreCatalogProducts() {
+    if (loadingMoreProducts || !canLoadMoreCatalog) return;
+    setLoadingMoreProducts(true);
+    try {
+      const offset = products.length;
+      const { rows, hasMore } = await fetchStorefrontCatalogPageAction(offset);
+      const mapped = rows.map((row) =>
+        catalogProductFromFetchedRow(productRowToCatalogProduct(row)),
+      );
+      setExtraProducts((prev) => {
+        const seen = new Set([...initialProducts, ...prev].map((p) => p.id));
+        return [...prev, ...mapped.filter((p) => !seen.has(p.id))];
+      });
+      setHasMoreProducts(hasMore);
+    } finally {
+      setLoadingMoreProducts(false);
+    }
+  }
 
   const filteredProducts = productRows.filter((product) => {
     const categoryMatch = selectedFilter === 'all' || product.adminCategory === selectedFilter;
@@ -871,6 +918,20 @@ export function CatalogoPage({ products }: { products: CatalogProduct[] }) {
                 </p>
               </motion.div>
             )}
+
+            {canLoadMoreCatalog ? (
+              <div className="mt-10 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => void loadMoreCatalogProducts()}
+                  disabled={loadingMoreProducts}
+                  className="rounded-md border border-[#b8956a]/50 bg-white px-6 py-3 text-sm tracking-[0.14em] text-[#1a1410] transition hover:border-[#b8956a] hover:bg-[#faf8f7] disabled:opacity-60"
+                  style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 500 }}
+                >
+                  {loadingMoreProducts ? 'Cargando…' : 'Cargar más prendas'}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

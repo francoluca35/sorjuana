@@ -1,9 +1,13 @@
+import { unstable_noStore as noStore } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import {
 	normalizeProductRow,
 	parseCategoryPathSegments,
 	type ProductRow,
 } from '@/lib/data/productCatalog';
+
+/** Lote inicial del catálogo público (evita exceder caché del navegador / RSC). */
+export const STOREFRONT_CATALOG_PAGE_SIZE = 150;
 
 export type { ProductRow } from '@/lib/data/productCatalog';
 
@@ -241,7 +245,7 @@ export async function fetchStorefrontCatalogRows(params: {
 	const f = sanitizeCategorySlugParam(params.filter);
 	const hasAxis = Boolean(c || f);
 	if (!hasAxis) {
-		return fetchRecentProducts(500);
+		return fetchStorefrontCatalogPage(0, STOREFRONT_CATALOG_PAGE_SIZE);
 	}
 	try {
 		const selectStr = await resolvePanelSelectString();
@@ -299,9 +303,39 @@ export async function fetchStorefrontCatalogRows(params: {
 			return fetchProductsMatchingSubslugPaginated(selectStr, tipoSlug);
 		}
 
-		return fetchRecentProducts(500);
+		return fetchStorefrontCatalogPage(0, STOREFRONT_CATALOG_PAGE_SIZE);
 	} catch (e) {
 		console.error('[fetchStorefrontCatalogRows]', e);
+		return [];
+	}
+}
+
+/** Catálogo público paginado (sin filtros de categoría). */
+export async function fetchStorefrontCatalogPage(
+	offset: number,
+	limit: number = STOREFRONT_CATALOG_PAGE_SIZE,
+): Promise<ProductRow[]> {
+	noStore();
+	try {
+		const selectStr = await resolvePanelSelectString();
+		if (!selectStr) return [];
+		const supabase = await createClient();
+		const safeOffset = Math.max(0, Math.floor(offset));
+		const safeLimit = Math.min(Math.max(1, Math.floor(limit)), 300);
+		let query = supabase
+			.from('products')
+			.select(selectStr)
+			.order('created_at', { ascending: false })
+			.range(safeOffset, safeOffset + safeLimit - 1);
+		query = applyStorefrontVisibility(query, selectStr);
+		const { data, error } = await query;
+		if (error) {
+			console.error('[fetchStorefrontCatalogPage]', error.message);
+			return [];
+		}
+		return mapRows(data);
+	} catch (e) {
+		console.error('[fetchStorefrontCatalogPage]', e);
 		return [];
 	}
 }
@@ -314,6 +348,7 @@ export async function fetchRecentProducts(
 	limit = 12,
 	options?: StorefrontQueryOptions,
 ): Promise<ProductRow[]> {
+	noStore();
 	try {
 		const selectStr = await resolvePanelSelectString();
 		if (!selectStr) return [];
@@ -344,6 +379,13 @@ const ALL_PRODUCTS_PAGE = 1000;
  * Pagina en bloques para superar el límite de filas por consulta.
  */
 export async function fetchAllProductsForPanel(): Promise<ProductRow[]> {
+	return fetchAllProductsPaginated({ includeHidden: true });
+}
+
+async function fetchAllProductsPaginated(options: {
+	includeHidden: boolean;
+}): Promise<ProductRow[]> {
+	noStore();
 	try {
 		const selectStr = await resolvePanelSelectString();
 		if (!selectStr) return [];
@@ -356,10 +398,12 @@ export async function fetchAllProductsForPanel(): Promise<ProductRow[]> {
 				.select(selectStr)
 				.order('created_at', { ascending: false })
 				.range(from, from + ALL_PRODUCTS_PAGE - 1);
-			query = applyStorefrontVisibility(query, selectStr, { includeHidden: true });
+			query = applyStorefrontVisibility(query, selectStr, {
+				includeHidden: options.includeHidden,
+			});
 			const { data, error } = await query;
 			if (error) {
-				console.error('[fetchAllProductsForPanel]', error.message);
+				console.error('[fetchAllProductsPaginated]', error.message);
 				break;
 			}
 			const chunk = mapRows(data);
@@ -370,7 +414,7 @@ export async function fetchAllProductsForPanel(): Promise<ProductRow[]> {
 		}
 		return all;
 	} catch (e) {
-		console.error('[fetchAllProductsForPanel]', e);
+		console.error('[fetchAllProductsPaginated]', e);
 		return [];
 	}
 }
