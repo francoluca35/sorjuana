@@ -229,21 +229,33 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                   {/* Misma proporción apaisada en móvil y PC; contain para no recortar */}
                   <div className="absolute inset-0">
                     <Image
+                      src={slide.imageMobile ?? slide.image}
+                      alt={slide.title}
+                      fill
+                      priority={index === 0}
+                      quality={82}
+                      sizes="100vw"
+                      className="object-cover md:hidden"
+                      style={{
+                        objectPosition:
+                          slide.objectPositionMobile ??
+                          slide.objectPositionDesktop ??
+                          'center 22%',
+                      }}
+                    />
+                    <Image
                       src={slide.image}
                       alt={slide.title}
                       fill
                       priority={index === 0}
                       quality={85}
                       sizes="100vw"
-                      className="object-contain object-center"
+                      className="hidden object-cover md:block"
                       style={{
-                        objectPosition: isCompact
-                          ? slide.objectPositionMobile ??
-                            slide.objectPositionDesktop ??
-                            'center center'
-                          : slide.objectPositionDesktop ??
-                            slide.objectPositionMobile ??
-                            'center center',
+                        objectPosition:
+                          slide.objectPositionDesktop ??
+                          slide.objectPositionMobile ??
+                          'center center',
                       }}
                     />
                   </div>
@@ -259,20 +271,34 @@ export function HeroCarousel({ initialSlides = null }: HeroCarouselProps) {
                   aria-label="Ver catálogo"
                 />
 
-                <div className="pointer-events-none absolute inset-0 z-20">
+                <div className="absolute inset-0 z-20 md:hidden">
                   {slide.hotspots.map((h) => (
                     <button
-                      key={h.id}
+                      key={`${h.id}-sm`}
                       type="button"
                       onClick={(e) => openHotspot(h, e.currentTarget)}
-                      className="pointer-events-auto absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95 sm:h-10 sm:w-10"
+                      className="pointer-events-auto absolute flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
                       style={{
                         top: h.topMobile ?? h.top,
                         left: h.leftMobile ?? h.left,
                       }}
                       aria-label={`Ver ${h.productName}`}
                     >
-                      <Plus className="h-5 w-5 sm:h-[1.35rem] sm:w-[1.35rem]" strokeWidth={2.25} />
+                      <Plus className="h-5 w-5" strokeWidth={2.25} />
+                    </button>
+                  ))}
+                </div>
+                <div className="absolute inset-0 z-20 hidden md:block">
+                  {slide.hotspots.map((h) => (
+                    <button
+                      key={`${h.id}-md`}
+                      type="button"
+                      onClick={(e) => openHotspot(h, e.currentTarget)}
+                      className="pointer-events-auto absolute flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white shadow-lg transition hover:scale-105 hover:bg-black/75 active:scale-95"
+                      style={{ top: h.top, left: h.left }}
+                      aria-label={`Ver ${h.productName}`}
+                    >
+                      <Plus className="h-[1.35rem] w-[1.35rem]" strokeWidth={2.25} />
                     </button>
                   ))}
                 </div>

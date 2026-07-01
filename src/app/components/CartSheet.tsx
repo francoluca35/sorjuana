@@ -206,7 +206,7 @@ export function CartSheet() {
 				setShippingError(null);
 				setCheckoutStep('cart');
 				closeCart();
-				toast.success('Pedido registrado. Se reservó el stock y se abrió WhatsApp.');
+				toast.success('Pedido reservado. Se abrió WhatsApp con el detalle para enviar a la vendedora.');
 				router.refresh();
 			} else {
 				toast.error(r.error);
@@ -548,8 +548,9 @@ export function CartSheet() {
 										</div>
 									</div>
 									<p className="mt-4 text-center text-[11px] leading-snug text-black/45" style={sans}>
-										Al confirmar se reserva el stock, se guarda el pedido en el panel y se abre
-										WhatsApp con el mensaje listo para enviar.
+										Al confirmar se guarda el pedido como reservado en Ventas, se abre WhatsApp con
+										el detalle para que la vendedora genere el QR de pago. El stock se descuenta
+										cuando marques el pedido como pagado.
 									</p>
 									{paymentMethod === 'tarjeta' ? (
 										<p className="mt-2 text-center text-[11px] leading-snug text-black/50" style={sans}>

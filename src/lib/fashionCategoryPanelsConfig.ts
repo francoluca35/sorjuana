@@ -10,44 +10,44 @@ export const FASHION_CATEGORY_PANEL_COUNT = 5;
 
 export const DEFAULT_FASHION_CATEGORY_PANELS: FashionCategoryPanel[] = [
 	{
-		title: 'Chic europeo',
-		country: 'EUROPA',
-		href: '/catalogo?categoria=chic-europeo',
+		title: 'Francés',
+		country: 'FRANCIA',
+		href: '/catalogo?filter=frances',
 		videoSrc:
 			'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594029/modern-fashion-store/video/francia.mp4',
 		previewImage:
 			'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1280&q=80',
 	},
 	{
-		title: 'Accesorios premium',
-		country: 'EUROPA',
-		href: '/catalogo?categoria=accesorios-premium',
+		title: 'Italiano',
+		country: 'ITALIA',
+		href: '/catalogo?filter=italiano',
 		videoSrc:
-			'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594108/modern-fashion-store/video/italia-m.mp4',
+			'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594156/modern-fashion-store/video/italia.mp4',
 		previewImage:
 			'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1280&q=80',
 	},
 	{
-		title: 'Looks urbanos',
-		country: 'COLECCIÓN',
-		href: '/catalogo?categoria=looks-urbanos',
-		videoSrc: 'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594296/francia-m_gxsq71.mp4',
+		title: 'Chic europeo',
+		country: 'EUROPA',
+		href: '/catalogo?filter=chic-europeo',
+		videoSrc:
+			'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594108/modern-fashion-store/video/italia-m.mp4',
 		previewImage:
 			'https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1280&q=80',
 	},
 	{
-		title: 'Eventos y celebraciones',
-		country: 'OCASIONES',
-		href: '/catalogo?categoria=eventos-celebraciones',
-		videoSrc:
-			'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594156/modern-fashion-store/video/italia.mp4',
+		title: 'Remeras',
+		country: 'TIPO',
+		href: '/catalogo?categoria=remera',
+		videoSrc: 'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594296/francia-m_gxsq71.mp4',
 		previewImage:
 			'https://images.unsplash.com/photo-1595777457583-95e059d581b8?auto=format&fit=crop&w=1280&q=80',
 	},
 	{
-		title: 'Carteras y cintos que enamoran',
-		country: 'ACCESORIOS',
-		href: '/catalogo?categoria=carteras-cintos',
+		title: 'Francés · Remera',
+		country: 'COLECCIÓN',
+		href: '/catalogo?filter=frances&subcategoria=remera',
 		videoSrc:
 			'https://res.cloudinary.com/dqr1ehkv7/video/upload/v1775594156/modern-fashion-store/video/italia.mp4',
 		previewImage:
@@ -80,4 +80,22 @@ export function parseFashionCategoryPanelsFromJson(data: unknown): FashionCatego
 		out.push(p);
 	}
 	return out;
+}
+
+export function normalizeFashionCategoryPanelsForPublish(
+	panels: FashionCategoryPanel[],
+): FashionCategoryPanel[] {
+	return panels.map((p) => {
+		let href = p.href.trim();
+		if (href && !href.startsWith('/') && !/^https?:\/\//i.test(href)) {
+			href = `/${href.replace(/^\//, '')}`;
+		}
+		return {
+			title: p.title.trim(),
+			country: p.country.trim(),
+			href,
+			videoSrc: p.videoSrc.trim(),
+			previewImage: p.previewImage.trim(),
+		};
+	});
 }

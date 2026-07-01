@@ -6,7 +6,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ExternalLink, RotateCcw, Save, Upload } from 'lucide-react';
 import { getSiteHomeConfigAction, saveFashionCategoryPanelsAction } from '@/app/actions/siteHomeConfig';
-import { uploadSorjuanaMedia } from '@/app/actions/storage';
+import {
+	uploadCollectionCoverToCloudinary,
+	uploadCollectionVideoToCloudinary,
+} from '@/app/actions/storage';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
@@ -67,11 +70,20 @@ export function MapaPaginaFashionCategoriesPanel() {
 	useEffect(() => {
 		let cancelled = false;
 		setCategoriesLoading(true);
-		void listShopCategoryTreeAction().then((tree) => {
-			if (cancelled) return;
-			setCategoryTree(Array.isArray(tree) ? tree : []);
-			setCategoriesLoading(false);
-		});
+		void listShopCategoryTreeAction()
+			.then((tree) => {
+				if (cancelled) return;
+				setCategoryTree(Array.isArray(tree) ? tree : []);
+			})
+			.catch((e) => {
+				if (cancelled) return;
+				const msg = e instanceof Error ? e.message : 'No se pudieron cargar las categorías.';
+				toast.error(msg);
+				setCategoryTree([]);
+			})
+			.finally(() => {
+				if (!cancelled) setCategoriesLoading(false);
+			});
 		return () => {
 			cancelled = true;
 		};
@@ -96,7 +108,7 @@ export function MapaPaginaFashionCategoriesPanel() {
 				const fd = new FormData();
 				fd.append('file', file);
 				fd.append('kind', 'image');
-				const res = await uploadSorjuanaMedia(fd);
+				const res = await uploadCollectionCoverToCloudinary(fd);
 				if (!res.ok) {
 					toast.error(res.message);
 					return;
@@ -125,7 +137,7 @@ export function MapaPaginaFashionCategoriesPanel() {
 				const fd = new FormData();
 				fd.append('file', file);
 				fd.append('kind', 'video');
-				const res = await uploadSorjuanaMedia(fd);
+				const res = await uploadCollectionVideoToCloudinary(fd);
 				if (!res.ok) {
 					toast.error(res.message);
 					return;
@@ -159,7 +171,7 @@ export function MapaPaginaFashionCategoriesPanel() {
 				toast.error(res.message ?? 'No se pudo guardar');
 				return;
 			}
-			toast.success('Colección guardada en el sitio');
+			toast.success('Colección guardada en Firestore (visible en el inicio).');
 		});
 	}, [panels]);
 
@@ -220,12 +232,13 @@ export function MapaPaginaFashionCategoriesPanel() {
 					Franja «Nuestra colección»
 				</h2>
 				<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-					Los cuatro bloques horizontales debajo del hero (en escritorio el primero aparece ancho; al pasar el
-					mouse cada columna se expande y reproduce el video). Podés pegar URLs o subir archivos al almacenamiento.
+					Las cinco franjas horizontales debajo del hero: elegí cuál editar, poné título y etiqueta, elegí a qué
+					categoría del catálogo redirige el clic, subí portada (Cloudinary) y video para la franja expandida en
+					escritorio. Guardá para publicar.
 				</p>
 
 				<div className="mt-4 flex flex-wrap gap-2">
-					{panels.map((_, i) => (
+					{panels.map((p, i) => (
 						<button
 							key={`tab-p-${i}`}
 							type="button"
@@ -238,7 +251,7 @@ export function MapaPaginaFashionCategoriesPanel() {
 							)}
 							style={{ fontFamily: sans, fontWeight: 500 }}
 						>
-							{i + 1}. {PANEL_LABELS[i]?.replace(/\s*\(.*\)\s*$/, '') ?? `Panel ${i + 1}`}
+							{i + 1}. {p.title.trim() || PANEL_LABELS[i]?.replace(/\s*\(.*\)\s*$/, '') || `Franja ${i + 1}`}
 						</button>
 					))}
 				</div>
@@ -339,8 +352,11 @@ export function MapaPaginaFashionCategoriesPanel() {
 								<option value={CUSTOM_CATALOG_LINK_ID}>Otro enlace (personalizado)…</option>
 							</select>
 							<p className="text-[0.7rem] leading-snug text-[#8a7a68]" style={{ fontFamily: sans, fontWeight: 300 }}>
-								«Tipo» lista cada subcategoría una sola vez (ej. un solo Pantalones para italiano, nacional,
-								etc.), igual que en los círculos del inicio.
+								Las opciones salen de las categorías que cargaste en{' '}
+								<Link href="/app/categorias" className="underline decoration-[#b8956a]/50">
+									Categorías
+								</Link>
+								. «Línea + tipo» filtra como en tu captura (ej. Francés › Remera).
 							</p>
 						</div>
 						{linkPickId === CUSTOM_CATALOG_LINK_ID ? (

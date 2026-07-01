@@ -181,5 +181,61 @@ export function matchSpotlightSubPickId(
 	return CUSTOM_CATALOG_LINK_ID;
 }
 
+export type CategorySpotlightPick = {
+	id: string;
+	slug: string;
+	defaultLabel: string;
+	label: string;
+	href: string;
+};
+
+/** Todas las categorías (líneas) y subcategorías del árbol admin para el carrusel de círculos. */
+export function buildCategorySpotlightPicks(tree: ShopCategoryTree[]): CategorySpotlightPick[] {
+	const out: CategorySpotlightPick[] = [];
+
+	for (const cat of tree) {
+		const pslug = cat.slug.trim().toLowerCase();
+		if (!pslug) continue;
+		const catName = (cat.name ?? '').trim() || pslug;
+		out.push({
+			id: `line:${pslug}`,
+			slug: pslug,
+			defaultLabel: catName,
+			label: `Categoría · ${catName}`,
+			href: catalogHref({ filter: pslug }),
+		});
+
+		for (const sub of cat.subcategories ?? []) {
+			const s = sub.slug.trim().toLowerCase();
+			if (!s) continue;
+			const subName = titleCaseWords((sub.name ?? '').trim() || s.replace(/-/g, ' '));
+			out.push({
+				id: `combo:${pslug}:${s}`,
+				slug: `${pslug}-${s}`,
+				defaultLabel: subName,
+				label: `${catName} › ${subName}`,
+				href: catalogHref({ filter: pslug, subcategoria: s }),
+			});
+		}
+	}
+
+	return out;
+}
+
+export function matchCategorySpotlightPickId(
+	item: { slug: string; href: string },
+	picks: CategorySpotlightPick[],
+): string {
+	const slug = item.slug.trim().toLowerCase();
+	const normHref = normalizeCatalogHref(item.href);
+	for (const p of picks) {
+		if (p.slug === slug && normalizeCatalogHref(p.href) === normHref) return p.id;
+	}
+	for (const p of picks) {
+		if (normalizeCatalogHref(p.href) === normHref) return p.id;
+	}
+	return CUSTOM_CATALOG_LINK_ID;
+}
+
 export const catalogAdminSelectClass =
 	'flex h-10 w-full rounded-md border border-[#b8956a]/30 bg-white/90 px-3 text-sm text-[#1a1410] outline-none focus:border-[#b8956a] focus:ring-1 focus:ring-[#b8956a]/35';

@@ -14,25 +14,41 @@ import { NewArrivals } from '../components/NewArrivals';
 
 import { ContactSection } from '../components/ContactSection';
 
-import { fetchRecentProducts } from '@/lib/data/recentProducts';
+import { fetchHomeCatalogPool } from '@/lib/data/recentProducts';
+
+import { fetchProductSoldQuantitiesMap } from '@/lib/data/productSoldQuantities';
 
 import { fetchCategorySpotlights } from '@/lib/data/categorySpotlights';
 
 import { fetchSiteHomeConfig } from '@/lib/data/siteHomeConfig';
 
+import { BEST_SELLERS_MAX, pickProductsByTopSoldWithFallback } from '@/lib/bestSellersSelection';
+
 
 
 export async function HomePage() {
 
-	const [homeCatalog, categorySpotlights, siteHome] = await Promise.all([
+	const siteHome = await fetchSiteHomeConfig();
 
-		fetchRecentProducts(24),
+	const [homeCatalog, categorySpotlights, soldMap] = await Promise.all([
+
+		fetchHomeCatalogPool({
+
+			recentLimit: 24,
+
+			recentArrivalsIdsJson: siteHome.recentArrivalsIdsJson,
+
+			bestSellersIdsJson: siteHome.bestSellersIdsJson,
+
+		}),
 
 		fetchCategorySpotlights(),
 
-		fetchSiteHomeConfig(),
+		fetchProductSoldQuantitiesMap(),
 
 	]);
+
+	const bestSellersAutoFallback = pickProductsByTopSoldWithFallback(homeCatalog, soldMap, BEST_SELLERS_MAX);
 
 
 
@@ -50,11 +66,17 @@ export async function HomePage() {
 
 				bestSellersIdsJson={siteHome.bestSellersIdsJson}
 
+				bestSellersAutoFallback={bestSellersAutoFallback}
+
 			/>
 
 			<FashionCategories panels={siteHome.fashionCategoryPanels} />
 
-			<PopularProducts products={homeCatalog} bestSellersIdsJson={siteHome.bestSellersIdsJson} />
+			<PopularProducts
+				products={homeCatalog}
+				bestSellersIdsJson={siteHome.bestSellersIdsJson}
+				bestSellersAutoFallback={bestSellersAutoFallback}
+			/>
 
 			<NewArrivals products={homeCatalog} recentArrivalsIdsJson={siteHome.recentArrivalsIdsJson} />
 

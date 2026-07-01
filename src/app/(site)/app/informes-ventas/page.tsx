@@ -5,6 +5,8 @@ export const metadata: Metadata = {
 	title: 'Informes de ventas — Sor Juana',
 };
 
+export const dynamic = 'force-dynamic';
+
 export default function Page() {
 	return <InformesVentasPage />;
 }

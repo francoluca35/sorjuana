@@ -260,12 +260,29 @@ export function parseHeroSlidesFromJson(data: unknown): HeroSlide[] | null {
 	return resizeHeroSlides(out, clampHeroSlideCount(out.length));
 }
 
-/** Una sola imagen publicada en todos los dispositivos (sin foto móvil separada). */
+/** Normaliza slides antes de persistir en Firestore (conserva imagen y posiciones móviles). */
 export function normalizeHeroSlidesForPublish(slides: HeroSlide[]): HeroSlide[] {
-	return resizeHeroSlides(slides, slides.length).map((slide) => {
-		const { imageMobile: _m, promoImageMobile: _pm, ...rest } = slide;
-		return rest;
-	});
+	return resizeHeroSlides(slides, slides.length).map((slide) => ({
+		...slide,
+		title: slide.title.trim(),
+		image: slide.image.trim(),
+		imageMobile: slide.imageMobile?.trim() || undefined,
+		promoImage: slide.promoImage?.trim() || undefined,
+		promoImageMobile: slide.promoImageMobile?.trim() || undefined,
+		objectPositionDesktop: slide.objectPositionDesktop?.trim() || undefined,
+		objectPositionMobile: slide.objectPositionMobile?.trim() || undefined,
+		hotspots: slide.hotspots.map((h) => ({
+			...h,
+			id: h.id.trim(),
+			top: h.top.trim(),
+			left: h.left.trim(),
+			topMobile: h.topMobile?.trim() || undefined,
+			leftMobile: h.leftMobile?.trim() || undefined,
+			productName: h.productName.trim(),
+			thumbnailSrc: h.thumbnailSrc.trim(),
+			catalogProductId: h.catalogProductId?.trim() || undefined,
+		})),
+	}));
 }
 
 export function readHeroSlidesFromStorage(): HeroSlide[] | null {

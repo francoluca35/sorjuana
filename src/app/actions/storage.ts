@@ -1,184 +1,112 @@
 'use server';
 
-import { v2 as cloudinary } from 'cloudinary';
-import { createClient } from '@/lib/supabase/server';
-import {
-	SORJUANA_BUCKET,
-	buildSorjuanaObjectPath,
-	type SorjuanaMediaKind,
-} from '@/lib/supabase/sorjuanaBucket';
+import { getSessionUser } from '@/lib/firebase/auth-server';
+import { uploadFromFormData, type CloudinaryUploadResult } from '@/lib/cloudinary/uploadMedia';
 
-const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+export type UploadSorjuanaResult = CloudinaryUploadResult;
 
-const IMAGE_TYPES = new Set([
-	'image/jpeg',
-	'image/png',
-	'image/webp',
-	'image/gif',
-	'image/jpg',
-]);
-
-const VIDEO_TYPES = new Set([
-	'video/mp4',
-	'video/webm',
-	'video/quicktime',
-]);
-
-export type UploadSorjuanaResult =
-	| { ok: true; publicUrl: string; path: string }
-	| { ok: false; message: string };
+const PRODUCT_MEDIA_FOLDER = 'modern-fashion-store/products';
+const HERO_MEDIA_FOLDER = 'modern-fashion-store/hero';
+const COLLECTION_COVERS_FOLDER = 'modern-fashion-store/collection/covers';
+const COLLECTION_VIDEOS_FOLDER = 'modern-fashion-store/collection/videos';
+const CATEGORY_SPOTLIGHT_FOLDER = 'modern-fashion-store/category-spotlights';
 
 /**
- * Sube un archivo al bucket `sorjuana`. Requiere sesión autenticada (políticas RLS).
- * Enviar FormData con: `file` (File), `kind`: `image` | `video`.
+ * Sube imagen o video de producto a Cloudinary.
+ * Devuelve `publicUrl` (URL HTTPS) para guardar en Firestore (`image_url` / `image_urls` / `video_url`).
  */
-export async function uploadSorjuanaMedia(formData: FormData): Promise<UploadSorjuanaResult> {
+export async function uploadProductMedia(formData: FormData): Promise<UploadSorjuanaResult> {
 	try {
-		return await uploadSorjuanaMediaInner(formData);
+		const user = await getSessionUser();
+		if (!user) {
+			return { ok: false, message: 'Tenés que iniciar sesión para subir archivos.' };
+		}
+
+		const kindRaw = formData.get('kind');
+		const kind = kindRaw === 'video' ? 'video' : 'image';
+		return uploadFromFormData(formData, {
+			folder: PRODUCT_MEDIA_FOLDER,
+			kind,
+		});
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Error inesperado al subir el archivo.';
 		return { ok: false, message: msg };
 	}
 }
 
-async function uploadSorjuanaMediaInner(formData: FormData): Promise<UploadSorjuanaResult> {
-	const kindRaw = formData.get('kind');
-	const kind: SorjuanaMediaKind = kindRaw === 'video' ? 'video' : 'image';
-	const file = formData.get('file');
-
-	if (!file || typeof file === 'string') {
-		return { ok: false, message: 'No se recibió ningún archivo.' };
-	}
-
-	if (!(file instanceof File) || file.size === 0) {
-		return { ok: false, message: 'El archivo está vacío.' };
-	}
-
-	const mime = (file.type || '').toLowerCase();
-	const maxBytes = kind === 'video' ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
-	if (file.size > maxBytes) {
-		return {
-			ok: false,
-			message:
-				kind === 'video'
-					? 'El video supera el límite de 50 MB.'
-					: 'La imagen supera el límite de 12 MB.',
-		};
-	}
-
-	const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-	const imageExts = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
-	const videoExts = new Set(['mp4', 'webm', 'mov']);
-
-	if (kind === 'image') {
-		const okMime = !mime || IMAGE_TYPES.has(mime);
-		const okExt = imageExts.has(ext);
-		if (!okMime && !okExt) {
-			return { ok: false, message: 'Formato de imagen no permitido (JPEG, PNG, WebP o GIF).' };
-		}
-	}
-	if (kind === 'video') {
-		const okMime = !mime || VIDEO_TYPES.has(mime);
-		const okExt = videoExts.has(ext);
-		if (!okMime && !okExt) {
-			return { ok: false, message: 'Formato de video no permitido (MP4, WebM o MOV).' };
-		}
-	}
-
-	const supabase = await createClient();
-	const {
-		data: { user },
-		error: userErr,
-	} = await supabase.auth.getUser();
-	if (userErr || !user) {
-		return { ok: false, message: 'Tenés que iniciar sesión para subir archivos.' };
-	}
-
-	const path = buildSorjuanaObjectPath(kind, user.id, file.name, mime);
-	const { error } = await supabase.storage.from(SORJUANA_BUCKET).upload(path, file, {
-		contentType: mime || undefined,
-		upsert: false,
-	});
-
-	if (error) {
-		return { ok: false, message: error.message };
-	}
-
-	const { data: pub } = supabase.storage.from(SORJUANA_BUCKET).getPublicUrl(path);
-	return { ok: true, publicUrl: pub.publicUrl, path };
+/** Alias histórico del panel — misma lógica que `uploadProductMedia`. */
+export async function uploadSorjuanaMedia(formData: FormData): Promise<UploadSorjuanaResult> {
+	return uploadProductMedia(formData);
 }
 
-/**
- * Sube una imagen a Cloudinary (público) sin depender del storage de Supabase.
- * Pensado para el hero: solo requiere sesión iniciada (la auth de la app funciona)
- * y las credenciales de Cloudinary ya configuradas en el entorno.
- * Enviar FormData con `file` (File de imagen).
- */
-export async function uploadHeroImageToCloudinary(
-	formData: FormData,
-): Promise<UploadSorjuanaResult> {
+/** Sube imagen del hero a Cloudinary. */
+export async function uploadHeroImageToCloudinary(formData: FormData): Promise<UploadSorjuanaResult> {
 	try {
-		const file = formData.get('file');
-		if (!file || typeof file === 'string' || !(file instanceof File) || file.size === 0) {
-			return { ok: false, message: 'No se recibió ninguna imagen válida.' };
-		}
-
-		const mime = (file.type || '').toLowerCase();
-		if (file.size > MAX_IMAGE_BYTES) {
-			return { ok: false, message: 'La imagen supera el límite de 12 MB.' };
-		}
-
-		const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-		const imageExts = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
-		const okMime = !mime || IMAGE_TYPES.has(mime);
-		const okExt = imageExts.has(ext);
-		if (!okMime && !okExt) {
-			return { ok: false, message: 'Formato de imagen no permitido (JPEG, PNG, WebP o GIF).' };
-		}
-
-		const supabase = await createClient();
-		const {
-			data: { user },
-			error: userErr,
-		} = await supabase.auth.getUser();
-		if (userErr || !user) {
+		const user = await getSessionUser();
+		if (!user) {
 			return { ok: false, message: 'Tenés que iniciar sesión para subir imágenes.' };
 		}
 
-		const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-		const apiKey = process.env.CLOUDINARY_API_KEY;
-		const apiSecret = process.env.CLOUDINARY_API_SECRET;
-		if (!cloudName || !apiKey || !apiSecret) {
-			return { ok: false, message: 'Faltan las credenciales de Cloudinary en el servidor.' };
+		return uploadFromFormData(formData, {
+			folder: HERO_MEDIA_FOLDER,
+			kind: 'image',
+		});
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al subir la imagen a Cloudinary.';
+		return { ok: false, message: msg };
+	}
+}
+
+/** Portada de franja cerrada / móvil en «Nuestra colección». */
+export async function uploadCollectionCoverToCloudinary(formData: FormData): Promise<UploadSorjuanaResult> {
+	try {
+		const user = await getSessionUser();
+		if (!user) {
+			return { ok: false, message: 'Tenés que iniciar sesión para subir imágenes.' };
 		}
 
-		cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
+		return uploadFromFormData(formData, {
+			folder: COLLECTION_COVERS_FOLDER,
+			kind: 'image',
+		});
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al subir la portada a Cloudinary.';
+		return { ok: false, message: msg };
+	}
+}
 
-		const buffer = Buffer.from(await file.arrayBuffer());
-		const result = await new Promise<{ secure_url: string; public_id: string }>(
-			(resolve, reject) => {
-				cloudinary.uploader
-					.upload_stream(
-						{
-							folder: 'modern-fashion-store/hero',
-							resource_type: 'image',
-							overwrite: true,
-							invalidate: true,
-						},
-						(error, res) => {
-							if (error || !res) {
-								reject(error ?? new Error('Cloudinary no devolvió respuesta.'));
-							} else {
-								resolve(res as { secure_url: string; public_id: string });
-							}
-						},
-					)
-					.end(buffer);
-			},
-		);
+/** Video de franja expandida (hover escritorio) en «Nuestra colección». */
+export async function uploadCollectionVideoToCloudinary(formData: FormData): Promise<UploadSorjuanaResult> {
+	try {
+		const user = await getSessionUser();
+		if (!user) {
+			return { ok: false, message: 'Tenés que iniciar sesión para subir videos.' };
+		}
 
-		return { ok: true, publicUrl: result.secure_url, path: result.public_id };
+		return uploadFromFormData(formData, {
+			folder: COLLECTION_VIDEOS_FOLDER,
+			kind: 'video',
+		});
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Error al subir el video a Cloudinary.';
+		return { ok: false, message: msg };
+	}
+}
+
+/** Imagen de círculo en «Explorá por categoría». */
+export async function uploadCategorySpotlightImageToCloudinary(
+	formData: FormData,
+): Promise<UploadSorjuanaResult> {
+	try {
+		const user = await getSessionUser();
+		if (!user) {
+			return { ok: false, message: 'Tenés que iniciar sesión para subir imágenes.' };
+		}
+
+		return uploadFromFormData(formData, {
+			folder: CATEGORY_SPOTLIGHT_FOLDER,
+			kind: 'image',
+		});
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Error al subir la imagen a Cloudinary.';
 		return { ok: false, message: msg };

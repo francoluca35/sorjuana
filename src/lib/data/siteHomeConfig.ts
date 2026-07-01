@@ -1,5 +1,5 @@
 import { unstable_noStore as noStore } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { getSiteHomeConfigDoc } from '@/lib/firebase/config';
 import { BEST_SELLERS_MAX } from '@/lib/bestSellersSelection';
 import {
 	parseCategorySpotlightRailFromJson,
@@ -54,72 +54,33 @@ const EMPTY_SITE_HOME: SiteHomeConfigDTO = {
 	termsConditions: null,
 };
 
-/** Lee la config del inicio (Server Components / RSC). */
 export async function fetchSiteHomeConfig(): Promise<SiteHomeConfigDTO> {
 	noStore();
-	const supabase = await createClient();
+	try {
+		const data = await getSiteHomeConfigDoc();
+		if (!data) return EMPTY_SITE_HOME;
 
-	// Columnas base: si mezclamos columnas que aún no existen en Supabase, PostgREST falla
-	// y el hero vuelve al contenido predeterminado aunque hero_slides esté guardado.
-	const { data, error } = await supabase
-		.from('site_home_config')
-		.select(
-			'hero_slides, fashion_category_panels, category_spotlight_rail, best_sellers_product_ids, recent_arrivals_product_ids',
-		)
-		.eq('id', 1)
-		.maybeSingle();
+		const heroParsed = parseHeroSlidesFromJson(data.hero_slides);
+		const fashionParsed = parseFashionCategoryPanelsFromJson(data.fashion_category_panels);
+		const categoryRailParsed = parseCategorySpotlightRailFromJson(data.category_spotlight_rail);
+		const heroContentParsed = parseHeroContentFromJson(data.hero_content);
+		const returnPolicyParsed = parseReturnPolicyFromJson(data.return_policy);
+		const termsConditionsParsed = parseTermsConditionsFromJson(data.terms_conditions);
+		const bestArr = asStringArray(data.best_sellers_product_ids);
+		const recentArr = asStringArray(data.recent_arrivals_product_ids);
 
-	if (error || !data) {
-		if (error) {
-			console.error('[fetchSiteHomeConfig]', error.message);
-		}
+		return {
+			heroSlides: heroParsed,
+			heroContent: heroContentParsed,
+			fashionCategoryPanels: fashionParsed,
+			categorySpotlightRail: categoryRailParsed,
+			bestSellersIdsJson: serializeProductIds(bestArr, BEST_SELLERS_MAX),
+			recentArrivalsIdsJson: serializeProductIds(recentArr, RECENT_ARRIVALS_MAX),
+			returnPolicy: returnPolicyParsed,
+			termsConditions: termsConditionsParsed,
+		};
+	} catch (e) {
+		console.error('[fetchSiteHomeConfig]', e);
 		return EMPTY_SITE_HOME;
 	}
-
-	let heroContentParsed: HeroContentConfig | null = null;
-	const heroContentRes = await supabase
-		.from('site_home_config')
-		.select('hero_content')
-		.eq('id', 1)
-		.maybeSingle();
-	if (!heroContentRes.error && heroContentRes.data) {
-		heroContentParsed = parseHeroContentFromJson(heroContentRes.data.hero_content);
-	}
-
-	let returnPolicyParsed: ReturnPolicyConfig | null = null;
-	const returnPolicyRes = await supabase
-		.from('site_home_config')
-		.select('return_policy')
-		.eq('id', 1)
-		.maybeSingle();
-	if (!returnPolicyRes.error && returnPolicyRes.data) {
-		returnPolicyParsed = parseReturnPolicyFromJson(returnPolicyRes.data.return_policy);
-	}
-
-	let termsConditionsParsed: TermsConditionsConfig | null = null;
-	const termsRes = await supabase
-		.from('site_home_config')
-		.select('terms_conditions')
-		.eq('id', 1)
-		.maybeSingle();
-	if (!termsRes.error && termsRes.data) {
-		termsConditionsParsed = parseTermsConditionsFromJson(termsRes.data.terms_conditions);
-	}
-
-	const heroParsed = parseHeroSlidesFromJson(data.hero_slides);
-	const fashionParsed = parseFashionCategoryPanelsFromJson(data.fashion_category_panels);
-	const categoryRailParsed = parseCategorySpotlightRailFromJson(data.category_spotlight_rail);
-	const bestArr = asStringArray(data.best_sellers_product_ids);
-	const recentArr = asStringArray(data.recent_arrivals_product_ids);
-
-	return {
-		heroSlides: heroParsed,
-		heroContent: heroContentParsed,
-		fashionCategoryPanels: fashionParsed,
-		categorySpotlightRail: categoryRailParsed,
-		bestSellersIdsJson: serializeProductIds(bestArr, BEST_SELLERS_MAX),
-		recentArrivalsIdsJson: serializeProductIds(recentArr, RECENT_ARRIVALS_MAX),
-		returnPolicy: returnPolicyParsed,
-		termsConditions: termsConditionsParsed,
-	};
 }

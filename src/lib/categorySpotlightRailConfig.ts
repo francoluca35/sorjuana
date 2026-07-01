@@ -46,3 +46,14 @@ export function parseCategorySpotlightRailFromJson(data: unknown): CategorySpotl
 	}
 	return out.length ? out : null;
 }
+
+export function normalizeCategorySpotlightRailForPublish(
+	items: CategorySpotlightRailItem[],
+): CategorySpotlightRailItem[] {
+	return items.map((it) => ({
+		slug: it.slug.trim().toLowerCase(),
+		label: it.label.trim(),
+		imageUrl: it.imageUrl.trim(),
+		href: normalizeHref(it.slug, it.href),
+	}));
+}

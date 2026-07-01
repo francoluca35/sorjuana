@@ -1,7 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createServiceRoleClient } from '@/lib/supabase/service';
+import {
+	cancelSalesOrderRestoreStock,
+	fetchSalesOrderItems,
+	markSalesOrderPaid as markSalesOrderPaidFirestore,
+} from '@/lib/firebase/orders';
 import {
 	buildPaymentPaidLinesMessage,
 	buildWaMePrefilledUrl,
@@ -9,42 +13,27 @@ import {
 	sendWhatsAppCloudText,
 } from '@/lib/whatsapp/paymentPaidMessage';
 
-function mapRpcError(message: string): string {
-	return message.replace(/^ERROR:\s*/i, '').replace(/^P0001:\s*/i, '').trim();
-}
-
 export type MarkSalesOrderPaidResult =
 	| {
 			ok: true;
-			/** true solo si WhatsApp Cloud API (Meta) envió el mensaje sin abrir la app */
 			sentAutomatically: boolean;
-			/** Si no hubo envío API, el cliente puede abrir esta URL (sigue haciendo falta “Enviar” en WhatsApp) */
 			fallbackUrl?: string;
-			/** Aviso si la API falló pero el pedido sí se marcó pagado */
 			notifyWarning?: string;
 	  }
 	| { ok: false; error: string };
 
 export async function markSalesOrderPaid(orderId: string): Promise<MarkSalesOrderPaidResult> {
 	if (!orderId?.trim()) return { ok: false, error: 'Pedido inválido.' };
-	let supabase;
+
 	try {
-		supabase = createServiceRoleClient();
+		await markSalesOrderPaidFirestore(orderId);
 	} catch (e) {
-		return { ok: false, error: e instanceof Error ? e.message : 'Configuración del servidor.' };
-	}
-	const { error } = await supabase.rpc('mark_sales_order_paid', { p_order_id: orderId });
-	if (error) {
-		return { ok: false, error: mapRpcError(error.message) };
+		return { ok: false, error: e instanceof Error ? e.message : 'Error al marcar pagado.' };
 	}
 
-	const { data: orderRow, error: fetchErr } = await supabase
-		.from('sales_orders')
-		.select('items')
-		.eq('id', orderId)
-		.maybeSingle();
+	const orderItems = await fetchSalesOrderItems(orderId);
 
-	if (fetchErr || !orderRow) {
+	if (!orderItems) {
 		revalidatePath('/app/ventas');
 		revalidatePath('/catalogo');
 		revalidatePath('/');
@@ -56,7 +45,7 @@ export async function markSalesOrderPaid(orderId: string): Promise<MarkSalesOrde
 		};
 	}
 
-	const bodyLines = buildPaymentPaidLinesMessage(orderRow.items);
+	const bodyLines = buildPaymentPaidLinesMessage(orderItems);
 	const body = bodyLines.trim()
 		? `Pago confirmado\n\n${bodyLines}`
 		: 'Pago confirmado (sin ítems en el pedido).';
@@ -93,16 +82,13 @@ export async function markSalesOrderPaid(orderId: string): Promise<MarkSalesOrde
 
 export async function cancelSalesOrder(orderId: string): Promise<{ ok: true } | { ok: false; error: string }> {
 	if (!orderId?.trim()) return { ok: false, error: 'Pedido inválido.' };
-	let supabase;
+
 	try {
-		supabase = createServiceRoleClient();
+		await cancelSalesOrderRestoreStock(orderId);
 	} catch (e) {
-		return { ok: false, error: e instanceof Error ? e.message : 'Configuración del servidor.' };
+		return { ok: false, error: e instanceof Error ? e.message : 'Error al cancelar.' };
 	}
-	const { error } = await supabase.rpc('cancel_sales_order_restore_stock', { p_order_id: orderId });
-	if (error) {
-		return { ok: false, error: mapRpcError(error.message) };
-	}
+
 	revalidatePath('/app/ventas');
 	revalidatePath('/catalogo');
 	revalidatePath('/');

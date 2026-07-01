@@ -1,4 +1,6 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { unstable_noStore as noStore } from 'next/cache';
+import { fetchAllSalesOrdersForReports } from '@/lib/firebase/orders';
+import { fetchProductsStockAndCost } from '@/lib/firebase/products';
 
 const TZ = 'America/Argentina/Buenos_Aires';
 
@@ -32,6 +34,7 @@ function yearPrefixBa(): string {
 type OrderRow = {
 	created_at: string;
 	total_amount: number | string | null;
+	grand_total?: number | string | null;
 	items: unknown;
 	status: string;
 };
@@ -55,6 +58,7 @@ type ProductRow = {
 	name: string;
 	category: string | null;
 	cost: number | string | null;
+	base_price: number | string | null;
 	price: number | string | null;
 	transfer_price: number | string | null;
 	final_transfer_price: number | string | null;
@@ -66,17 +70,31 @@ function num(n: unknown, fallback = 0): number {
 	return Number.isFinite(x) ? x : fallback;
 }
 
+function orderTotal(o: OrderRow): number {
+	const grand = num(o.grand_total, NaN);
+	if (Number.isFinite(grand) && grand >= 0) return grand;
+	return num(o.total_amount, 0);
+}
+
+function inventoryUnitCost(p: ProductRow): number {
+	const cost = num(p.cost, 0);
+	if (cost > 0) return cost;
+	return num(p.base_price, 0);
+}
+
 function effectiveUnitPrice(p: ProductRow): number {
-	const ft = num(p.final_transfer_price, NaN);
-	const tr = num(p.transfer_price, NaN);
-	const list = num(p.price, 0);
-	if (Number.isFinite(ft) && ft > 0) return ft;
-	if (Number.isFinite(tr) && tr > 0) return tr;
-	return list;
+	const cash = num(p.price, 0);
+	const transfer = num(p.transfer_price, 0);
+	if (cash > 0 && transfer > 0) return Math.min(cash, transfer);
+	if (cash > 0) return cash;
+	if (transfer > 0) return transfer;
+	return num(p.final_transfer_price, 0);
 }
 
 function cardUnitPrice(p: ProductRow): number {
-	return num(p.price, 0);
+	const card = num(p.final_transfer_price, 0);
+	if (card > 0) return card;
+	return num(p.base_price, num(p.price, 0));
 }
 
 export type SalesReportsData = {
@@ -88,6 +106,15 @@ export type SalesReportsData = {
 	pedidosSemana: number;
 	pedidosMes: number;
 	pedidosAnio: number;
+	totalPedidos: number;
+	pedidosReservados: number;
+	pedidosPagados: number;
+	pedidosCancelados: number;
+	montoReservado: number;
+	montoCobrado: number;
+	montoCancelado: number;
+	unidadesVendidas: number;
+	unidadesEnStock: number;
 	byCategory: { category: string; ventas: number; pedidosLineas: number }[];
 	bySize: { size: string; ventas: number; unidades: number }[];
 	topMes: { productId: string; name: string; unidades: number; ventas: number }[];
@@ -97,25 +124,28 @@ export type SalesReportsData = {
 	ingresoHipoteticoEfectivo: number;
 	ingresoHipoteticoTarjeta: number;
 	inversionStockActual: number;
+	valorStockPrecioVenta: number;
 	saldoVentasMenosInversionStock: number;
 	saldoNegativoPorStock: boolean;
 	noteSaldo: string;
 };
 
-export async function fetchSalesReportsData(supabase: SupabaseClient): Promise<SalesReportsData> {
-	const [{ data: ordersData, error: ordersErr }, { data: productsData, error: prodErr }] = await Promise.all([
-		supabase.from('sales_orders').select('created_at, total_amount, items, status'),
-		supabase.from('products').select('id, name, category, cost, price, transfer_price, final_transfer_price, stock'),
+export async function fetchSalesReportsData(): Promise<SalesReportsData> {
+	noStore();
+
+	const [ordersRaw, productsRaw] = await Promise.all([
+		fetchAllSalesOrdersForReports(),
+		fetchProductsStockAndCost(),
 	]);
 
-	if (ordersErr) console.error('fetchSalesReportsData orders', ordersErr.message);
-	if (prodErr) console.error('fetchSalesReportsData products', prodErr.message);
-
-	const orders = (ordersData ?? []) as OrderRow[];
-	const products = (productsData ?? []) as ProductRow[];
+	const orders = ordersRaw as OrderRow[];
+	const products = productsRaw as ProductRow[];
 	const productMap = new Map(products.map((p) => [p.id, p]));
 
 	const paid = orders.filter((o) => (o.status ?? 'pending') === 'paid');
+	const pending = orders.filter((o) => (o.status ?? 'pending') === 'pending');
+	const cancelled = orders.filter((o) => o.status === 'cancelled');
+
 	const todayYmd = toBaYmd(new Date().toISOString());
 	const weekKeys = new Set(getLast7DayKeysBa());
 	const monthP = monthPrefixBa();
@@ -141,10 +171,21 @@ export async function fetchSalesReportsData(supabase: SupabaseClient): Promise<S
 	let costoMercaderiaVendida = 0;
 	let ingresoHipoteticoEfectivo = 0;
 	let ingresoHipoteticoTarjeta = 0;
+	let unidadesVendidas = 0;
+
+	let montoReservado = 0;
+	for (const o of pending) {
+		montoReservado += orderTotal(o);
+	}
+
+	let montoCancelado = 0;
+	for (const o of cancelled) {
+		montoCancelado += orderTotal(o);
+	}
 
 	for (const o of paid) {
 		const ymd = toBaYmd(o.created_at);
-		const amt = num(o.total_amount, 0);
+		const amt = orderTotal(o);
 		ingresosTotalesPagados += amt;
 
 		if (ymd === todayYmd) {
@@ -172,9 +213,12 @@ export async function fetchSalesReportsData(supabase: SupabaseClient): Promise<S
 			const pid = line.product_id;
 			const qty = Math.max(0, Math.floor(num(line.qty, 0)));
 			const lineTotal = num(line.line_total, 0);
+			unidadesVendidas += qty;
+
 			const p = pid ? productMap.get(pid) : undefined;
-			const costUnit = p ? num(p.cost, 0) : 0;
+			const costUnit = p ? inventoryUnitCost(p) : 0;
 			costoMercaderiaVendida += costUnit * qty;
+
 			if (p) {
 				ingresoHipoteticoEfectivo += qty * effectiveUnitPrice(p);
 				ingresoHipoteticoTarjeta += qty * cardUnitPrice(p);
@@ -209,16 +253,21 @@ export async function fetchSalesReportsData(supabase: SupabaseClient): Promise<S
 	const margenBrutoVendido = ingresosTotalesPagados - costoMercaderiaVendida;
 
 	let inversionStockActual = 0;
+	let valorStockPrecioVenta = 0;
+	let unidadesEnStock = 0;
+
 	for (const p of products) {
 		const units = Math.max(0, Math.floor(num(p.stock, 0)));
-		inversionStockActual += num(p.cost, 0) * units;
+		unidadesEnStock += units;
+		inversionStockActual += inventoryUnitCost(p) * units;
+		valorStockPrecioVenta += effectiveUnitPrice(p) * units;
 	}
 
 	const saldoVentasMenosInversionStock = ingresosTotalesPagados - inversionStockActual;
 	const saldoNegativoPorStock = saldoVentasMenosInversionStock < 0;
 
 	const noteSaldo = saldoNegativoPorStock
-		? 'Este valor puede ser negativo aunque las ventas vayan bien: restamos a los cobros acumulados el costo de lo que aún tenés en stock (costo × unidades actuales). Si no vendiste todo el inventario, el saldo puede quedar por debajo de cero sin que signifique pérdida en caja: refleja capital en mercadería todavía no liquidada.'
+		? 'Este valor puede ser negativo aunque las ventas vayan bien: restamos a los cobros acumulados el costo de lo que aún tenés en stock (costo inicial o costo de prenda × unidades actuales). Si no vendiste todo el inventario, el saldo puede quedar por debajo de cero sin que signifique pérdida en caja: refleja capital en mercadería todavía no liquidada.'
 		: '';
 
 	const byCategory = Array.from(catMap.entries())
@@ -243,6 +292,15 @@ export async function fetchSalesReportsData(supabase: SupabaseClient): Promise<S
 		pedidosSemana,
 		pedidosMes,
 		pedidosAnio,
+		totalPedidos: orders.length,
+		pedidosReservados: pending.length,
+		pedidosPagados: paid.length,
+		pedidosCancelados: cancelled.length,
+		montoReservado,
+		montoCobrado: ingresosTotalesPagados,
+		montoCancelado,
+		unidadesVendidas,
+		unidadesEnStock,
 		byCategory,
 		bySize,
 		topMes,
@@ -252,6 +310,7 @@ export async function fetchSalesReportsData(supabase: SupabaseClient): Promise<S
 		ingresoHipoteticoEfectivo,
 		ingresoHipoteticoTarjeta,
 		inversionStockActual,
+		valorStockPrecioVenta,
 		saldoVentasMenosInversionStock,
 		saldoNegativoPorStock,
 		noteSaldo,

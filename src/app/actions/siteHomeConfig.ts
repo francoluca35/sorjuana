@@ -1,11 +1,17 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { requireSessionUser } from '@/lib/firebase/auth-server';
+import { removeProductIdsFromSiteHomeConfig, upsertSiteHomeConfig } from '@/lib/firebase/config';
 import { fetchSiteHomeConfig } from '@/lib/data/siteHomeConfig';
 import { BEST_SELLERS_MAX } from '@/lib/bestSellersSelection';
 import type { CategorySpotlightRailItem } from '@/lib/categorySpotlightRailConfig';
-import type { FashionCategoryPanel } from '@/lib/fashionCategoryPanelsConfig';
+import { normalizeCategorySpotlightRailForPublish } from '@/lib/categorySpotlightRailConfig';
+import {
+	FASHION_CATEGORY_PANEL_COUNT,
+	normalizeFashionCategoryPanelsForPublish,
+	type FashionCategoryPanel,
+} from '@/lib/fashionCategoryPanelsConfig';
 import type { HeroSlide } from '@/lib/heroSlidesConfig';
 import {
 	HERO_SLIDES_MAX,
@@ -16,25 +22,20 @@ import {
 	normalizeHeroContent,
 	type HeroContentConfig,
 } from '@/lib/heroContentConfig';
-import { parseStoredProductIds, RECENT_ARRIVALS_MAX } from '@/lib/recentArrivalsSelection';
+import { parseStoredProductIds, RECENT_ARRIVALS_MAX, RECENT_ARRIVALS_MIN } from '@/lib/recentArrivalsSelection';
 import {
 	normalizeReturnPolicy,
 	type ReturnPolicyConfig,
 } from '@/lib/returnPolicyConfig';
-
 import {
 	normalizeTermsConditions,
 	type TermsConditionsConfig,
 } from '@/lib/termsConditionsConfig';
 
 async function requireAuthUser() {
-	const supabase = await createClient();
-	const {
-		data: { user },
-		error,
-	} = await supabase.auth.getUser();
-	if (error || !user) return { ok: false as const, message: 'Tenés que iniciar sesión.' };
-	return { ok: true as const, supabase, user };
+	const user = await requireSessionUser();
+	if ('error' in user) return { ok: false as const, message: user.error };
+	return { ok: true as const, user };
 }
 
 function revalidateHome() {
@@ -52,7 +53,6 @@ function revalidateTermsConditions() {
 	revalidatePath('/app/mapa-pagina');
 }
 
-/** Lectura pública de IDs (cliente tras eventos / refresco). */
 export async function getSiteHomeStoredIdsAction(): Promise<{ best: string; recent: string }> {
 	const cfg = await fetchSiteHomeConfig();
 	return { best: cfg.bestSellersIdsJson, recent: cfg.recentArrivalsIdsJson };
@@ -75,51 +75,13 @@ export async function saveHeroSlidesAction(slides: HeroSlide[]): Promise<{ ok: b
 
 	try {
 		const normalized = normalizeHeroSlidesForPublish(slides);
-		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
-		const updatedAt = new Date().toISOString();
-		const { data: updatedRow, error: updateError } = await auth.supabase
-			.from('site_home_config')
-			.update({
-				hero_slides: payload,
-				updated_at: updatedAt,
-			})
-			.eq('id', 1)
-			.select('id')
-			.maybeSingle();
-
-		if (updateError) {
-			return {
-				ok: false,
-				message:
-					updateError.message.includes('row') || updateError.code === 'PGRST116'
-						? 'No se encontró la fila de configuración. Ejecutá las migraciones de Supabase (site_home_config).'
-						: updateError.message,
-			};
-		}
-
-		if (!updatedRow) {
-			const { error: upsertError } = await auth.supabase.from('site_home_config').upsert(
-				{
-					id: 1,
-					hero_slides: payload,
-					updated_at: updatedAt,
-				},
-				{ onConflict: 'id' },
-			);
-			if (upsertError) {
-				return {
-					ok: false,
-					message:
-						'No se pudo guardar el hero (¿existe `site_home_config` con id=1?). Ejecutá las migraciones de Supabase.',
-				};
-			}
-		}
-
+		await upsertSiteHomeConfig({
+			hero_slides: JSON.parse(JSON.stringify(normalized)),
+		});
 		revalidateHome();
 		return { ok: true };
 	} catch (e) {
-		const msg = e instanceof Error ? e.message : 'Error al guardar el hero.';
-		return { ok: false, message: msg };
+		return { ok: false, message: e instanceof Error ? e.message : 'Error al guardar el hero.' };
 	}
 }
 
@@ -129,40 +91,14 @@ export async function saveHeroContentAction(
 	const auth = await requireAuthUser();
 	if (!auth.ok) return auth;
 
-	const normalized = normalizeHeroContent(content);
-
 	try {
-		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
-		const { data, error } = await auth.supabase
-			.from('site_home_config')
-			.update({
-				hero_content: payload,
-				updated_at: new Date().toISOString(),
-			})
-			.eq('id', 1)
-			.select('id');
-
-		if (error) {
-			return {
-				ok: false,
-				message:
-					error.message.includes('hero_content') || error.code === '42703'
-						? 'Falta la columna en la base: ejecutá la migración `20260531140000_site_home_hero_content.sql`.'
-						: error.message,
-			};
-		}
-		if (!data?.length) {
-			return {
-				ok: false,
-				message:
-					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
-			};
-		}
+		await upsertSiteHomeConfig({
+			hero_content: JSON.parse(JSON.stringify(normalizeHeroContent(content))),
+		});
 		revalidateHome();
 		return { ok: true };
 	} catch (e) {
-		const msg = e instanceof Error ? e.message : 'Error al guardar los textos del hero.';
-		return { ok: false, message: msg };
+		return { ok: false, message: e instanceof Error ? e.message : 'Error al guardar los textos del hero.' };
 	}
 }
 
@@ -173,37 +109,17 @@ export async function saveCategorySpotlightRailAction(
 	if (!auth.ok) return auth;
 
 	try {
-		const payload = JSON.parse(JSON.stringify(items)) as unknown;
-		const { data, error } = await auth.supabase
-			.from('site_home_config')
-			.update({
-				category_spotlight_rail: payload,
-				updated_at: new Date().toISOString(),
-			})
-			.eq('id', 1)
-			.select('id');
-
-		if (error) {
-			return {
-				ok: false,
-				message:
-					error.message.includes('category_spotlight_rail') || error.code === '42703'
-						? 'Falta la columna en la base: ejecutá la migración `20260507130000_site_home_category_spotlight_rail.sql`.'
-						: error.message,
-			};
+		if (!items.length) {
+			return { ok: false, message: 'Agregá al menos una categoría al carrusel.' };
 		}
-		if (!data?.length) {
-			return {
-				ok: false,
-				message:
-					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
-			};
-		}
+		const normalized = normalizeCategorySpotlightRailForPublish(items);
+		await upsertSiteHomeConfig({
+			category_spotlight_rail: JSON.parse(JSON.stringify(normalized)),
+		});
 		revalidateHome();
 		return { ok: true };
 	} catch (e) {
-		const msg = e instanceof Error ? e.message : 'Error al guardar las categorías.';
-		return { ok: false, message: msg };
+		return { ok: false, message: e instanceof Error ? e.message : 'Error al guardar las categorías.' };
 	}
 }
 
@@ -214,37 +130,20 @@ export async function saveFashionCategoryPanelsAction(
 	if (!auth.ok) return auth;
 
 	try {
-		const payload = JSON.parse(JSON.stringify(panels)) as unknown;
-		const { data, error } = await auth.supabase
-			.from('site_home_config')
-			.update({
-				fashion_category_panels: payload,
-				updated_at: new Date().toISOString(),
-			})
-			.eq('id', 1)
-			.select('id');
-
-		if (error) {
+		if (panels.length !== FASHION_CATEGORY_PANEL_COUNT) {
 			return {
 				ok: false,
-				message:
-					error.message.includes('fashion_category_panels') || error.code === '42703'
-						? 'Falta la columna en la base: ejecutá la migración `20260507120000_site_home_fashion_panels.sql`.'
-						: error.message,
+				message: `La colección debe tener exactamente ${FASHION_CATEGORY_PANEL_COUNT} franjas.`,
 			};
 		}
-		if (!data?.length) {
-			return {
-				ok: false,
-				message:
-					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
-			};
-		}
+		const normalized = normalizeFashionCategoryPanelsForPublish(panels);
+		await upsertSiteHomeConfig({
+			fashion_category_panels: JSON.parse(JSON.stringify(normalized)),
+		});
 		revalidateHome();
 		return { ok: true };
 	} catch (e) {
-		const msg = e instanceof Error ? e.message : 'Error al guardar la colección.';
-		return { ok: false, message: msg };
+		return { ok: false, message: e instanceof Error ? e.message : 'Error al guardar la colección.' };
 	}
 }
 
@@ -252,43 +151,50 @@ export async function saveBestSellersIdsAction(ids: string[]): Promise<{ ok: boo
 	const auth = await requireAuthUser();
 	if (!auth.ok) return auth;
 
-	const normalized = parseStoredProductIds(JSON.stringify(ids), BEST_SELLERS_MAX);
-	const { error } = await auth.supabase
-		.from('site_home_config')
-		.update({
-			best_sellers_product_ids: normalized,
-			updated_at: new Date().toISOString(),
-		})
-		.eq('id', 1);
-
-	if (error) {
-		return { ok: false, message: error.message };
+	try {
+		const normalized = parseStoredProductIds(JSON.stringify(ids), BEST_SELLERS_MAX);
+		await upsertSiteHomeConfig({ best_sellers_product_ids: normalized });
+		revalidateHome();
+		return { ok: true };
+	} catch (e) {
+		return {
+			ok: false,
+			message: e instanceof Error ? e.message : 'No se pudo guardar Más vendidos en Firestore.',
+		};
 	}
-	revalidateHome();
-	return { ok: true };
+}
+
+export async function fetchProductSoldQuantitiesAction(): Promise<Record<string, number>> {
+	const auth = await requireAuthUser();
+	if (!auth.ok) return {};
+
+	const { fetchProductSoldQuantitiesRecord } = await import('@/lib/data/productSoldQuantities');
+	return fetchProductSoldQuantitiesRecord();
 }
 
 export async function saveRecentArrivalsIdsAction(ids: string[]): Promise<{ ok: boolean; message?: string }> {
 	const auth = await requireAuthUser();
 	if (!auth.ok) return auth;
 
-	const normalized = parseStoredProductIds(JSON.stringify(ids), RECENT_ARRIVALS_MAX);
-	const { error } = await auth.supabase
-		.from('site_home_config')
-		.update({
-			recent_arrivals_product_ids: normalized,
-			updated_at: new Date().toISOString(),
-		})
-		.eq('id', 1);
-
-	if (error) {
-		return { ok: false, message: error.message };
+	try {
+		const normalized = parseStoredProductIds(JSON.stringify(ids), RECENT_ARRIVALS_MAX);
+		if (normalized.length > 0 && normalized.length < RECENT_ARRIVALS_MIN) {
+			return {
+				ok: false,
+				message: `Elegí entre ${RECENT_ARRIVALS_MIN} y ${RECENT_ARRIVALS_MAX} productos para Recién llegados.`,
+			};
+		}
+		await upsertSiteHomeConfig({ recent_arrivals_product_ids: normalized });
+		revalidateHome();
+		return { ok: true };
+	} catch (e) {
+		return {
+			ok: false,
+			message: e instanceof Error ? e.message : 'No se pudo guardar Recién llegados en Firestore.',
+		};
 	}
-	revalidateHome();
-	return { ok: true };
 }
 
-/** Limpia la selección guardada (vuelve al fallback por fecha). */
 export async function clearBestSellersIdsAction(): Promise<{ ok: boolean; message?: string }> {
 	return saveBestSellersIdsAction([]);
 }
@@ -303,40 +209,17 @@ export async function saveReturnPolicyAction(
 	const auth = await requireAuthUser();
 	if (!auth.ok) return auth;
 
-	const normalized = normalizeReturnPolicy(policy);
-
 	try {
-		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
-		const { data, error } = await auth.supabase
-			.from('site_home_config')
-			.update({
-				return_policy: payload,
-				updated_at: new Date().toISOString(),
-			})
-			.eq('id', 1)
-			.select('id');
-
-		if (error) {
-			return {
-				ok: false,
-				message:
-					error.message.includes('return_policy') || error.code === '42703'
-						? 'Falta la columna en la base: ejecutá la migración `20260531120000_site_home_return_policy.sql`.'
-						: error.message,
-			};
-		}
-		if (!data?.length) {
-			return {
-				ok: false,
-				message:
-					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
-			};
-		}
+		await upsertSiteHomeConfig({
+			return_policy: JSON.parse(JSON.stringify(normalizeReturnPolicy(policy))),
+		});
 		revalidateReturnPolicy();
 		return { ok: true };
 	} catch (e) {
-		const msg = e instanceof Error ? e.message : 'Error al guardar la política.';
-		return { ok: false, message: msg };
+		return {
+			ok: false,
+			message: e instanceof Error ? e.message : 'No se pudo guardar la política en Firestore.',
+		};
 	}
 }
 
@@ -346,39 +229,18 @@ export async function saveTermsConditionsAction(
 	const auth = await requireAuthUser();
 	if (!auth.ok) return auth;
 
-	const normalized = normalizeTermsConditions(terms);
-
 	try {
-		const payload = JSON.parse(JSON.stringify(normalized)) as unknown;
-		const { data, error } = await auth.supabase
-			.from('site_home_config')
-			.update({
-				terms_conditions: payload,
-				updated_at: new Date().toISOString(),
-			})
-			.eq('id', 1)
-			.select('id');
-
-		if (error) {
-			return {
-				ok: false,
-				message:
-					error.message.includes('terms_conditions') || error.code === '42703'
-						? 'Falta la columna en la base: ejecutá la migración `20260603130000_site_home_terms_conditions.sql`.'
-						: error.message,
-			};
-		}
-		if (!data?.length) {
-			return {
-				ok: false,
-				message:
-					'No se actualizó ninguna fila (¿existe `site_home_config` con id=1?). Creá la fila o revisá permisos RLS.',
-			};
-		}
+		await upsertSiteHomeConfig({
+			terms_conditions: JSON.parse(JSON.stringify(normalizeTermsConditions(terms))),
+		});
 		revalidateTermsConditions();
 		return { ok: true };
 	} catch (e) {
-		const msg = e instanceof Error ? e.message : 'Error al guardar los términos.';
-		return { ok: false, message: msg };
+		return {
+			ok: false,
+			message: e instanceof Error ? e.message : 'No se pudieron guardar los términos en Firestore.',
+		};
 	}
 }
+
+export { removeProductIdsFromSiteHomeConfig };

@@ -1,4 +1,11 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+	fetchAllSalesOrdersForReports,
+	fetchPaidSalesOrdersForDashboard,
+} from '@/lib/firebase/orders';
+import {
+	fetchProductsStockAndCost,
+	fetchProductsStockOnly,
+} from '@/lib/firebase/products';
 
 const TZ = 'America/Argentina/Buenos_Aires';
 
@@ -6,7 +13,6 @@ function ymdInTimeZone(d: Date, timeZone: string): string {
 	return d.toLocaleDateString('en-CA', { timeZone });
 }
 
-/** Últimos 7 días [más antiguo … hoy] en calendario de Buenos Aires. */
 export function getLast7DayKeys(): string[] {
 	const fmt = new Intl.DateTimeFormat('en-CA', {
 		timeZone: TZ,
@@ -40,11 +46,16 @@ function getPrevious7DayKeys(): string[] {
 type OrderRow = {
 	created_at: string;
 	total_amount: number | string | null;
+	grand_total?: number | string | null;
 	items: unknown;
 	status: string;
 };
 
-type ProductCost = { id: string; cost: number | string | null };
+function orderAmount(o: OrderRow): number {
+	const grand = Number(o.grand_total);
+	if (Number.isFinite(grand) && grand >= 0) return grand;
+	return Number(o.total_amount) || 0;
+}
 
 function parseItems(raw: unknown): { product_id?: string; qty?: number }[] {
 	if (!Array.isArray(raw)) return [];
@@ -89,27 +100,23 @@ export type DashboardStats = {
 	weekVsPrevLabel: string;
 };
 
-export async function fetchDashboardStats(supabase: SupabaseClient): Promise<DashboardStats> {
-	const [ordersRes, paidRes, stockRes, costsRes] = await Promise.all([
-		supabase.from('sales_orders').select('created_at, total_amount, items, status'),
-		supabase.from('sales_orders').select('created_at, total_amount, items, status').eq('status', 'paid'),
-		supabase.from('products').select('stock'),
-		supabase.from('products').select('id, cost'),
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+	const [allOrders, paidOrders, stockRows, costRows] = await Promise.all([
+		fetchAllSalesOrdersForReports(),
+		fetchPaidSalesOrdersForDashboard(),
+		fetchProductsStockOnly(),
+		fetchProductsStockAndCost(),
 	]);
 
-	const allOrders = (ordersRes.data ?? []) as OrderRow[];
-	const paidOrders = (paidRes.data ?? []) as OrderRow[];
 	const costById = new Map<string, number>();
-	for (const r of costsRes.data ?? []) {
-		const row = r as ProductCost;
+	for (const row of costRows) {
 		costById.set(row.id, Math.max(0, Number(row.cost) || 0));
 	}
 
-	const ingresos = paidOrders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
+	const ingresos = paidOrders.reduce((s, o) => s + orderAmount(o as OrderRow), 0);
 	const pedidos = allOrders.length;
 	const ventasRealizadas = paidOrders.length;
-	const stock =
-		(stockRes.data ?? []).reduce((s, p) => s + Math.max(0, Math.floor(Number((p as { stock: number }).stock) || 0)), 0) ?? 0;
+	const stock = stockRows.reduce((s, p) => s + Math.max(0, Math.floor(Number(p.stock) || 0)), 0);
 
 	const last7 = getLast7DayKeys();
 	const prev7 = getPrevious7DayKeys();
@@ -127,7 +134,7 @@ export async function fetchDashboardStats(supabase: SupabaseClient): Promise<Das
 	const pedidosPrev = { ...zeroFill(prev7) };
 	const dailyVentasPrev = { ...zeroFill(prev7) };
 
-	for (const o of allOrders) {
+	for (const o of allOrders as OrderRow[]) {
 		const day = ymdInTimeZone(new Date(o.created_at), TZ);
 		if (setLast.has(day)) {
 			dailyPedidos[day] = (dailyPedidos[day] ?? 0) + 1;
@@ -138,9 +145,9 @@ export async function fetchDashboardStats(supabase: SupabaseClient): Promise<Das
 		}
 	}
 
-	for (const o of paidOrders) {
+	for (const o of paidOrders as OrderRow[]) {
 		const day = ymdInTimeZone(new Date(o.created_at), TZ);
-		const amt = Number(o.total_amount) || 0;
+		const amt = orderAmount(o);
 		const profit = amt - orderCost(o.items, costById);
 		if (setLast.has(day)) {
 			dailyIngresos[day] = (dailyIngresos[day] ?? 0) + amt;

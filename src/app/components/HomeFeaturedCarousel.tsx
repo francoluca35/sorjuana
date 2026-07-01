@@ -26,7 +26,7 @@ import {
 	BEST_SELLERS_MAX,
 	BEST_SELLERS_UPDATED_EVENT,
 	parseStoredProductIds,
-	resolveRecentArrivalsForDisplay,
+	resolveBestSellersForDisplay,
 } from '@/lib/bestSellersSelection';
 import { cn } from '@/app/components/ui/utils';
 
@@ -49,9 +49,11 @@ function usePrefersReducedMotion() {
 export function HomeFeaturedCarousel({
 	products,
 	bestSellersIdsJson,
+	bestSellersAutoFallback,
 }: {
 	products: ProductRow[];
 	bestSellersIdsJson: string;
+	bestSellersAutoFallback: ProductRow[];
 }) {
 	const [selectionRaw, setSelectionRaw] = React.useState(bestSellersIdsJson);
 	const reducedMotion = usePrefersReducedMotion();
@@ -115,8 +117,8 @@ export function HomeFeaturedCarousel({
 	}, [products, supplementalRows]);
 
 	const displayRows = React.useMemo(
-		() => resolveRecentArrivalsForDisplay(selectionPool, orderedIds, products, 12),
-		[selectionPool, orderedIds, products],
+		() => resolveBestSellersForDisplay(selectionPool, orderedIds, bestSellersAutoFallback, BEST_SELLERS_MAX),
+		[selectionPool, orderedIds, bestSellersAutoFallback],
 	);
 
 	const carouselProducts = React.useMemo(

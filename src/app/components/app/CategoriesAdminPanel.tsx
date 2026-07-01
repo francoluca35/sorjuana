@@ -63,8 +63,9 @@ export function CategoriesAdminPanel() {
 				if (prev && data.some((c) => c.id === prev)) return prev;
 				return data[0].id;
 			});
-		} catch {
-			toast.error('No se pudo cargar el árbol de categorías.');
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'No se pudo cargar el árbol de categorías.';
+			toast.error(msg);
 		} finally {
 			setLoading(false);
 		}
@@ -81,7 +82,7 @@ export function CategoriesAdminPanel() {
 			toast.error(r.message);
 			return;
 		}
-		toast.success('Categoría creada.');
+		toast.success('Categoría guardada en Firebase.');
 		setNewCatName('');
 		void refresh();
 	};
@@ -93,7 +94,7 @@ export function CategoriesAdminPanel() {
 			toast.error(r.message);
 			return;
 		}
-		toast.success('Subcategoría creada.');
+		toast.success('Subcategoría guardada en Firebase.');
 		setNewSubName('');
 		void refresh();
 	};
@@ -173,8 +174,8 @@ export function CategoriesAdminPanel() {
 					Categorías y subcategorías
 				</h1>
 				<p className="mt-2 text-sm text-[#6b6156]" style={{ fontFamily: sans }}>
-					Definí la jerarquía de tu tienda (por ejemplo: Francés → Pantalón). Los cambios se guardan en la
-					base de datos.
+					Definí la jerarquía de tu tienda (por ejemplo: Francés → Pantalón). Los cambios se guardan en
+					Firestore (`shop_categories` / `shop_subcategories`).
 				</p>
 			</header>
 

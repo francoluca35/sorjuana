@@ -1,35 +1,33 @@
-import { createClient } from '@/lib/supabase/server';
+import { getPriceSettingsDoc } from '@/lib/firebase/config';
+import { clampPercent } from '@/lib/productPricing';
 
 export type PriceSettingsDTO = {
 	cashDiscountPercent: number;
 	transferDiscountPercent: number;
+	hasStoredDoc: boolean;
 };
 
-const DEFAULT_PRICE_SETTINGS: PriceSettingsDTO = {
+const DEFAULT_PRICE_SETTINGS: Omit<PriceSettingsDTO, 'hasStoredDoc'> = {
 	cashDiscountPercent: 0,
 	transferDiscountPercent: 0,
 };
 
-function toNonNegativePercent(value: unknown): number {
-	const n = Number(value);
-	if (!Number.isFinite(n)) return 0;
-	return Math.max(0, n);
+function toStoredPercent(value: unknown): number {
+	return clampPercent(Number(value));
 }
 
 export async function fetchPriceSettings(): Promise<PriceSettingsDTO> {
-	const supabase = await createClient();
-	const { data, error } = await supabase
-		.from('price_settings')
-		.select('cash_discount_percent, transfer_discount_percent')
-		.eq('id', 1)
-		.maybeSingle();
-
-	if (error || !data) {
-		return DEFAULT_PRICE_SETTINGS;
+	const data = await getPriceSettingsDoc();
+	if (!data) {
+		return { ...DEFAULT_PRICE_SETTINGS, hasStoredDoc: false };
 	}
 
+	const cashRaw = data.cash_discount_percent ?? data.cashDiscountPercent;
+	const transferRaw = data.transfer_discount_percent ?? data.transferDiscountPercent;
+
 	return {
-		cashDiscountPercent: toNonNegativePercent(data.cash_discount_percent),
-		transferDiscountPercent: toNonNegativePercent(data.transfer_discount_percent),
+		cashDiscountPercent: toStoredPercent(cashRaw),
+		transferDiscountPercent: toStoredPercent(transferRaw),
+		hasStoredDoc: true,
 	};
 }

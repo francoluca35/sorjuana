@@ -59,6 +59,23 @@ function orderStatusTone(status: SalesOrderStatus) {
 const serif = "'Cormorant Garamond', serif";
 const sans = 'Montserrat, sans-serif';
 
+function formatPaymentMethod(method: SalesOrderRow['payment_method']): string {
+	switch (method) {
+		case 'efectivo':
+			return 'Efectivo';
+		case 'transferencia':
+			return 'Transferencia';
+		case 'tarjeta':
+			return 'Tarjeta';
+		default:
+			return '—';
+	}
+}
+
+function formatOrderRef(orderId: string): string {
+	return `#${orderId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+}
+
 function formatMoney(n: number) {
 	return `$${n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -135,13 +152,17 @@ function formatItemsExcel(items: unknown): string {
 function exportToExcel(orders: SalesOrderRow[]) {
 	const rows = orders.map((o) => ({
 		ID: o.id,
+		Referencia: formatOrderRef(o.id),
 		Fecha: new Date(o.created_at).toLocaleString('es-AR'),
-		Estado: o.status,
+		Estado: o.status === 'pending' ? 'Reservado' : o.status,
 		Cliente: o.customer_name,
 		Teléfono: o.customer_phone,
 		Localidad: o.customer_locality,
 		Dirección: o.customer_address,
-		Total: Number(o.total_amount) || 0,
+		'Método de pago': formatPaymentMethod(o.payment_method),
+		'Subtotal productos': Number(o.total_amount) || 0,
+		Envío: o.shipping_cost_ars ?? '',
+		Total: Number(o.grand_total) || Number(o.total_amount) || 0,
 		Productos: formatItemsExcel(o.items),
 	}));
 	const ws = XLSX.utils.json_to_sheet(rows);
@@ -169,9 +190,16 @@ export function VentasPanel({ orders }: Props) {
 	return (
 		<AppPanel>
 			<div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-				<h1 className="text-2xl font-light text-[#1a1410] sm:text-3xl" style={{ fontFamily: serif }}>
-					Ventas
-				</h1>
+				<div>
+					<h1 className="text-2xl font-light text-[#1a1410] sm:text-3xl" style={{ fontFamily: serif }}>
+						Ventas
+					</h1>
+					<p className="mt-2 max-w-2xl text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
+						Los pedidos del checkout llegan como <strong>Reservado</strong>. Cuando recibas el
+						comprobante, usá <strong>Confirmar pago</strong>: el estado pasa a Pagado y se descuenta el
+						stock.
+					</p>
+				</div>
 				<div className="flex w-full flex-col gap-3 sm:max-w-none sm:flex-1 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
 					<div className="relative min-w-[min(100%,16rem)] flex-1 sm:max-w-xs">
 						<Search
@@ -256,6 +284,12 @@ export function VentasPanel({ orders }: Props) {
 												{o.customer_name}
 											</p>
 											<VentasOrderStatusBadge status={o.status} />
+											<span
+												className={cn('text-xs font-medium tabular-nums', tone.muted)}
+												style={{ fontFamily: sans }}
+											>
+												{formatOrderRef(o.id)}
+											</span>
 										</div>
 										<time
 											className={cn('text-xs tabular-nums', tone.muted)}
@@ -275,6 +309,12 @@ export function VentasPanel({ orders }: Props) {
 									</p>
 									<p className={cn('mt-0.5 text-sm', tone.muted)} style={{ fontFamily: sans, fontWeight: 300 }}>
 										{o.customer_address}
+									</p>
+									<p className={cn('mt-1 text-xs', tone.muted)} style={{ fontFamily: sans, fontWeight: 300 }}>
+										Pago: {formatPaymentMethod(o.payment_method)}
+										{o.shipping_cost_ars != null && o.shipping_postal_code
+											? ` · Envío CP ${o.shipping_postal_code}: ${formatMoney(o.shipping_cost_ars)}`
+											: ''}
 									</p>
 								</div>
 								<ul className={cn('divide-y px-4 py-2 sm:px-5', tone.lines)}>
@@ -326,9 +366,18 @@ export function VentasPanel({ orders }: Props) {
 											</button>
 										) : null}
 									</div>
-									<p className={cn('text-base font-semibold', tone.strong)} style={{ fontFamily: serif }}>
-										Total {formatMoney(Number(o.total_amount) || 0)}
-									</p>
+									<div className="text-right">
+										{o.shipping_cost_ars != null && o.shipping_cost_ars > 0 ? (
+											<p className={cn('text-xs', tone.muted)} style={{ fontFamily: sans }}>
+												Productos {formatMoney(Number(o.total_amount) || 0)}
+												{' · '}
+												Envío {formatMoney(o.shipping_cost_ars)}
+											</p>
+										) : null}
+										<p className={cn('text-base font-semibold', tone.strong)} style={{ fontFamily: serif }}>
+											Total {formatMoney(Number(o.grand_total) || Number(o.total_amount) || 0)}
+										</p>
+									</div>
 								</div>
 							</li>
 						);

@@ -40,6 +40,8 @@ export type MapaPaginaLegalPageEditorProps = {
 	defaultConfig: LegalPageConfig;
 	loadConfig: () => Promise<LegalPageConfig | null>;
 	saveConfig: (config: LegalPageConfig) => Promise<{ ok: boolean; message?: string }>;
+	saveSuccessMessage?: string;
+	firestoreField?: string;
 };
 
 export function MapaPaginaLegalPageEditor({
@@ -49,15 +51,43 @@ export function MapaPaginaLegalPageEditor({
 	defaultConfig,
 	loadConfig,
 	saveConfig,
+	saveSuccessMessage = 'Contenido publicado en el sitio.',
+	firestoreField = 'site_home_config',
 }: MapaPaginaLegalPageEditorProps) {
 	const [policy, setPolicy] = useState<LegalPageConfig>(defaultConfig);
 	const [activeIdx, setActiveIdx] = useState(0);
+	const [loading, setLoading] = useState(true);
+	const [usingSavedCopy, setUsingSavedCopy] = useState(false);
+	const [saving, setSaving] = useState(false);
 
 	useEffect(() => {
-		void loadConfig().then((cfg) => {
-			if (cfg) setPolicy(cfg);
-		});
-	}, [loadConfig]);
+		let cancelled = false;
+		setLoading(true);
+		void loadConfig()
+			.then((cfg) => {
+				if (cancelled) return;
+				if (cfg) {
+					setPolicy(cfg);
+					setUsingSavedCopy(true);
+				} else {
+					setPolicy(defaultConfig);
+					setUsingSavedCopy(false);
+				}
+			})
+			.catch((e) => {
+				if (cancelled) return;
+				const msg = e instanceof Error ? e.message : 'No se pudo cargar el contenido.';
+				toast.error(msg);
+				setPolicy(defaultConfig);
+				setUsingSavedCopy(false);
+			})
+			.finally(() => {
+				if (!cancelled) setLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [loadConfig, defaultConfig]);
 
 	const updatePolicy = useCallback((partial: Partial<LegalPageConfig>) => {
 		setPolicy((prev) => ({ ...prev, ...partial }));
@@ -95,25 +125,37 @@ export function MapaPaginaLegalPageEditor({
 	}, []);
 
 	const save = useCallback(() => {
-		void saveConfig(policy).then((res) => {
-			if (!res.ok) {
-				toast.error(res.message ?? 'No se pudo guardar.');
-				return;
-			}
-			toast.success('Contenido publicado en el sitio.');
-		});
-	}, [policy, saveConfig]);
+		setSaving(true);
+		void saveConfig(policy)
+			.then((res) => {
+				if (!res.ok) {
+					toast.error(res.message ?? 'No se pudo guardar.');
+					return;
+				}
+				setUsingSavedCopy(true);
+				toast.success(saveSuccessMessage);
+				return loadConfig();
+			})
+			.then((cfg) => {
+				if (cfg) setPolicy(cfg);
+			})
+			.finally(() => setSaving(false));
+	}, [policy, saveConfig, saveSuccessMessage, loadConfig]);
 
 	const resetDefaults = useCallback(() => {
 		setPolicy(defaultConfig);
 		setActiveIdx(0);
-		void saveConfig(defaultConfig).then((res) => {
-			if (!res.ok) {
-				toast.error(res.message ?? 'No se pudo restaurar.');
-				return;
-			}
-			toast.success('Se restauró el texto original y se publicó.');
-		});
+		setSaving(true);
+		void saveConfig(defaultConfig)
+			.then((res) => {
+				if (!res.ok) {
+					toast.error(res.message ?? 'No se pudo restaurar.');
+					return;
+				}
+				setUsingSavedCopy(true);
+				toast.success('Se restauró el texto original y se publicó en Firestore.');
+			})
+			.finally(() => setSaving(false));
 	}, [defaultConfig, saveConfig]);
 
 	const activeSection = policy.sections[activeIdx];
@@ -136,9 +178,22 @@ export function MapaPaginaLegalPageEditor({
 								{publicPath}
 								<ExternalLink className="h-3.5 w-3.5" />
 							</Link>
-							. En los párrafos podés usar <code className="text-xs">{'{whatsapp}'}</code> para insertar el
-							enlace y <code className="text-xs">**texto**</code> para negrita.
+							. Los cambios se guardan en <code className="text-xs">{firestoreField}</code> (Firestore). En
+							los párrafos
+							podés usar <code className="text-xs">{'{whatsapp}'}</code> para insertar el enlace y{' '}
+							<code className="text-xs">**texto**</code> para negrita.
 						</p>
+						{loading ? (
+							<p className="mt-2 text-xs text-[#8a7a68]" style={{ fontFamily: sans }}>
+								Cargando contenido publicado…
+							</p>
+						) : (
+							<p className="mt-2 text-xs text-[#8a7a68]" style={{ fontFamily: sans }}>
+								{usingSavedCopy
+									? 'Mostrando la versión guardada en la base de datos.'
+									: 'Aún no hay versión guardada: se muestra el texto predeterminado. Editá y pulsar «Publicar cambios».'}
+							</p>
+						)}
 					</div>
 					<div className="flex flex-wrap gap-2">
 						<Button
@@ -146,11 +201,19 @@ export function MapaPaginaLegalPageEditor({
 							size="sm"
 							className="bg-[#1a1410] text-[#f5f2ed] hover:bg-[#2a221c]"
 							onClick={save}
+							disabled={loading || saving}
 						>
 							<Save className="mr-2 h-4 w-4" />
-							Publicar cambios
+							{saving ? 'Guardando…' : 'Publicar cambios'}
 						</Button>
-						<Button type="button" variant="outline" size="sm" className="border-[#b8956a]/40" onClick={resetDefaults}>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="border-[#b8956a]/40"
+							onClick={resetDefaults}
+							disabled={loading || saving}
+						>
 							<RotateCcw className="mr-2 h-4 w-4" />
 							Restaurar original
 						</Button>

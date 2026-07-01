@@ -205,7 +205,7 @@ export async function downloadPaymentReceiptPdf(order: SalesOrderRow): Promise<v
 	doc.setFontSize(12);
 	doc.setTextColor(...INK);
 	doc.text('Total abonado', M, y);
-	doc.text(formatMoneyArs(Number(order.total_amount) || 0), colAmt, y, { align: 'right' });
+	doc.text(formatMoneyArs(Number(order.grand_total) || Number(order.total_amount) || 0), colAmt, y, { align: 'right' });
 
 	const pageH = doc.internal.pageSize.getHeight();
 	const footY = pageH - 14;

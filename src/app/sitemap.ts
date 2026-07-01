@@ -1,19 +1,11 @@
 import type { MetadataRoute } from 'next';
-import { createClient } from '@/lib/supabase/server';
+import { fetchLatestProductCreatedAt } from '@/lib/firebase/products';
 import { getCanonicalUrl } from '@/lib/seo';
 
 async function fetchCatalogLastModified(): Promise<Date | undefined> {
 	try {
-		const supabase = await createClient();
-		const { data, error } = await supabase
-			.from('products')
-			.select('created_at')
-			.order('created_at', { ascending: false })
-			.limit(1)
-			.maybeSingle();
-
-		if (error || !data?.created_at) return undefined;
-		return new Date(data.created_at);
+		const latest = await fetchLatestProductCreatedAt();
+		return latest ? new Date(latest) : undefined;
 	} catch {
 		return undefined;
 	}

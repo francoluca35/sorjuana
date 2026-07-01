@@ -529,7 +529,11 @@ export default function ProductForm() {
 				return;
 			}
 
-			toast.success('Producto guardado en la base de datos.');
+			const imgNote =
+				uploadedImages.length > 0
+					? ` ${uploadedImages.length} imagen(es) en Cloudinary.`
+					: '';
+			toast.success(`Producto guardado en Firebase.${imgNote}`);
 			router.push('/app/productos');
 		} catch (err) {
 			const msg =

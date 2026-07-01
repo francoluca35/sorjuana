@@ -17,6 +17,7 @@ import { Input } from '@/app/components/ui/input';
 import { cn } from '@/app/components/ui/utils';
 import {
 	RECENT_ARRIVALS_MAX,
+	RECENT_ARRIVALS_MIN,
 	broadcastRecentArrivalsSelectionUpdated,
 	parseStoredProductIds,
 } from '@/lib/recentArrivalsSelection';
@@ -106,13 +107,19 @@ export function MapaPaginaRecienLlegadosPanel() {
 	}
 
 	function saveSelection() {
+		if (selectedIds.length > 0 && selectedIds.length < RECENT_ARRIVALS_MIN) {
+			toast.error(
+				`Elegí al menos ${RECENT_ARRIVALS_MIN} productos (máximo ${RECENT_ARRIVALS_MAX}) para guardar la selección.`,
+			);
+			return;
+		}
 		void saveRecentArrivalsIdsAction(selectedIds).then((res) => {
 			if (!res.ok) {
 				toast.error(res.message ?? 'No se pudo guardar.');
 				return;
 			}
 			broadcastRecentArrivalsSelectionUpdated();
-			toast.success('Selección guardada en el sitio. La home mostrará estos productos en ese orden.');
+			toast.success('Selección guardada en Firestore. La home mostrará estos productos en ese orden.');
 		});
 	}
 
@@ -144,9 +151,9 @@ export function MapaPaginaRecienLlegadosPanel() {
 					Recién llegados
 				</h2>
 				<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-					Elegí hasta {RECENT_ARRIVALS_MAX} productos para la sección pública &quot;Recién llegados&quot; del
-					inicio. Si no guardás ninguna selección (o la limpiás), se muestran automáticamente los{' '}
-					{RECENT_ARRIVALS_MAX} más nuevos por fecha de alta.
+					Elegí entre {RECENT_ARRIVALS_MIN} y {RECENT_ARRIVALS_MAX} productos para la sección &quot;Recién
+					llegados&quot; del inicio. Si no guardás una selección válida (o la limpiás), se muestran
+					automáticamente los {RECENT_ARRIVALS_MAX} más nuevos por fecha de alta.
 				</p>
 				<div className="mt-4 flex flex-wrap gap-2">
 					<Button
@@ -165,7 +172,11 @@ export function MapaPaginaRecienLlegadosPanel() {
 						size="sm"
 						className="bg-[#1a1410] text-[#f5f2ed] hover:bg-[#2a221c]"
 						onClick={saveSelection}
-						disabled={loading || !rows?.length}
+						disabled={
+							loading ||
+							!rows?.length ||
+							(selectedIds.length > 0 && selectedIds.length < RECENT_ARRIVALS_MIN)
+						}
 					>
 						Guardar selección ({selectedIds.length}/{RECENT_ARRIVALS_MAX})
 					</Button>
@@ -174,6 +185,13 @@ export function MapaPaginaRecienLlegadosPanel() {
 					</Button>
 				</div>
 			</div>
+
+			{selectedIds.length > 0 && selectedIds.length < RECENT_ARRIVALS_MIN ? (
+				<p className="text-sm text-amber-800/90" style={{ fontFamily: sans, fontWeight: 400 }}>
+					Faltan {RECENT_ARRIVALS_MIN - selectedIds.length} producto(s) para poder guardar (mínimo{' '}
+					{RECENT_ARRIVALS_MIN}, máximo {RECENT_ARRIVALS_MAX}).
+				</p>
+			) : null}
 
 			{selectedIds.length > 0 ? (
 				<div className="rounded-xl border border-[#b8956a]/20 bg-[#faf8f7]/90 p-4 sm:p-5">
@@ -238,9 +256,9 @@ export function MapaPaginaRecienLlegadosPanel() {
 				>
 					<Package className="h-10 w-10 text-[#b8956a]/70" strokeWidth={1.25} />
 					<p className="max-w-md text-sm text-[#6b6156]">
-						No hay filas en la tabla pública{' '}
-						<span className="font-mono text-xs text-[#1a1410]">products</span>. Aplicá la migración en
-						Supabase y cargá artículos para verlos acá y en el inicio.
+						No hay productos cargados. Subí artículos desde{' '}
+						<span className="font-medium text-[#1a1410]">Cargar producto</span> para elegirlos acá y
+						mostrarlos en el inicio.
 					</p>
 				</div>
 			) : null}

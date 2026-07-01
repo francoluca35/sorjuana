@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createServiceRoleClient } from '@/lib/supabase/service';
+import { checkoutReserve, type CheckoutItemOut } from '@/lib/firebase/orders';
 import { siteWhatsAppUrl } from '@/app/config/contact';
 
 export type CheckoutLineInput = {
@@ -27,9 +27,7 @@ export type CheckoutCustomerInput = {
 	phone: string;
 	locality: string;
 	address: string;
-	/** CP usado en la cotización de envío (solo dígitos). */
 	shippingPostalCode?: string;
-	/** Importe de envío en ARS (si el cliente cotizó antes de confirmar). */
 	shippingCostArs?: number;
 };
 
@@ -37,8 +35,16 @@ function formatMoney(n: number) {
 	return `$${n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatOrderRef(orderId: string) {
+	return orderId.replace(/-/g, '').slice(0, 8).toUpperCase();
+}
+
 function buildWhatsAppUrl(args: {
+	orderId: string;
 	customerName: string;
+	customerPhone: string;
+	customerLocality: string;
+	customerAddress: string;
 	paymentMethod: CheckoutPaymentMethod;
 	items: {
 		product_code: string;
@@ -58,29 +64,42 @@ function buildWhatsAppUrl(args: {
 			: args.paymentMethod === 'transferencia'
 				? 'Transferencia'
 				: 'Efectivo';
+
 	const lines = args.items.map((l) => {
 		const code = l.product_code?.trim() ? ` [${l.product_code}]` : '';
 		const talla = l.size?.trim() ? ` — Talle: ${l.size}` : '';
 		return `•${code} ${l.name}${talla} ×${l.qty} — ${formatMoney(l.unit_price)} c/u → ${formatMoney(l.line_total)}`;
 	});
+
 	const shippingLine =
 		args.shippingCostArs != null &&
 		args.shippingCostArs >= 0 &&
 		args.shippingPostalCode?.trim()
 			? `\nEnvío estimado (CP ${args.shippingPostalCode.trim()}): ${formatMoney(args.shippingCostArs)}`
 			: '';
+
 	const grandTotal =
 		args.total + (args.shippingCostArs != null && args.shippingCostArs >= 0 ? args.shippingCostArs : 0);
 
-	const body = `Hola, soy ${args.customerName.trim()}, quiero comprar estos productos:
+	const body = `Hola, soy ${args.customerName.trim()}. Quiero confirmar este pedido:
 
+Ref. pedido: #${formatOrderRef(args.orderId)}
+
+Datos de contacto:
+• Teléfono: ${args.customerPhone.trim()}
+• Localidad: ${args.customerLocality.trim()}
+• Dirección: ${args.customerAddress.trim()}
+
+Productos:
 ${lines.join('\n')}
 
 Método de pago: ${paymentMethodLabel}
 
 Subtotal productos: ${formatMoney(args.total)}${shippingLine}
 
-Total: ${formatMoney(grandTotal)}`;
+Total: ${formatMoney(grandTotal)}
+
+Envío el comprobante de pago cuando lo realice. Gracias.`;
 
 	let phone = '5491159795700';
 	try {
@@ -92,6 +111,44 @@ Total: ${formatMoney(grandTotal)}`;
 		/* ignore */
 	}
 	return `https://wa.me/${phone}?text=${encodeURIComponent(body)}`;
+}
+
+function buildPricedItems(
+	lines: CheckoutLineInput[],
+	displayLines: CheckoutDisplayLineInput[],
+	paymentMethod: CheckoutPaymentMethod,
+): CheckoutItemOut[] {
+	const displayByKey = new Map<string, CheckoutDisplayLineInput>();
+	for (const line of displayLines) {
+		const key = `${line.productId}__${String(line.size ?? '').trim()}`;
+		displayByKey.set(key, line);
+	}
+
+	return lines.map((line) => {
+		const productId = String(line.productId ?? '').trim();
+		const size = String(line.size ?? '').trim();
+		const qty = Math.max(1, Math.floor(Number(line.qty) || 0));
+		const display = displayByKey.get(`${productId}__${size}`);
+
+		const discountedUnitPrice = Math.max(0, Number(display?.discountedUnitPrice) || 0);
+		const listUnitPrice = Math.max(0, Number(display?.listUnitPrice) || 0);
+		const unitPrice =
+			paymentMethod === 'tarjeta'
+				? listUnitPrice > 0
+					? listUnitPrice
+					: discountedUnitPrice
+				: discountedUnitPrice;
+
+		return {
+			product_id: productId,
+			product_code: String(display?.productCode ?? '').trim(),
+			name: String(display?.name ?? 'Producto').trim() || 'Producto',
+			size,
+			qty,
+			unit_price: unitPrice,
+			line_total: unitPrice * qty,
+		};
+	});
 }
 
 export async function checkoutAndReserve(
@@ -110,95 +167,58 @@ export async function checkoutAndReserve(
 		return { ok: false, error: 'Método de pago inválido.' };
 	}
 
-	const payload = lines.map((l) => ({
-		product_id: l.productId,
-		size: l.size ?? null,
-		qty: l.qty,
-	}));
+	const pricedItems = buildPricedItems(lines, displayLines, paymentMethod).filter(
+		(line) => line.product_id && line.name,
+	);
 
-	let supabase;
+	if (!pricedItems.length) {
+		return { ok: false, error: 'No se pudieron procesar los productos del carrito.' };
+	}
+
 	try {
-		supabase = createServiceRoleClient();
-	} catch (e) {
+		const row = await checkoutReserve(
+			customer,
+			pricedItems,
+			{
+				payment_method: paymentMethod,
+				shipping_postal_code: customer.shippingPostalCode,
+				shipping_cost_ars: customer.shippingCostArs,
+			},
+		);
+
+		const whatsappUrl = buildWhatsAppUrl({
+			orderId: row.order_id,
+			customerName: customer.name,
+			customerPhone: customer.phone,
+			customerLocality: customer.locality,
+			customerAddress: customer.address,
+			paymentMethod,
+			items: pricedItems.map((line) => ({
+				product_code: line.product_code,
+				name: line.name,
+				size: line.size,
+				qty: line.qty,
+				unit_price: line.unit_price,
+				line_total: line.line_total,
+			})),
+			total: row.total,
+			shippingPostalCode: customer.shippingPostalCode,
+			shippingCostArs: customer.shippingCostArs,
+		});
+
+		revalidatePath('/catalogo');
+		revalidatePath('/');
+		revalidatePath('/app/ventas');
+		revalidatePath('/app/productos');
+
 		return {
-			ok: false,
-			error: e instanceof Error ? e.message : 'Error de configuración del servidor.',
+			ok: true,
+			orderId: row.order_id,
+			whatsappUrl,
+			total: row.total + (customer.shippingCostArs ?? 0),
 		};
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'No se pudo completar el pedido.';
+		return { ok: false, error: msg.replace(/^ERROR:\s*/i, '').trim() || msg };
 	}
-
-	const { data, error } = await supabase.rpc('checkout_reserve', {
-		p_customer_name: customer.name.trim(),
-		p_customer_phone: customer.phone.trim(),
-		p_customer_locality: customer.locality.trim(),
-		p_customer_address: customer.address.trim(),
-		p_items: payload,
-	});
-
-	if (error) {
-		const msg = error.message || 'No se pudo completar el pedido.';
-		const friendly = msg.replace(/^ERROR:\s*/i, '').replace(/^P0001:\s*/i, '').trim();
-		return { ok: false, error: friendly || msg };
-	}
-
-	const row = data as Record<string, unknown> | null;
-	if (!row || row.ok !== true) {
-		return { ok: false, error: 'Respuesta inválida del servidor.' };
-	}
-
-	const safeDisplayLines = displayLines
-		.filter((l) => l && typeof l === 'object')
-		.map((l) => {
-			const qty = Math.max(1, Math.floor(Number(l.qty) || 0));
-			const discountedUnitPrice = Math.max(0, Number(l.discountedUnitPrice) || 0);
-			const listUnitPrice = Math.max(0, Number(l.listUnitPrice) || 0);
-			const unitPrice =
-				paymentMethod === 'tarjeta'
-					? listUnitPrice > 0
-						? listUnitPrice
-						: discountedUnitPrice
-					: discountedUnitPrice;
-			return {
-				product_code: String(l.productCode ?? '').trim(),
-				name: String(l.name ?? '').trim(),
-				size: String(l.size ?? '').trim(),
-				qty,
-				unit_price: unitPrice,
-				line_total: unitPrice * qty,
-			};
-		})
-		.filter((l) => l.name.length > 0);
-
-	const whatsappItems =
-		safeDisplayLines.length > 0
-			? safeDisplayLines
-			: lines.map((l) => ({
-					product_code: '',
-					name: 'Producto',
-					size: String(l.size ?? '').trim(),
-					qty: Math.max(1, Math.floor(Number(l.qty) || 0)),
-					unit_price: 0,
-					line_total: 0,
-				}));
-	const whatsappTotal = whatsappItems.reduce((sum, l) => sum + l.line_total, 0);
-
-	const whatsappUrl = buildWhatsAppUrl({
-		customerName: customer.name,
-		paymentMethod,
-		items: whatsappItems,
-		total: whatsappTotal,
-		shippingPostalCode: customer.shippingPostalCode,
-		shippingCostArs: customer.shippingCostArs,
-	});
-
-	revalidatePath('/catalogo');
-	revalidatePath('/');
-	revalidatePath('/app/ventas');
-	revalidatePath('/app/productos');
-
-	return {
-		ok: true,
-		orderId: String(row.order_id ?? ''),
-		whatsappUrl,
-		total: whatsappTotal,
-	};
 }

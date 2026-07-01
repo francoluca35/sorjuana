@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server';
+import { getSiteHomeConfigDoc } from '@/lib/firebase/config';
+import { fetchProductsCategoryMedia } from '@/lib/firebase/products';
 import {
 	getDefaultCategorySpotlightRail,
 	parseCategorySpotlightRailFromJson,
@@ -18,9 +19,8 @@ function pickImage(row: Record<string, unknown>): string | null {
 	return null;
 }
 
-/** Primera imagen de producto cuya ruta `category` contiene el slug de marketing. */
 function findProductImageForSlug(
-	data: { category?: string }[],
+	data: { category?: string | null; image_url?: string | null; image_urls?: string[] }[],
 	slug: string,
 ): string | null {
 	const needle = slug.trim().toLowerCase();
@@ -34,30 +34,22 @@ function findProductImageForSlug(
 	return null;
 }
 
-/**
- * Imágenes por categoría para el rail: override publicado en `site_home_config`, o primera foto de producto por slug.
- */
 export async function fetchCategorySpotlights(): Promise<CategorySpotlight[]> {
-	const supabase = await createClient();
+	try {
+		const [cfgRow, data] = await Promise.all([getSiteHomeConfigDoc(), fetchProductsCategoryMedia()]);
 
-	const [{ data: cfgRow }, productsQuery] = await Promise.all([
-		supabase.from('site_home_config').select('category_spotlight_rail').eq('id', 1).maybeSingle(),
-		supabase.from('products').select('category,image_url,image_urls').not('category', 'is', null).limit(500),
-	]);
+		const published = parseCategorySpotlightRailFromJson(cfgRow?.category_spotlight_rail);
+		const usesClientDefaults =
+			!published?.length || !published.some((item) => item.slug === 'chic-europeo');
+		const base = usesClientDefaults ? getDefaultCategorySpotlightRail() : published;
 
-	const published = parseCategorySpotlightRailFromJson(cfgRow?.category_spotlight_rail);
-	const usesClientDefaults =
-		!published?.length || !published.some((item) => item.slug === 'chic-europeo');
-	const base = usesClientDefaults ? getDefaultCategorySpotlightRail() : published;
-	const data = productsQuery.data;
-	const error = productsQuery.error;
+		if (!data.length) return base;
 
-	if (error || !data?.length) {
-		return base;
+		return base.map((item) => ({
+			...item,
+			imageUrl: findProductImageForSlug(data, item.slug) ?? item.imageUrl,
+		}));
+	} catch {
+		return getDefaultCategorySpotlightRail();
 	}
-
-	return base.map((item) => ({
-		...item,
-		imageUrl: findProductImageForSlug(data, item.slug) ?? item.imageUrl,
-	}));
 }

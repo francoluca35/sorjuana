@@ -6,6 +6,7 @@ export const RECENT_ARRIVALS_IDS_STORAGE_KEY = 'sj-recien-llegados-ids-v1';
 export const RECENT_ARRIVALS_UPDATED_EVENT = 'sj-recien-llegados-updated';
 
 export const RECENT_ARRIVALS_MAX = 6;
+export const RECENT_ARRIVALS_MIN = 3;
 
 export function parseStoredProductIds(raw: string | null, max: number = RECENT_ARRIVALS_MAX): string[] {
 	if (raw == null || raw.trim() === '') return [];
@@ -56,9 +57,9 @@ export function resolveRecentArrivalsForDisplay(
 	max: number = RECENT_ARRIVALS_MAX,
 ): ProductRow[] {
 	const ids = orderedStoredIds.slice(0, max);
-	if (ids.length > 0) {
+	if (ids.length >= RECENT_ARRIVALS_MIN) {
 		const picked = pickProductsByOrderedIds(candidates, ids, max);
-		if (picked.length > 0) return picked;
+		if (picked.length >= RECENT_ARRIVALS_MIN) return picked;
 	}
 	const fb = automaticFallback ?? candidates;
 	return fb.slice(0, max);
@@ -67,4 +68,13 @@ export function resolveRecentArrivalsForDisplay(
 export function broadcastRecentArrivalsSelectionUpdated() {
 	if (typeof window === 'undefined') return;
 	window.dispatchEvent(new Event(RECENT_ARRIVALS_UPDATED_EVENT));
+}
+
+/** Une listas de productos por `id` (útil para incluir selección admin en el pool de la home). */
+export function mergeProductRowsById(...lists: ProductRow[][]): ProductRow[] {
+	const byId = new Map<string, ProductRow>();
+	for (const list of lists) {
+		for (const row of list) byId.set(row.id, row);
+	}
+	return [...byId.values()];
 }

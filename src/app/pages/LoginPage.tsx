@@ -9,7 +9,7 @@ import { Label } from '@/app/components/ui/label';
 import { Checkbox } from '@/app/components/ui/checkbox';
 import { Button } from '@/app/components/ui/button';
 import { cn } from '@/app/components/ui/utils';
-import { loginWithUsername } from '@/app/actions/auth';
+import { loginWithEmail } from '@/app/actions/auth';
 
 const serif = "'Cormorant Garamond', serif";
 const sans = 'Montserrat, sans-serif';
@@ -43,11 +43,11 @@ export function LoginPage() {
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
-    const username = String(fd.get('username') ?? '');
+    const email = String(fd.get('email') ?? '');
     const password = String(fd.get('password') ?? '');
     setPending(true);
     try {
-      const result = await loginWithUsername(username, password);
+      const result = await loginWithEmail(email, password);
       if (result.ok) {
         router.refresh();
         router.push('/app/dashboard');
@@ -135,17 +135,18 @@ export function LoginPage() {
             <form onSubmit={onSubmit} className="mt-12 space-y-8">
               <div className="space-y-2">
                 <Label
-                  htmlFor="login-username"
+                  htmlFor="login-email"
                   className="text-[11px] font-normal tracking-widest text-[#6b6156] uppercase"
                   style={{ fontFamily: sans }}
                 >
-                  Usuario
+                  Email
                 </Label>
                 <input
-                  id="login-username"
-                  name="username"
-                  type="text"
-                  autoComplete="username"
+                  id="login-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
                   required
                   disabled={pending}
                   className={cn(

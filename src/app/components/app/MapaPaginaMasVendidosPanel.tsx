@@ -2,11 +2,12 @@
 
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Package, RefreshCw, Search } from 'lucide-react';
+import { ChevronDown, ChevronUp, Package, RefreshCw, Search, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchAllProductsForPanelAction } from '@/app/actions/products';
 import {
 	clearBestSellersIdsAction,
+	fetchProductSoldQuantitiesAction,
 	getSiteHomeConfigAction,
 	saveBestSellersIdsAction,
 } from '@/app/actions/siteHomeConfig';
@@ -19,10 +20,13 @@ import {
 	BEST_SELLERS_MAX,
 	broadcastBestSellersSelectionUpdated,
 	parseStoredProductIds,
+	pickProductsByTopSoldWithFallback,
 } from '@/lib/bestSellersSelection';
 
 const sans = 'Montserrat, sans-serif';
 const serif = "'Cormorant Garamond', serif";
+
+type SortMode = 'sold' | 'catalog';
 
 function formatFecha(iso: string) {
 	try {
@@ -37,31 +41,27 @@ function formatFecha(iso: string) {
 
 export function MapaPaginaMasVendidosPanel() {
 	const [rows, setRows] = useState<ProductRow[] | null>(null);
+	const [soldQty, setSoldQty] = useState<Record<string, number>>({});
 	const [loading, setLoading] = useState(true);
 	const [err, setErr] = useState<string | null>(null);
 	const [selectedIds, setSelectedIds] = useState<string[]>([]);
 	const [filterText, setFilterText] = useState('');
-
-	const filteredRows = useMemo(() => {
-		if (!rows) return [];
-		const q = filterText.trim().toLowerCase();
-		if (!q) return rows;
-		return rows.filter((p) => {
-			const name = (p.name ?? '').toLowerCase();
-			const code = (p.product_code ?? '').trim().toLowerCase();
-			return name.includes(q) || code.includes(q);
-		});
-	}, [rows, filterText]);
+	const [sortMode, setSortMode] = useState<SortMode>('sold');
 
 	const load = useCallback(async () => {
 		setLoading(true);
 		setErr(null);
 		try {
-			const data = await fetchAllProductsForPanelAction();
+			const [data, sold] = await Promise.all([
+				fetchAllProductsForPanelAction(),
+				fetchProductSoldQuantitiesAction(),
+			]);
 			setRows(data);
+			setSoldQty(sold);
 		} catch {
 			setErr('No se pudo cargar la lista.');
 			setRows([]);
+			setSoldQty({});
 		} finally {
 			setLoading(false);
 		}
@@ -79,6 +79,29 @@ export function MapaPaginaMasVendidosPanel() {
 			setSelectedIds(parsed.filter((id) => valid.has(id)));
 		});
 	}, [rows]);
+
+	const getSold = useCallback((id: string) => soldQty[id] ?? 0, [soldQty]);
+
+	const filteredRows = useMemo(() => {
+		if (!rows) return [];
+		const q = filterText.trim().toLowerCase();
+		let list = rows;
+		if (q) {
+			list = list.filter((p) => {
+				const name = (p.name ?? '').toLowerCase();
+				const code = (p.product_code ?? '').trim().toLowerCase();
+				return name.includes(q) || code.includes(q);
+			});
+		}
+		if (sortMode === 'sold') {
+			return [...list].sort((a, b) => {
+				const diff = getSold(b.id) - getSold(a.id);
+				if (diff !== 0) return diff;
+				return String(a.name ?? '').localeCompare(String(b.name ?? ''), 'es');
+			});
+		}
+		return list;
+	}, [rows, filterText, sortMode, getSold]);
 
 	function toggleProduct(id: string) {
 		setSelectedIds((prev) => {
@@ -105,6 +128,13 @@ export function MapaPaginaMasVendidosPanel() {
 		});
 	}
 
+	function suggestTopSold() {
+		if (!rows?.length) return;
+		const top = pickProductsByTopSoldWithFallback(rows, soldQty, BEST_SELLERS_MAX).map((p) => p.id);
+		setSelectedIds(top);
+		toast.success(`Sugeridos ${top.length} producto(s) según ventas pagadas. Revisá y guardá.`);
+	}
+
 	function saveSelection() {
 		void saveBestSellersIdsAction(selectedIds).then((res) => {
 			if (!res.ok) {
@@ -112,7 +142,7 @@ export function MapaPaginaMasVendidosPanel() {
 				return;
 			}
 			broadcastBestSellersSelectionUpdated();
-			toast.success('Selección guardada en el sitio. El inicio mostrará estos productos en «Más vendidos» en ese orden.');
+			toast.success('Selección guardada en Firestore. El inicio mostrará estos productos en «Más vendidos».');
 		});
 	}
 
@@ -125,7 +155,7 @@ export function MapaPaginaMasVendidosPanel() {
 			}
 			broadcastBestSellersSelectionUpdated();
 			toast.success(
-				`Listo: en el inicio se sugerirán hasta ${BEST_SELLERS_MAX} artículos del catálogo (por fecha de alta).`,
+				'Listo: en el inicio se mostrarán automáticamente los más vendidos según pedidos pagados.',
 			);
 		});
 	}
@@ -133,6 +163,11 @@ export function MapaPaginaMasVendidosPanel() {
 	const selectedRows = selectedIds
 		.map((id) => rows?.find((r) => r.id === id))
 		.filter((r): r is ProductRow => Boolean(r));
+
+	const totalSoldUnits = useMemo(
+		() => Object.values(soldQty).reduce((s, n) => s + n, 0),
+		[soldQty],
+	);
 
 	return (
 		<div className="space-y-6">
@@ -144,10 +179,17 @@ export function MapaPaginaMasVendidosPanel() {
 					Más vendidos
 				</h2>
 				<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-					Elegí hasta {BEST_SELLERS_MAX} productos para la sección pública &quot;Productos más vendidos&quot; del
-					inicio. Si no guardás ninguna selección (o la limpiás), se muestran hasta {BEST_SELLERS_MAX} del
-					catálogo (los más nuevos por fecha de alta) como referencia.
+					Elegí hasta {BEST_SELLERS_MAX} productos para la sección &quot;Productos más vendidos&quot; del
+					inicio. La columna <strong className="font-semibold text-[#5c5349]">Vendidos</strong> suma
+					unidades de pedidos <strong className="font-semibold text-[#5c5349]">pagados</strong> en
+					Firestore. Guardá para publicar; si no hay selección, el inicio usa los más vendidos
+					automáticamente.
 				</p>
+				{totalSoldUnits > 0 ? (
+					<p className="mt-2 text-xs text-[#8a7a68]" style={{ fontFamily: sans, fontWeight: 300 }}>
+						Total histórico registrado: {totalSoldUnits.toLocaleString('es-AR')} unidades vendidas (pagadas).
+					</p>
+				) : null}
 				<div className="mt-4 flex flex-wrap gap-2">
 					<Button
 						type="button"
@@ -169,8 +211,19 @@ export function MapaPaginaMasVendidosPanel() {
 					>
 						Guardar selección ({selectedIds.length}/{BEST_SELLERS_MAX})
 					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="border-[#b8956a]/40"
+						onClick={suggestTopSold}
+						disabled={loading || !rows?.length}
+					>
+						<TrendingUp className="mr-2 h-4 w-4" />
+						Sugerir por ventas
+					</Button>
 					<Button type="button" variant="ghost" size="sm" onClick={clearSelection} disabled={loading}>
-						Usar sugerencia automática (catálogo reciente)
+						Usar automático (top ventas)
 					</Button>
 				</div>
 			</div>
@@ -189,6 +242,9 @@ export function MapaPaginaMasVendidosPanel() {
 							>
 								<span className="w-6 shrink-0 text-xs text-[#8a7a68]">{idx + 1}.</span>
 								<span className="min-w-0 flex-1 truncate font-light">{p.name}</span>
+								<span className="shrink-0 text-xs tabular-nums text-[#8a7a68]">
+									{getSold(p.id)} vend.
+								</span>
 								<div className="flex shrink-0 gap-0.5">
 									<Button
 										type="button"
@@ -227,7 +283,7 @@ export function MapaPaginaMasVendidosPanel() {
 
 			{loading && rows === null ? (
 				<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-					Cargando productos…
+					Cargando productos y ventas…
 				</p>
 			) : null}
 
@@ -238,16 +294,14 @@ export function MapaPaginaMasVendidosPanel() {
 				>
 					<Package className="h-10 w-10 text-[#b8956a]/70" strokeWidth={1.25} />
 					<p className="max-w-md text-sm text-[#6b6156]">
-						No hay filas en la tabla pública{' '}
-						<span className="font-mono text-xs text-[#1a1410]">products</span>. Aplicá la migración en
-						Supabase y cargá artículos para verlos acá y en el inicio.
+						No hay productos cargados. Subí artículos desde Cargar producto para elegirlos acá.
 					</p>
 				</div>
 			) : null}
 
 			{rows && rows.length > 0 ? (
-				<div className="space-y-3">
-					<div className="relative max-w-md">
+				<div className="flex flex-wrap items-center gap-3">
+					<div className="relative max-w-md flex-1">
 						<Search
 							className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8a7a68]"
 							strokeWidth={1.5}
@@ -263,24 +317,53 @@ export function MapaPaginaMasVendidosPanel() {
 							aria-label="Filtrar por nombre o código"
 						/>
 					</div>
-					{filteredRows.length === 0 ? (
-						<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-							No hay productos que coincidan con la búsqueda. Probá con otro nombre o código.
-						</p>
-					) : null}
+					<div className="inline-flex rounded-lg border border-[#b8956a]/28 bg-[#faf8f7]/90 p-0.5">
+						<button
+							type="button"
+							onClick={() => setSortMode('sold')}
+							className={cn(
+								'rounded-md px-3 py-1.5 text-xs transition',
+								sortMode === 'sold'
+									? 'bg-[#1a1410] text-[#f5f2ed]'
+									: 'text-[#6b6156] hover:bg-white/80',
+							)}
+							style={{ fontFamily: sans, fontWeight: 500 }}
+						>
+							Orden: más vendidos
+						</button>
+						<button
+							type="button"
+							onClick={() => setSortMode('catalog')}
+							className={cn(
+								'rounded-md px-3 py-1.5 text-xs transition',
+								sortMode === 'catalog'
+									? 'bg-[#1a1410] text-[#f5f2ed]'
+									: 'text-[#6b6156] hover:bg-white/80',
+							)}
+							style={{ fontFamily: sans, fontWeight: 500 }}
+						>
+							Orden: catálogo
+						</button>
+					</div>
 				</div>
+			) : null}
+
+			{rows && rows.length > 0 && filteredRows.length === 0 ? (
+				<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
+					No hay productos que coincidan con la búsqueda.
+				</p>
 			) : null}
 
 			{rows && rows.length > 0 && filteredRows.length > 0 ? (
 				<div className="overflow-x-auto rounded-xl border border-[#b8956a]/25 bg-white/80 shadow-sm">
-					<table className="w-full min-w-[800px] text-left text-sm">
+					<table className="w-full min-w-[880px] text-left text-sm">
 						<thead>
 							<tr className="border-b border-[#b8956a]/20 bg-[#faf8f7]/90">
 								<th className="w-12 px-3 py-3 font-medium text-[#6b6156]" style={{ fontFamily: sans }}>
 									Inicio
 								</th>
 								<th className="px-4 py-3 font-medium text-[#6b6156]" style={{ fontFamily: sans }}>
-									Orden
+									Vendidos
 								</th>
 								<th className="px-4 py-3 font-medium text-[#6b6156]" style={{ fontFamily: sans }}>
 									Imagen
@@ -304,7 +387,7 @@ export function MapaPaginaMasVendidosPanel() {
 						</thead>
 						<tbody>
 							{filteredRows.map((p) => {
-								const i = rows.indexOf(p);
+								const sold = getSold(p.id);
 								const price = Number(p.price);
 								const compare = p.compare_at_price != null ? Number(p.compare_at_price) : null;
 								const img =
@@ -323,8 +406,17 @@ export function MapaPaginaMasVendidosPanel() {
 												}
 											/>
 										</td>
-										<td className="px-4 py-3 text-[#8a7a68]" style={{ fontFamily: sans }}>
-											{i + 1}
+										<td className="px-4 py-3 tabular-nums" style={{ fontFamily: sans }}>
+											<span
+												className={cn(
+													'inline-flex min-w-[2rem] justify-center rounded-full px-2 py-0.5 text-xs font-semibold',
+													sold > 0
+														? 'bg-[#b8956a]/20 text-[#1a1410]'
+														: 'bg-black/[0.04] text-[#8a7a68]',
+												)}
+											>
+												{sold}
+											</span>
 										</td>
 										<td className="px-4 py-2">
 											<div className="relative h-12 w-10 overflow-hidden rounded border border-[#b8956a]/20 bg-[#f5f2ed]">

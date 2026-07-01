@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import Image from 'next/image';
 import type { LucideIcon } from 'lucide-react';
 import { DollarSign, Package, ShoppingCart, TrendingUp } from 'lucide-react';
-import { createClient } from '@/lib/supabase/server';
+import { getSessionUser } from '@/lib/firebase/auth-server';
+import { getProfileByUid } from '@/lib/firebase/config';
 import { fetchDashboardStats } from '@/lib/data/dashboardStats';
 import { AppPanel } from '@/app/components/app/AppPanel';
 import { cn } from '@/app/components/ui/utils';
@@ -304,29 +305,15 @@ function WeeklyGlassChart({
 }
 
 export async function DashboardHome() {
-	if (
-		!process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
-		!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
-	) {
+	if (!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim()) {
 		redirect('/login');
 	}
 
-	const supabase = await createClient();
-	const {
-		data: { user },
-	} = await supabase.auth.getUser();
+	const user = await getSessionUser();
+	if (!user) redirect('/login');
 
-	if (!user) {
-		redirect('/login');
-	}
-
-	const { data: profile } = await supabase
-		.from('profiles')
-		.select('username, role')
-		.eq('id', user.id)
-		.maybeSingle();
-
-	const stats = await fetchDashboardStats(supabase);
+	const profile = await getProfileByUid(user.uid);
+	const stats = await fetchDashboardStats();
 
 	const displayName = profile?.username ?? user.email?.split('@')[0] ?? 'Usuario';
 	const avatarSrc = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=f5f0eb`;

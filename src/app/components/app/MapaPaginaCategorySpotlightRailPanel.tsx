@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ExternalLink, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
 import { getSiteHomeConfigAction, saveCategorySpotlightRailAction } from '@/app/actions/siteHomeConfig';
-import { uploadSorjuanaMedia } from '@/app/actions/storage';
+import { uploadCategorySpotlightImageToCloudinary } from '@/app/actions/storage';
 import { listShopCategoryTreeAction } from '@/app/actions/shopCategories';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
@@ -17,9 +17,9 @@ import {
 	type CategorySpotlightRailItem,
 } from '@/lib/categorySpotlightRailConfig';
 import {
-	buildUniqueSubcategoryTipoPicks,
+	buildCategorySpotlightPicks,
 	CUSTOM_CATALOG_LINK_ID,
-	matchSpotlightSubPickId,
+	matchCategorySpotlightPickId,
 	catalogAdminSelectClass,
 } from '@/lib/catalogAdminLinks';
 import type { ShopCategoryTree } from '@/lib/data/shopCategories';
@@ -31,7 +31,7 @@ const serif = "'Cormorant Garamond', serif";
 const HERO_UPLOAD_MAX_BYTES = 12 * 1024 * 1024;
 const IMG_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
 
-const MAX_ITEMS = 12;
+const MAX_ITEMS = 24;
 const MIN_ITEMS = 1;
 
 function blankItem(): CategorySpotlightRailItem {
@@ -54,7 +54,9 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 	const pendingImgIdxRef = useRef<number | null>(null);
 	const imgInputRef = useRef<HTMLInputElement>(null);
 
-	const subPicks = useMemo(() => buildUniqueSubcategoryTipoPicks(categoryTree), [categoryTree]);
+	const categoryPicks = useMemo(() => buildCategorySpotlightPicks(categoryTree), [categoryTree]);
+	const linePicks = useMemo(() => categoryPicks.filter((p) => p.id.startsWith('line:')), [categoryPicks]);
+	const comboPicks = useMemo(() => categoryPicks.filter((p) => p.id.startsWith('combo:')), [categoryPicks]);
 
 	useEffect(() => {
 		void getSiteHomeConfigAction().then((cfg) => {
@@ -67,11 +69,20 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 	useEffect(() => {
 		let cancelled = false;
 		setCategoriesLoading(true);
-		void listShopCategoryTreeAction().then((tree) => {
-			if (cancelled) return;
-			setCategoryTree(Array.isArray(tree) ? tree : []);
-			setCategoriesLoading(false);
-		});
+		void listShopCategoryTreeAction()
+			.then((tree) => {
+				if (cancelled) return;
+				setCategoryTree(Array.isArray(tree) ? tree : []);
+			})
+			.catch((e) => {
+				if (cancelled) return;
+				const msg = e instanceof Error ? e.message : 'No se pudieron cargar las categorías.';
+				toast.error(msg);
+				setCategoryTree([]);
+			})
+			.finally(() => {
+				if (!cancelled) setCategoriesLoading(false);
+			});
 		return () => {
 			cancelled = true;
 		};
@@ -96,7 +107,7 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 				const fd = new FormData();
 				fd.append('file', file);
 				fd.append('kind', 'image');
-				const res = await uploadSorjuanaMedia(fd);
+				const res = await uploadCategorySpotlightImageToCloudinary(fd);
 				if (!res.ok) {
 					toast.error(res.message);
 					return;
@@ -145,7 +156,7 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 				return;
 			}
 			setItems(normalized);
-			toast.success('Categorías guardadas en el sitio');
+			toast.success('Categorías guardadas en Firestore (visible en el inicio).');
 		});
 	}, [items]);
 
@@ -192,13 +203,35 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 		});
 	}, []);
 
+	const importAllFromTree = useCallback(() => {
+		if (categoryPicks.length === 0) {
+			toast.error('No hay categorías cargadas. Creá categorías en /app/categorias primero.');
+			return;
+		}
+		const placeholder =
+			'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=400&q=80';
+		const imported: CategorySpotlightRailItem[] = categoryPicks.slice(0, MAX_ITEMS).map((p) => ({
+			slug: p.slug,
+			label: p.defaultLabel,
+			href: p.href,
+			imageUrl: placeholder,
+		}));
+		if (categoryPicks.length > MAX_ITEMS) {
+			toast.message(`Se importaron ${MAX_ITEMS} de ${categoryPicks.length} (límite del carrusel).`);
+		}
+		setPickForceCustom({});
+		setItems(imported);
+		setActiveIdx(0);
+		toast.success('Listado armado desde categorías y subcategorías. Cambiá imágenes y títulos, luego guardá.');
+	}, [categoryPicks]);
+
 	const slide = items[activeIdx] ?? null;
 
 	const spotPickId = useMemo(() => {
 		if (!slide) return CUSTOM_CATALOG_LINK_ID;
 		if (pickForceCustom[activeIdx]) return CUSTOM_CATALOG_LINK_ID;
-		return matchSpotlightSubPickId(slide, subPicks);
-	}, [slide, activeIdx, pickForceCustom, subPicks]);
+		return matchCategorySpotlightPickId(slide, categoryPicks);
+	}, [slide, activeIdx, pickForceCustom, categoryPicks]);
 
 	if (!slide) return null;
 
@@ -223,8 +256,8 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 					Explorá por categoría
 				</h2>
 				<p className="text-sm text-[#6b6156]" style={{ fontFamily: sans, fontWeight: 300 }}>
-					Los círculos bajo la franja de colección. Podés cambiar foto, texto visible y a dónde lleva el clic
-					(catálogo filtrado, otra página o enlace externo).
+					Los círculos bajo la colección. Elegí categoría o subcategoría, editá el título visible, subí la imagen
+					(Cloudinary) y guardá en Firestore.
 				</p>
 
 				<div className="mt-4 flex flex-wrap items-center gap-2">
@@ -255,6 +288,16 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 						<Plus className="mr-1 h-3.5 w-3.5" />
 						Añadir
 					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						className="h-8 border-[#b8956a]/40 text-xs"
+						onClick={importAllFromTree}
+						disabled={categoriesLoading || categoryPicks.length === 0}
+					>
+						Importar todas
+					</Button>
 				</div>
 			</div>
 
@@ -280,7 +323,7 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 					<div className="space-y-3">
 						<div className="space-y-2">
 							<Label htmlFor={`csr-subpick-${activeIdx}`} style={{ fontFamily: sans }}>
-								Subcategoría (una por tipo, todas las categorías)
+								Categoría o subcategoría
 							</Label>
 							<select
 								id={`csr-subpick-${activeIdx}`}
@@ -299,31 +342,50 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 										delete next[activeIdx];
 										return next;
 									});
-									const pick = subPicks.find((p) => p.id === id);
+									const pick = categoryPicks.find((p) => p.id === id);
 									if (pick) {
 										updateItem(activeIdx, {
 											slug: pick.slug,
 											href: pick.href,
-											label: pick.subName,
+											label: pick.defaultLabel,
 										});
 									}
 								}}
 							>
-								{subPicks.map((p) => (
-									<option key={p.id} value={p.id}>
-										{p.label}
-									</option>
-								))}
+								{linePicks.length > 0 ? (
+									<optgroup label="Categorías">
+										{linePicks.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.label}
+											</option>
+										))}
+									</optgroup>
+								) : null}
+								{comboPicks.length > 0 ? (
+									<optgroup label="Subcategorías">
+										{comboPicks.map((p) => (
+											<option key={p.id} value={p.id}>
+												{p.label}
+											</option>
+										))}
+									</optgroup>
+								) : null}
+								{!categoriesLoading && categoryPicks.length === 0 ? (
+									<option value={CUSTOM_CATALOG_LINK_ID}>Sin categorías en el panel admin</option>
+								) : null}
 								<option value={CUSTOM_CATALOG_LINK_ID}>Otro (slug y enlace manual)…</option>
 							</select>
 							<p className="text-[0.7rem] leading-snug text-[#8a7a68]" style={{ fontFamily: sans, fontWeight: 300 }}>
-								Cada opción es única: por ejemplo un solo «Pantalones» reúne italiano, nacional, etc. No se
-								repite por cada categoría padre.
+								Las opciones salen de{' '}
+								<Link href="/app/categorias" className="underline decoration-[#b8956a]/50">
+									Categorías
+								</Link>
+								. Podés usar «Importar todas» para armar el carrusel de una vez.
 							</p>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor={`csr-label-${activeIdx}`} style={{ fontFamily: sans }}>
-								Texto debajo del círculo
+								Título (texto debajo del círculo)
 							</Label>
 							<Input
 								id={`csr-label-${activeIdx}`}
@@ -345,7 +407,7 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 										onChange={(e) => {
 											const raw = e.target.value.trim().toLowerCase();
 											updateItem(activeIdx, { slug: raw });
-											const matched = matchSpotlightSubPickId({ slug: raw, href: slide.href }, subPicks);
+											const matched = matchCategorySpotlightPickId({ slug: raw, href: slide.href }, categoryPicks);
 											if (matched !== CUSTOM_CATALOG_LINK_ID) {
 												setPickForceCustom((prev) => {
 													const next = { ...prev };
@@ -369,7 +431,7 @@ export function MapaPaginaCategorySpotlightRailPanel() {
 										onChange={(e) => {
 											const href = e.target.value;
 											updateItem(activeIdx, { href });
-											const matched = matchSpotlightSubPickId({ slug: slide.slug, href }, subPicks);
+											const matched = matchCategorySpotlightPickId({ slug: slide.slug, href }, categoryPicks);
 											if (matched !== CUSTOM_CATALOG_LINK_ID) {
 												setPickForceCustom((prev) => {
 													const next = { ...prev };

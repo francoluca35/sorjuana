@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { getSiteHomeConfigAction, saveHeroSlidesAction } from '@/app/actions/siteHomeConfig';
 import { fetchAllProductsForPanelAction } from '@/app/actions/products';
-import { uploadSorjuanaMedia } from '@/app/actions/storage';
+import { uploadHeroImageToCloudinary } from '@/app/actions/storage';
 import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
@@ -18,6 +18,7 @@ import {
 	HERO_SLIDES_MAX,
 	HERO_SLIDES_MIN,
 	resizeHeroSlides,
+	writeHeroSlidesToStorage,
 	type HeroHotspot,
 	type HeroSlide,
 } from '@/lib/heroSlidesConfig';
@@ -286,7 +287,7 @@ export function MapaPaginaHeroEditor() {
 				const fd = new FormData();
 				fd.append('file', file);
 				fd.append('kind', 'image');
-				const res = await uploadSorjuanaMedia(fd);
+				const res = await uploadHeroImageToCloudinary(fd);
 				if (!res.ok) {
 					toast.error(res.message);
 					return;
@@ -316,6 +317,7 @@ export function MapaPaginaHeroEditor() {
 				toast.error(res.message ?? 'No se pudo guardar el carrusel. Si las imágenes son muy pesadas, probá otras más livianas.');
 				return;
 			}
+			writeHeroSlidesToStorage(slides);
 			broadcastHeroSlidesUpdated();
 			toast.success('Carrusel guardado en el sitio (visible para todos los visitantes).');
 		});
@@ -333,6 +335,7 @@ export function MapaPaginaHeroEditor() {
 				toast.error(res.message ?? 'No se pudo guardar el predeterminado.');
 				return;
 			}
+			writeHeroSlidesToStorage(DEFAULT_HERO_SLIDES);
 			broadcastHeroSlidesUpdated();
 			toast.message('Restaurado al contenido por defecto y guardado en el sitio');
 		});

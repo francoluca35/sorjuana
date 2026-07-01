@@ -29,7 +29,7 @@ import {
 	BEST_SELLERS_MAX,
 	BEST_SELLERS_UPDATED_EVENT,
 	parseStoredProductIds,
-	resolveRecentArrivalsForDisplay,
+	resolveBestSellersForDisplay,
 } from '@/lib/bestSellersSelection';
 
 type GridProduct = {
@@ -82,10 +82,12 @@ function usePrefersReducedMotion() {
 export function PopularProducts({
 	products,
 	bestSellersIdsJson,
+	bestSellersAutoFallback,
 }: {
 	products: ProductRow[];
-	/** IDs publicados (Supabase `site_home_config`), mismo formato que antes en localStorage. */
 	bestSellersIdsJson: string;
+	/** Sin selección manual: top por unidades vendidas (pagadas). */
+	bestSellersAutoFallback: ProductRow[];
 }) {
 	const [selectionRaw, setSelectionRaw] = React.useState(bestSellersIdsJson);
 
@@ -139,8 +141,8 @@ export function PopularProducts({
 	}, [products, supplementalRows]);
 
 	const displayRows = React.useMemo(
-		() => resolveRecentArrivalsForDisplay(selectionPool, orderedIds, products, BEST_SELLERS_MAX),
-		[selectionPool, orderedIds, products],
+		() => resolveBestSellersForDisplay(selectionPool, orderedIds, bestSellersAutoFallback, BEST_SELLERS_MAX),
+		[selectionPool, orderedIds, bestSellersAutoFallback],
 	);
 
 	const gridProducts = React.useMemo(() => displayRows.map(mapRowToGridProduct), [displayRows]);

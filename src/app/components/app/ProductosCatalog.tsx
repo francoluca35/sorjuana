@@ -719,7 +719,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     setProducts((prev) => prev.filter((x) => x.id !== draft.id));
     setSheetOpen(false);
     setDraft(null);
-    toast.success('Producto eliminado de la base de datos.');
+    toast.success('Producto eliminado (Firestore y archivos en Cloudinary).');
     router.refresh();
   }
 
@@ -778,7 +778,7 @@ export function ProductosCatalog({ initialProducts }: { initialProducts: Catalog
     clearSelection();
     setSheetOpen(false);
     setDraft(null);
-    toast.success(`${res.deleted} producto(s) eliminado(s) de la base de datos.`);
+    toast.success(`${res.deleted} producto(s) eliminado(s) (Firestore y Cloudinary).`);
     router.refresh();
   }
 
